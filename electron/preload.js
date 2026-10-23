@@ -47,6 +47,10 @@ contextBridge.exposeInMainWorld('riftAPI', {
     return ipcRenderer.invoke('import-spells', { spell1Id, spell2Id });
   },
 
+  exportItemSet: (itemSet) => {
+    return ipcRenderer.invoke('export-item-set', itemSet);
+  },
+
   acceptMatch: () => {
     return ipcRenderer.invoke('accept-match');
   },

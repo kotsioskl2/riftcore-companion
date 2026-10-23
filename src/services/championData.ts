@@ -1,5 +1,6 @@
 import { patchService } from './patchService';
 import { ChampionBuild } from '../types';
+import { buildChampionProfile } from './championBuildEngine';
 
 export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: string; roles: string[] }[] = [
   {
@@ -2091,132 +2092,17 @@ export const CHAMPION_BUILDS: Record<number, ChampionBuild> = {
   }
 };
 
-// Fallback build generator for any champion in the game
+// Dynamic build generator for all 169+ champions
 export function getChampionBuild(championId: number, championName?: string): ChampionBuild {
-  if (CHAMPION_BUILDS[championId]) {
-    return CHAMPION_BUILDS[championId];
-  }
-
-  // Find info from list or use defaults
-  const champ = CHAMPIONS_LIST.find(c => c.id === championId) || {
+  if (CHAMPION_BUILDS[championId]) return CHAMPION_BUILDS[championId];
+  const list = patchService.getChampions() || CHAMPIONS_LIST;
+  const champ = list.find((ch) => ch.id === championId) || {
     id: championId,
     name: championName || 'Champion',
     key: championName || 'Champion',
     roles: ['MID']
   };
-
-  const role = (champ.roles[0] || 'MID') as ChampionBuild['role'];
-
-  // Smart defaults based on role
-  let primaryStyleId = 8000;
-  let primaryStyleName = 'Precision';
-  let subStyleId = 8400;
-  let subStyleName = 'Resolve';
-  let selectedPerkIds = [8010, 9111, 9104, 8299, 8473, 8451, 5008, 5008, 5001];
-  let keystoneId = 8010;
-  let keystoneName = 'Conqueror';
-  let keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/Conqueror/Conqueror.png';
-  let spells: [number, number] = [4, 12];
-  let boots = { id: 3047, name: 'Plated Steelcaps' };
-
-  if (role === 'ADC') {
-    primaryStyleId = 8000;
-    primaryStyleName = 'Precision';
-    subStyleId = 8200;
-    subStyleName = 'Sorcery';
-    selectedPerkIds = [8004, 9101, 9104, 8014, 8210, 8236, 5005, 5008, 5001];
-    keystoneId = 8004;
-    keystoneName = 'Lethal Tempo';
-    keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png';
-    spells = [4, 7]; // Flash, Heal
-    boots = { id: 3006, name: "Berserker's Greaves" };
-  } else if (role === 'SUPPORT') {
-    primaryStyleId = 8300;
-    primaryStyleName = 'Inspiration';
-    subStyleId = 8400;
-    subStyleName = 'Resolve';
-    selectedPerkIds = [8351, 8304, 8345, 8347, 8473, 8453, 5007, 5008, 5001];
-    keystoneId = 8351;
-    keystoneName = 'Glacial Augment';
-    keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/GlacialAugment/GlacialAugment.png';
-    spells = [4, 14]; // Flash, Ignite
-    boots = { id: 3117, name: 'Mobility Boots' };
-  } else if (role === 'JUNGLE') {
-    spells = [4, 11]; // Flash, Smite
-  } else if (role === 'MID') {
-    primaryStyleId = 8100;
-    primaryStyleName = 'Domination';
-    subStyleId = 8200;
-    subStyleName = 'Sorcery';
-    selectedPerkIds = [8112, 8139, 8138, 8106, 8226, 8210, 5008, 5008, 5001];
-    keystoneId = 8112;
-    keystoneName = 'Electrocute';
-    keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png';
-    boots = { id: 3020, name: "Sorcerer's Shoes" };
-  }
-
-  return {
-    championId: champ.id,
-    championName: champ.name,
-    key: champ.key,
-    role,
-    tier: 'S',
-    winRate: 51.4,
-    pickRate: 6.8,
-    banRate: 4.2,
-    runes: {
-      primaryStyleId,
-      primaryStyleName,
-      subStyleId,
-      subStyleName,
-      selectedPerkIds,
-      keystoneId,
-      keystoneName,
-      keystoneIcon
-    },
-    secondaryRunes: {
-      primaryStyleId,
-      primaryStyleName,
-      subStyleId,
-      subStyleName,
-      selectedPerkIds,
-      keystoneId,
-      keystoneName,
-      keystoneIcon
-    },
-    spells,
-    skillOrder: ['Q', 'E', 'W', 'Q', 'Q', 'R', 'Q', 'E', 'Q', 'E', 'R', 'E', 'E', 'W', 'W', 'R', 'W', 'W'],
-    skillPriority: 'Q > E > W',
-    startingItems: [
-      { id: 1055, name: "Doran's Blade" },
-      { id: 2003, name: 'Health Potion' }
-    ],
-    coreItems: [
-      { id: 6692, name: 'Eclipse' },
-      { id: 6694, name: 'Sundered Sky' },
-      { id: 3071, name: 'Black Cleaver' }
-    ],
-    situationalItems: [
-      { id: 3053, name: "Sterak's Gage" },
-      { id: 3026, name: 'Guardian Angel' },
-      { id: 3157, name: "Zhonya's Hourglass" }
-    ],
-    boots,
-    counters: {
-      strongAgainst: [
-        { name: 'Sion', winRate: 54.2 },
-        { name: 'Kennen', winRate: 53.6 }
-      ],
-      weakAgainst: [
-        { name: 'Fiora', winRate: 46.5 },
-        { name: 'Irelia', winRate: 47.1 }
-      ]
-    },
-    tips: [
-      'Focus on your core item spikes to dominate teamfights.',
-      'Track enemy cooldowns before initiating trades.'
-    ]
-  };
+  return buildChampionProfile(champ.id, champ.name, champ.key);
 }
 
 export function getChampionIcon(championIdOrKey: number | string): string {

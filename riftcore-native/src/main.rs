@@ -939,6 +939,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
                         });
                     }
+                    "export-item-set" => {
+                        let item_set = json.get("itemSet").cloned();
+                        let creds = state_clone.lock().unwrap().credentials.clone();
+                        let client = http_clone.clone();
+                        let proxy_worker = proxy_ipc.clone();
+
+                        tokio::spawn(async move {
+                            if let (Some(c), Some(new_set)) = (creds, item_set) {
+                                let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", c.token)));
+
+                                // 1. Get current summonerId
+                                let summ_url = format!("https://127.0.0.1:{}/lol-summoner/v1/current-summoner", c.port);
+                                if let Ok(s_res) = client.get(&summ_url).header("Authorization", &auth).send().await {
+                                    if let Ok(summ_json) = s_res.json::<serde_json::Value>().await {
+                                        if let Some(summoner_id) = summ_json.get("summonerId").and_then(|v| v.as_i64()) {
+                                            // 2. Fetch existing sets
+                                            let sets_url = format!("https://127.0.0.1:{}/lol-item-sets/v1/item-sets/{}/sets", c.port, summoner_id);
+                                            let mut sets_obj = match client.get(&sets_url).header("Authorization", &auth).send().await {
+                                                Ok(r) => r.json::<serde_json::Value>().await.unwrap_or_else(|_| serde_json::json!({ "itemSets": [] })),
+                                                Err(_) => serde_json::json!({ "itemSets": [] }),
+                                            };
+
+                                            if let Some(arr) = sets_obj.get_mut("itemSets").and_then(|v| v.as_array_mut()) {
+                                                let target_champ = new_set.get("associatedChampions")
+                                                    .and_then(|ac| ac.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_i64());
+
+                                                arr.retain(|s| {
+                                                    let is_rift = s.get("title").and_then(|t| t.as_str()).map(|t| t.starts_with("⚡ RiftCore:")).unwrap_or(false);
+                                                    let match_champ = s.get("associatedChampions")
+                                                        .and_then(|ac| ac.as_array())
+                                                        .and_then(|a| a.first())
+                                                        .and_then(|v| v.as_i64()) == target_champ;
+                                                    !(is_rift && match_champ)
+                                                });
+                                                arr.push(new_set);
+                                            }
+
+                                            // 3. Save back
+                                            let _ = client.put(&sets_url).header("Authorization", &auth).json(&sets_obj).send().await;
+                                        }
+                                    }
+                                }
+                            }
+                            let script = format!("window.__riftIpcReply({}, null, {{ success: true }});", req_id);
+                            let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
+                        });
+                    }
                     "get-live-client-data" => {
                         let client = http_clone.clone();
                         let proxy_worker = proxy_ipc.clone();

@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoAccept: true,
   autoImportRunes: false,
   autoImportSpells: false,
+  autoImportItemSets: true,
   soundAlerts: true,
   theme: 'hextech',
   alwaysOnTop: false,
@@ -134,6 +135,10 @@ export function initRustBridge() {
 
     importSpells: (spell1Id: number, spell2Id: number) => {
       return sendRustIpc('import-spells', { spell1Id, spell2Id });
+    },
+
+    exportItemSet: (itemSet: any) => {
+      return sendRustIpc('export-item-set', { itemSet });
     },
 
     acceptMatch: () => {

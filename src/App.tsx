@@ -45,6 +45,7 @@ export const App: React.FC = () => {
     autoAccept: true,
     autoImportRunes: false,
     autoImportSpells: false,
+    autoImportItemSets: true,
     soundAlerts: true,
     theme: 'hextech',
     alwaysOnTop: false,

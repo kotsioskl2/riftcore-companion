@@ -366,6 +366,41 @@ ipcMain.handle('import-spells', async (_event, { spell1Id, spell2Id }) => {
   });
 });
 
+ipcMain.handle('export-item-set', async (_event, itemSetPayload) => {
+  if (!lcuCredentials) throw new Error('League Client not running');
+
+  // 1. Get summonerId
+  const summoner = await requestLCU('/lol-summoner/v1/current-summoner');
+  if (!summoner || !summoner.summonerId) throw new Error('Summoner not found');
+  const summonerId = summoner.summonerId;
+
+  // 2. Fetch existing item sets
+  let setsData = { itemSets: [], timestamp: Date.now() };
+  try {
+    const existing = await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`);
+    if (existing && Array.isArray(existing.itemSets)) {
+      setsData = existing;
+    }
+  } catch {}
+
+  // 3. Remove old RiftCore set for this specific champion
+  const champId = itemSetPayload.associatedChampions?.[0];
+  setsData.itemSets = setsData.itemSets.filter(s => {
+    if (s.title && s.title.startsWith('⚡ RiftCore:')) {
+      if (champId && Array.isArray(s.associatedChampions) && s.associatedChampions.includes(champId)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // 4. Append new item set
+  setsData.itemSets.push(itemSetPayload);
+
+  // 5. Save back via PUT
+  return await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`, 'PUT', setsData);
+});
+
 ipcMain.handle('accept-match', async () => {
   if (!lcuCredentials) throw new Error('League Client not running');
   return await requestLCU('/lol-matchmaking/v1/ready-check/accept', 'POST');

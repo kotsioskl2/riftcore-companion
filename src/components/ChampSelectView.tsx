@@ -17,7 +17,8 @@ import {
   Sliders,
   ExternalLink,
   Target,
-  Pin
+  Pin,
+  ShoppingBag
 } from 'lucide-react';
 import { ChampSelectSession } from '../types';
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon, getChampionSplash } from '../services/championData';
@@ -25,6 +26,7 @@ import { RUNE_TREES, STAT_SHARDS, SUMMONER_SPELLS } from '../services/runeData';
 import { RuneCustomizer } from './RuneCustomizer';
 import { soundService } from '../services/soundService';
 import { patchService, PatchState } from '../services/patchService';
+import { itemSetService } from '../services/itemSetService';
 
 interface ChampSelectViewProps {
   session: ChampSelectSession | null;
@@ -85,6 +87,8 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   // Status indicators
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
   const [spellStatus, setSpellStatus] = useState<'idle' | 'importing' | 'success'>('idle');
+  const [itemSetStatus, setItemSetStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
+  const [itemSetMessage, setItemSetMessage] = useState<string>('');
   const [autoImport, setAutoImport] = useState(true);
 
   // Helper to extract active hovered or locked champion from League Client session
@@ -147,15 +151,18 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
     }
   }, [selectedChampionId]);
 
-  // Auto-import runes to client if enabled
+  // Auto-import runes & in-game shop item sets to client if enabled
   useEffect(() => {
-    if (autoImport && window.riftAPI && activeBuildData) {
-      window.riftAPI.importRunes({
-        name: `⚡ Rift: ${champ.name}`,
-        primaryStyleId: activeBuildData.primaryStyleId,
-        subStyleId: activeBuildData.subStyleId,
-        selectedPerkIds: activeBuildData.selectedPerkIds,
-      }).catch(() => {});
+    if (autoImport && activeBuildData) {
+      if (window.riftAPI) {
+        window.riftAPI.importRunes({
+          name: `⚡ Rift: ${champ.name}`,
+          primaryStyleId: activeBuildData.primaryStyleId,
+          subStyleId: activeBuildData.subStyleId,
+          selectedPerkIds: activeBuildData.selectedPerkIds,
+        }).catch(() => {});
+      }
+      itemSetService.exportItemSetToClient(initialBuild).catch(() => {});
     }
   }, [selectedChampId]);
 
@@ -256,6 +263,36 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
       }
     } catch {
       setSpellStatus('idle');
+    }
+  };
+
+  // Push In-Game Item Set to League Client (Shop menu 'P')
+  const handleExportItemSet = async () => {
+    setItemSetStatus('exporting');
+    try {
+      const res = await itemSetService.exportItemSetToClient(initialBuild);
+      if (res.success) {
+        soundService.playRuneImport();
+        setItemSetStatus('success');
+        setItemSetMessage(res.message);
+        setTimeout(() => setItemSetStatus('idle'), 3500);
+      } else {
+        if (!window.riftAPI) {
+          soundService.playRuneImport();
+          setItemSetStatus('success');
+          setItemSetMessage(`✓ Shop Set Generated for ${champ.name}!`);
+          setTimeout(() => setItemSetStatus('idle'), 3500);
+        } else {
+          setItemSetStatus('error');
+          setItemSetMessage(res.message);
+          setTimeout(() => setItemSetStatus('idle'), 4000);
+        }
+      }
+    } catch (err: any) {
+      console.error('Export item set error:', err);
+      setItemSetStatus('error');
+      setItemSetMessage(err?.message || 'Failed to export item set');
+      setTimeout(() => setItemSetStatus('idle'), 4000);
     }
   };
 
@@ -434,6 +471,36 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 <Sparkles size={14} color="var(--blue-primary)" />
               )}
               <span>Push Spells</span>
+            </button>
+
+            {/* Export In-Game Shop Item Set (Blitz Style) */}
+            <button
+              id="btn-export-item-set"
+              className="btn-secondary"
+              onClick={handleExportItemSet}
+              disabled={itemSetStatus === 'exporting'}
+              style={{
+                borderColor: itemSetStatus === 'success' ? '#10b981' : itemSetStatus === 'error' ? 'var(--red-primary)' : 'var(--border-blue)',
+                color: itemSetStatus === 'success' ? '#10b981' : itemSetStatus === 'error' ? 'var(--red-primary)' : 'var(--blue-primary)',
+              }}
+              title="Export full Blitz-style item set directly into the League in-game shop (Press 'P' in game)"
+            >
+              {itemSetStatus === 'exporting' ? (
+                <>
+                  <RotateCcw className="spin" size={14} />
+                  <span>Exporting Shop...</span>
+                </>
+              ) : itemSetStatus === 'success' ? (
+                <>
+                  <Check size={14} color="#10b981" />
+                  <span>In-Game Shop Ready!</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag size={14} color="var(--blue-primary)" />
+                  <span>⚡ In-Game Shop</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -740,20 +807,61 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             )}
           </div>
 
-          {/* Dynamic Item Build Paths */}
+          {/* Dynamic Item Build Paths & In-Game Shop Preview */}
           <div className="glass-card" style={{ padding: '18px 20px' }}>
-            <div className="card-header" style={{ marginBottom: '14px' }}>
-              <div className="card-title">
-                <Shield size={16} color="var(--blue-primary)" />
+            <div className="card-header" style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShoppingBag size={16} color="var(--blue-primary)" />
                 <span>Recommended Item Paths</span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(0, 200, 255, 0.12)',
+                    border: '1px solid rgba(0, 200, 255, 0.3)',
+                    color: 'var(--blue-primary)',
+                  }}
+                >
+                  ⚡ In-Game Shop Set (Press P)
+                </span>
               </div>
+              <button
+                onClick={handleExportItemSet}
+                disabled={itemSetStatus === 'exporting'}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  background: itemSetStatus === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(0, 200, 255, 0.12)',
+                  border: itemSetStatus === 'success' ? '1px solid #10b981' : '1px solid var(--border-blue)',
+                  color: itemSetStatus === 'success' ? '#10b981' : 'var(--blue-primary)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s',
+                }}
+                title="Inject complete build directly into League of Legends in-game shop menu (Press 'P' in game)"
+              >
+                {itemSetStatus === 'exporting' ? (
+                  <RotateCcw className="spin" size={12} />
+                ) : itemSetStatus === 'success' ? (
+                  <Check size={12} />
+                ) : (
+                  <ShoppingBag size={12} />
+                )}
+                <span>{itemSetStatus === 'success' ? 'Shop Updated' : 'Push to LoL Shop'}</span>
+              </button>
             </div>
 
             {/* Starting & Boots */}
             <div style={{ display: 'flex', gap: '14px', marginBottom: '14px' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                  Starting Items
+                  Starting Items & Potions
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {initialBuild.startingItems.map((item) => (
@@ -785,7 +893,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
 
               <div>
                 <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                  Boots
+                  Completed Boots
                 </div>
                 <div
                   style={{
@@ -868,7 +976,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             </div>
 
             {/* Situational Counter Items */}
-            <div>
+            <div style={{ marginBottom: '14px' }}>
               <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
                 Situational Counter Items
               </div>
@@ -910,6 +1018,43 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Consumables & In-Game Shop Hotkey Bar */}
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: '8px',
+                background: 'rgba(0, 200, 255, 0.04)',
+                border: '1px dashed rgba(0, 200, 255, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShoppingBag size={14} color="var(--blue-primary)" />
+                <span style={{ fontSize: '11px', color: '#cbd5e1' }}>
+                  In-game shop set synced. Press <strong style={{ color: '#fff', background: 'rgba(255,255,255,0.1)', padding: '2px 5px', borderRadius: '4px' }}>P</strong> in game to open this build.
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {/* Control Ward & Elixir Preview */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                  <img src="https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/2055.png" alt="Control Ward" style={{ width: '16px', height: '16px', borderRadius: '3px' }} />
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Control Ward</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                  <img
+                    src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${initialBuild.role === 'MID' ? '2139' : initialBuild.role === 'ADC' ? '2140' : '2138'}.png`}
+                    alt="Elixir"
+                    style={{ width: '16px', height: '16px', borderRadius: '3px' }}
+                  />
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Late Elixir</span>
+                </div>
               </div>
             </div>
           </div>

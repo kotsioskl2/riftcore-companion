@@ -115,6 +115,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Auto Export In-Game Item Sets (Blitz Style) */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Auto Export In-Game Item Sets</span>
+                <span style={{ fontSize: '10px', background: 'rgba(0, 200, 255, 0.15)', color: 'var(--blue-primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                  BLITZ STYLE
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                Automatically injects personalized item builds directly into your League in-game shop (Press 'P' in game).
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.autoImportItemSets ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('autoImportItemSets', !settings.autoImportItemSets)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
           {/* Audio Alerts */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
             <div>
