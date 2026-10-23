@@ -1,5 +1,4 @@
-import React from 'react';
-import { Zap, Crosshair, Crown, User, Settings, Volume2, CheckCircle2 } from 'lucide-react';
+import { Zap, Crosshair, Crown, User, Settings, Volume2, CheckCircle2, Users } from 'lucide-react';
 import { AppSettings } from '../types';
 
 interface SidebarProps {
@@ -17,6 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { id: 'champ-select', label: 'Champ Select', icon: Zap, badge: 'Live' },
+    { id: 'lobby-scout', label: 'Lobby Scout', icon: Users, badge: 'Smart' },
     { id: 'live-overlay', label: 'In-Game HUD', icon: Crosshair },
     { id: 'champions', label: 'Tier List & Builds', icon: Crown },
     { id: 'profile', label: 'Profile & History', icon: User },

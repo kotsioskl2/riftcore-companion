@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
 import { ChampSelectView } from './components/ChampSelectView';
+import { LobbyScoutView } from './components/LobbyScoutView';
 import { LiveGameOverlay } from './components/LiveGameOverlay';
 import { SummonerProfileView } from './components/SummonerProfileView';
 import { ChampionTierListView } from './components/ChampionTierListView';
@@ -248,6 +249,14 @@ export const App: React.FC = () => {
         <main className="main-viewport" id="app-viewport">
           {activeTab === 'champ-select' && (
             <ChampSelectView session={champSelectSession} />
+          )}
+
+          {activeTab === 'lobby-scout' && (
+            <LobbyScoutView
+              session={champSelectSession}
+              summoner={summoner}
+              rankedData={rankedData}
+            />
           )}
 
           {activeTab === 'live-overlay' && (
