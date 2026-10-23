@@ -134,7 +134,7 @@ export const ChampionTierListView: React.FC<ChampionTierListViewProps> = ({ onSe
               cursor: 'pointer',
               transition: 'all 0.15s ease',
             }}
-            onClick={() => onSelectChampion(champ.id)}
+            onClick={() => onSelectChampion(Number(champ.id))}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <img
@@ -165,7 +165,7 @@ export const ChampionTierListView: React.FC<ChampionTierListViewProps> = ({ onSe
               style={{ padding: '6px 10px', fontSize: '11px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                onSelectChampion(champ.id);
+                onSelectChampion(Number(champ.id));
               }}
             >
               <Zap size={13} color="var(--blue-primary)" />

@@ -206,6 +206,8 @@ function connectWebSocket(credentials) {
   ws.on('close', () => {
     console.log('[HexCore] LCU WebSocket Closed');
     notifyRenderer('lcu-status', { connected: false });
+    champSelectSession = null;
+    notifyRenderer('champ-select-session', null);
     lcuCredentials = null;
     lcuWebSocket = null;
   });
@@ -233,6 +235,7 @@ function handleLCUEvent(event) {
         .catch(() => {});
     } else {
       champSelectSession = null;
+      notifyRenderer('champ-select-session', null);
     }
 
     // If entering InProgress, start polling Live Client Data
@@ -255,8 +258,13 @@ function handleLCUEvent(event) {
 
   // 3. Champ Select Session
   if (uri === '/lol-champ-select/v1/session') {
-    champSelectSession = data;
-    notifyRenderer('champ-select-session', data);
+    if (eventType === 'Delete') {
+      champSelectSession = null;
+      notifyRenderer('champ-select-session', null);
+    } else {
+      champSelectSession = data;
+      notifyRenderer('champ-select-session', data);
+    }
   }
 }
 

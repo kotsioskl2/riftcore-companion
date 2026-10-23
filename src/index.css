@@ -560,10 +560,22 @@ body {
   align-items: start;
 }
 
+@media (max-width: 1050px) {
+  .champ-select-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .rune-dual-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  grid-template-columns: 1fr;
   gap: 16px;
+}
+
+@media (min-width: 1550px) {
+  .rune-dual-columns {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
 }
 
 .draft-board-grid {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Zap,
   Shield,
@@ -42,6 +42,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
   const [selectedChampId, setSelectedChampId] = useState<number>(selectedChampionId || 420);
   const [lastSyncedLcuChampId, setLastSyncedLcuChampId] = useState<number>(0);
+  const isFirstMountRef = useRef(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
   const [showFullRosterModal, setShowFullRosterModal] = useState(false);
@@ -55,7 +56,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   const currentChampions = patchService.getChampions() || CHAMPIONS_LIST;
 
   // Active Build & Customization State
-  const champ = currentChampions.find((c) => c.id === selectedChampId) || currentChampions[0];
+  const champ = currentChampions.find((c) => Number(c.id) === Number(selectedChampId)) || currentChampions[0];
   const initialBuild = getChampionBuild(champ.id, champ.name);
 
   // Per-champion custom overrides (presets, custom runes, and swapped spells)
@@ -137,16 +138,29 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   useEffect(() => {
     if (!session) return;
     const lcuChampId = extractLcuChampionId(session);
-    if (lcuChampId > 0 && lcuChampId !== lastSyncedLcuChampId) {
+    if (lcuChampId <= 0) return;
+
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      setLastSyncedLcuChampId(lcuChampId);
+      // Only set LCU champion on initial mount if user didn't explicitly request a specific champion
+      if (!selectedChampionId) {
+        setSelectedChampId(lcuChampId);
+        if (onSelectChampion) onSelectChampion(lcuChampId);
+      }
+      return;
+    }
+
+    if (lcuChampId !== lastSyncedLcuChampId) {
       setLastSyncedLcuChampId(lcuChampId);
       setSelectedChampId(lcuChampId);
       if (onSelectChampion) onSelectChampion(lcuChampId);
     }
-  }, [session, lastSyncedLcuChampId]);
+  }, [session, lastSyncedLcuChampId, selectedChampionId, onSelectChampion]);
 
   // Sync when parent component passes a new selectedChampionId (e.g. from Tier List or Draft Simulator)
   useEffect(() => {
-    if (selectedChampionId && selectedChampionId > 0 && selectedChampionId !== selectedChampId) {
+    if (selectedChampionId && selectedChampionId > 0) {
       setSelectedChampId(selectedChampionId);
     }
   }, [selectedChampionId]);
@@ -586,7 +600,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
         {!showFullRosterModal && (
           <div style={{ marginTop: '12px', display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
             {filteredChampions.slice(0, 24).map((c) => {
-              const isSelected = selectedChampId === c.id;
+              const isSelected = Number(selectedChampId) === Number(c.id);
               return (
                 <button
                   key={c.id}
@@ -649,7 +663,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             }}
           >
             {filteredChampions.map((c) => {
-              const isSelected = selectedChampId === c.id;
+              const isSelected = Number(selectedChampId) === Number(c.id);
               return (
                 <button
                   key={c.id}

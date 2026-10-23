@@ -268,7 +268,7 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
               Keystone Perk (Click to switch)
             </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
               {primaryTree.keystones.map((k) => {
                 const isSelected = k.id === keystoneId;
                 return (
@@ -280,7 +280,7 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      padding: '6px 10px',
+                      padding: '8px 10px',
                       borderRadius: '8px',
                       background: isSelected ? 'rgba(0, 200, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
                       border: isSelected ? '2px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
@@ -288,24 +288,26 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                       transition: 'all 0.15s ease',
                       boxShadow: isSelected ? '0 0 14px var(--blue-glow)' : 'none',
                       opacity: isSelected ? 1 : 0.65,
+                      minWidth: 0,
                     }}
                   >
                     <img
                       src={k.icon}
                       alt={k.name}
                       style={{
-                        width: '34px',
-                        height: '34px',
+                        width: '32px',
+                        height: '32px',
                         borderRadius: '50%',
+                        flexShrink: 0,
                         transform: isSelected ? 'scale(1.08)' : 'scale(1)',
                         transition: 'transform 0.15s ease',
                       }}
                     />
-                    <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: isSelected ? '#fff' : '#94a3b8' }}>
+                    <div style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: isSelected ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {k.name}
                       </div>
-                      <div style={{ fontSize: '10px', color: '#64748b', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {k.desc}
                       </div>
                     </div>
@@ -316,7 +318,7 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
           </div>
 
           {/* Primary Minor Slots (3 rows) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {primaryTree.slots.map((row, rowIdx) => {
               const activeSlotPerkId = primarySlotIds[rowIdx];
               return (
@@ -328,14 +330,13 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                     padding: '8px 10px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px',
+                    gap: '10px',
                   }}
                 >
-                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', minWidth: '45px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', width: '45px', flexShrink: 0 }}>
                     Slot {rowIdx + 1}
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'space-around' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', flex: 1 }}>
                     {row.map((perk) => {
                       const isSelected = perk.id === activeSlotPerkId;
                       return (
@@ -347,17 +348,26 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
-                            padding: '4px 8px',
+                            padding: '6px 8px',
                             borderRadius: '6px',
-                            background: isSelected ? 'rgba(0, 200, 255, 0.14)' : 'transparent',
-                            border: isSelected ? '1px solid var(--blue-primary)' : '1px solid transparent',
+                            background: isSelected ? 'rgba(0, 200, 255, 0.14)' : 'rgba(255, 255, 255, 0.02)',
+                            border: isSelected ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
                             cursor: 'pointer',
-                            opacity: isSelected ? 1 : 0.45,
+                            opacity: isSelected ? 1 : 0.6,
                             transition: 'all 0.15s ease',
+                            minWidth: 0,
                           }}
                         >
-                          <img src={perk.icon} alt={perk.name} style={{ width: '22px', height: '22px', borderRadius: '50%' }} />
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: isSelected ? '#fff' : '#94a3b8' }}>
+                          <img src={perk.icon} alt={perk.name} style={{ width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0 }} />
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: isSelected ? '#fff' : '#94a3b8',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            textAlign: 'left',
+                          }}>
                             {perk.name}
                           </span>
                         </button>
@@ -430,9 +440,9 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
               Choose 2 Secondary Perks
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {subTree.slots.map((row, rowIdx) => (
-                <div key={rowIdx} style={{ display: 'flex', gap: '6px', justifyContent: 'space-between' }}>
+                <div key={rowIdx} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                   {row.map((perk) => {
                     const isSelected = secondarySlotIds.includes(perk.id);
                     return (
@@ -441,28 +451,29 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                         onClick={() => handleToggleSecondaryPerk(perk.id)}
                         title={`${perk.name}: ${perk.desc}`}
                         style={{
-                          flex: 1,
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
-                          padding: '4px 6px',
+                          padding: '6px 8px',
                           borderRadius: '6px',
-                          background: isSelected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                          border: isSelected ? '1px solid #22c55e' : '1px solid transparent',
+                          background: isSelected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                          border: isSelected ? '1px solid #22c55e' : '1px solid var(--border-subtle)',
                           cursor: 'pointer',
-                          opacity: isSelected ? 1 : 0.45,
+                          opacity: isSelected ? 1 : 0.6,
                           transition: 'all 0.15s ease',
+                          minWidth: 0,
                         }}
                       >
-                        <img src={perk.icon} alt={perk.name} style={{ width: '18px', height: '18px', borderRadius: '50%' }} />
+                        <img src={perk.icon} alt={perk.name} style={{ width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0 }} />
                         <span
                           style={{
-                            fontSize: '10px',
+                            fontSize: '11px',
                             fontWeight: 600,
                             color: isSelected ? '#fff' : '#94a3b8',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
+                            textAlign: 'left',
                           }}
                         >
                           {perk.name}
@@ -480,11 +491,11 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
               Stat Shards (Click to switch)
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {STAT_SHARD_ROWS.map((shardRow, rowIdx) => {
                 const activeShard = shardIds[rowIdx];
                 return (
-                  <div key={rowIdx} style={{ display: 'flex', gap: '6px' }}>
+                  <div key={rowIdx} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                     {shardRow.map((sId) => {
                       const shardInfo = STAT_SHARDS[sId];
                       const isSelected = sId === activeShard;
@@ -494,24 +505,24 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                           onClick={() => handleSelectShard(rowIdx, sId)}
                           title={shardInfo.name}
                           style={{
-                            flex: 1,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '4px',
-                            padding: '4px 6px',
+                            gap: '6px',
+                            padding: '6px 8px',
                             borderRadius: '6px',
-                            background: isSelected ? 'rgba(0, 200, 255, 0.14)' : 'rgba(255, 255, 255, 0.03)',
+                            background: isSelected ? 'rgba(0, 200, 255, 0.14)' : 'rgba(255, 255, 255, 0.02)',
                             border: isSelected ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
                             cursor: 'pointer',
-                            opacity: isSelected ? 1 : 0.45,
+                            opacity: isSelected ? 1 : 0.6,
                             transition: 'all 0.15s ease',
+                            minWidth: 0,
                           }}
                         >
                           {shardInfo.icon && (
-                            <img src={shardInfo.icon} alt={shardInfo.name} style={{ width: '14px', height: '14px' }} />
+                            <img src={shardInfo.icon} alt={shardInfo.name} style={{ width: '15px', height: '15px', flexShrink: 0 }} />
                           )}
-                          <span style={{ fontSize: '9px', fontWeight: 700, color: isSelected ? '#fff' : '#94a3b8', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: isSelected ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {shardInfo.name.includes('+9 AD/AP')
                               ? '+9 AD/AP'
                               : shardInfo.name.includes('+10% AS')

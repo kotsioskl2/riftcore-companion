@@ -69,11 +69,14 @@ export const App: React.FC = () => {
         setGameflowPhase(res.gameflowPhase);
         if (res.gameflowPhase === 'ChampSelect') {
           setActiveTab('champ-select');
-        } else if (res.gameflowPhase === 'InProgress' || res.gameflowPhase === 'GameStart') {
-          setActiveTab('live-overlay');
-          window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-            if (r) setIsPinned(r.isPinned);
-          });
+        } else {
+          setChampSelectSession(null);
+          if (res.gameflowPhase === 'InProgress' || res.gameflowPhase === 'GameStart') {
+            setActiveTab('live-overlay');
+            window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+              if (r) setIsPinned(r.isPinned);
+            });
+          }
         }
       }
       if (res.connected) fetchInitialData();
@@ -96,6 +99,7 @@ export const App: React.FC = () => {
       } else {
         setSummoner(null);
         setRankedData(null);
+        setChampSelectSession(null);
         setGameflowPhase('None');
       }
     });
@@ -106,23 +110,26 @@ export const App: React.FC = () => {
       if (phase === 'ChampSelect') {
         setActiveTab('champ-select');
         setReadyCheckData(null);
-      } else if (phase === 'ReadyCheck') {
-        soundService.playQueuePop();
-        if (settings.autoAccept && window.riftAPI?.acceptMatch) {
-          console.log('[RiftCore] ReadyCheck phase detected! Auto-accepting match...');
-          setTimeout(() => {
-            window.riftAPI?.acceptMatch().then(() => {
-              soundService.playAutoAccept();
-            });
-          }, 600);
+      } else {
+        setChampSelectSession(null);
+        if (phase === 'ReadyCheck') {
+          soundService.playQueuePop();
+          if (settings.autoAccept && window.riftAPI?.acceptMatch) {
+            console.log('[RiftCore] ReadyCheck phase detected! Auto-accepting match...');
+            setTimeout(() => {
+              window.riftAPI?.acceptMatch().then(() => {
+                soundService.playAutoAccept();
+              });
+            }, 600);
+          }
+        } else if (phase === 'InProgress' || phase === 'GameStart') {
+          setActiveTab('live-overlay');
+          setReadyCheckData(null);
+          // Auto-enable Always-on-Top so overlay floats over borderless League
+          window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+            if (r) setIsPinned(r.isPinned);
+          });
         }
-      } else if (phase === 'InProgress' || phase === 'GameStart') {
-        setActiveTab('live-overlay');
-        setReadyCheckData(null);
-        // Auto-enable Always-on-Top so overlay floats over borderless League
-        window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-          if (r) setIsPinned(r.isPinned);
-        });
       }
     });
 
