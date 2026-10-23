@@ -78,10 +78,16 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   return (
     <header className="titlebar" id="app-titlebar">
       <div className="titlebar-brand">
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <div className="brand-dot-blue" />
-          <div className="brand-dot-red" />
-        </div>
+        <img
+          src="/logo.png"
+          alt="RiftCore"
+          style={{
+            width: '20px',
+            height: '20px',
+            borderRadius: '4px',
+            boxShadow: '0 0 10px rgba(0, 200, 255, 0.4)',
+          }}
+        />
         <span>RIFTCORE</span>
       </div>
 

@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
 import { ChampSelectView } from './components/ChampSelectView';
+import { DraftSimulatorView } from './components/DraftSimulatorView';
+import { ChampionPoolBuilderView } from './components/ChampionPoolBuilderView';
+import { AramHubView } from './components/AramHubView';
 import { LobbyScoutView } from './components/LobbyScoutView';
 import { LiveGameOverlay } from './components/LiveGameOverlay';
 import { SummonerProfileView } from './components/SummonerProfileView';
@@ -251,6 +254,15 @@ export const App: React.FC = () => {
             <ChampSelectView session={champSelectSession} />
           )}
 
+          {activeTab === 'draft-simulator' && (
+            <DraftSimulatorView
+              session={champSelectSession}
+              onSelectChampion={(champId) => {
+                setActiveTab('champ-select');
+              }}
+            />
+          )}
+
           {activeTab === 'lobby-scout' && (
             <LobbyScoutView
               session={champSelectSession}
@@ -261,6 +273,14 @@ export const App: React.FC = () => {
 
           {activeTab === 'live-overlay' && (
             <LiveGameOverlay liveData={liveData} />
+          )}
+
+          {activeTab === 'champion-pool' && (
+            <ChampionPoolBuilderView />
+          )}
+
+          {activeTab === 'aram' && (
+            <AramHubView />
           )}
 
           {activeTab === 'champions' && (

@@ -23,8 +23,8 @@ SetCompressor /SOLID lzma
 
 ; Visual Branding
 !define MUI_ABORTWARNING
-!define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
-!define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
+!define MUI_ICON "icon.ico"
+!define MUI_UNICON "icon.ico"
 
 ; Installer Pages
 !insertmacro MUI_PAGE_WELCOME
