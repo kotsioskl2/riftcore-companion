@@ -87,6 +87,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
   const [augmentSearch, setAugmentSearch] = useState('');
   const [auraSearch, setAuraSearch] = useState('');
   const [srActiveTab, setSrActiveTab] = useState<'epics' | 'jungle'>('epics');
+  const [jungleStart, setJungleStart] = useState<'bot' | 'top' | 'solo'>('bot');
 
   // Detect mode from live client data
   useEffect(() => {
@@ -825,6 +826,152 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 >
                   {csRating.tier}
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* EARLY JUNGLE LEASH & PATH PREDICTOR (Porofessor / Mobalytics Feature) */}
+          <div
+            className="glass-card"
+            style={{
+              padding: '16px 20px',
+              border: '1px solid rgba(0, 200, 255, 0.3)',
+              background: 'linear-gradient(90deg, rgba(0, 200, 255, 0.05) 0%, rgba(11, 18, 30, 0.7) 100%)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Compass size={18} color="var(--blue-primary)" />
+                <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
+                  Early Game Jungle Leash & Route Predictor
+                </span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(0, 200, 255, 0.15)',
+                    color: 'var(--blue-primary)',
+                    border: '1px solid var(--border-blue)',
+                  }}
+                >
+                  PRO SCOUT
+                </span>
+              </div>
+
+              {/* Leash Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Observed Start:</span>
+                <button
+                  onClick={() => setJungleStart('bot')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: jungleStart === 'bot' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
+                    color: jungleStart === 'bot' ? '#000' : '#cbd5e1',
+                    border: jungleStart === 'bot' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                  }}
+                >
+                  Bot Leash (90%)
+                </button>
+                <button
+                  onClick={() => setJungleStart('top')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: jungleStart === 'top' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
+                    color: jungleStart === 'top' ? '#000' : '#cbd5e1',
+                    border: jungleStart === 'top' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                  }}
+                >
+                  Top Leash
+                </button>
+                <button
+                  onClick={() => setJungleStart('solo')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: jungleStart === 'solo' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
+                    color: jungleStart === 'solo' ? '#000' : '#cbd5e1',
+                    border: jungleStart === 'solo' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                  }}
+                >
+                  Solo / Raptors
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+              {/* Predicted Path Step-by-Step */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Predicted Route (Level 1 to 4)
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  {jungleStart === 'bot' ? (
+                    <>
+                      <span style={{ color: '#00c8ff' }}>Bot Buff (1:30)</span>
+                      <span>➔</span>
+                      <span>Gromp / Wolves</span>
+                      <span>➔</span>
+                      <span style={{ color: '#f59e0b' }}>Top Buff (2:45)</span>
+                      <span>➔</span>
+                      <span style={{ color: '#ff2a5f' }}>Top Scuttle (3:30)</span>
+                    </>
+                  ) : jungleStart === 'top' ? (
+                    <>
+                      <span style={{ color: '#00c8ff' }}>Top Buff (1:30)</span>
+                      <span>➔</span>
+                      <span>Wolves / Raptors</span>
+                      <span>➔</span>
+                      <span style={{ color: '#f59e0b' }}>Bot Buff (2:45)</span>
+                      <span>➔</span>
+                      <span style={{ color: '#ff2a5f' }}>Bot Scuttle (3:30)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ color: '#00c8ff' }}>Raptors / Wolves (1:30)</span>
+                      <span>➔</span>
+                      <span>Full Clear to Opposite Side</span>
+                      <span>➔</span>
+                      <span style={{ color: '#ff2a5f' }}>Scuttle Contest (3:30)</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Gank Warning & Scuttle Countdown */}
+              <div
+                style={{
+                  background: jungleStart === 'bot' ? 'rgba(255, 42, 95, 0.08)' : 'rgba(0, 200, 255, 0.08)',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: `1px solid ${jungleStart === 'bot' ? 'rgba(255, 42, 95, 0.3)' : 'rgba(0, 200, 255, 0.3)'}`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: jungleStart === 'bot' ? 'var(--red-primary)' : 'var(--blue-primary)', textTransform: 'uppercase' }}>
+                    {jungleStart === 'bot' ? '⚠️ High Alert: Top & Mid Lanes' : '⚠️ High Alert: Bot & Mid Lanes'}
+                  </div>
+                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#facc15' }}>
+                    {activeGameTime < 210 ? `Scuttle in ${formatTime(210 - activeGameTime)}` : 'Scuttles Active'}
+                  </div>
+                </div>
+                <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
+                  {jungleStart === 'bot'
+                    ? 'Enemy jungler will reach Top River around 3:15–3:30. Top laners: ward river bush at 2:45 and play toward safe side!'
+                    : 'Enemy jungler will reach Bot River around 3:15–3:30. Bot laners: avoid overextending after 3:10 and watch for gank!'}
+                </div>
               </div>
             </div>
           </div>

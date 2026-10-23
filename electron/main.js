@@ -378,6 +378,17 @@ ipcMain.handle('save-settings', (_event, newSettings) => {
   return appSettings;
 });
 
+ipcMain.handle('riot-api-request', async (_event, { url, key }) => {
+  try {
+    const headers = key ? { 'X-Riot-Token': key } : {};
+    const res = await fetch(url, { headers });
+    const data = await res.json().catch(() => ({}));
+    return { status: res.status, data };
+  } catch (err) {
+    return { status: 500, data: { error: err.message } };
+  }
+});
+
 ipcMain.handle('window-control', (_event, action) => {
   if (!mainWindow) return;
 

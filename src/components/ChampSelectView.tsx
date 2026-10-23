@@ -879,6 +879,137 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
             </div>
           </div>
 
+          {/* Skill Max Order & 1-18 Leveling Matrix (Blitz / Porofessor Style) */}
+          <div className="glass-card" style={{ padding: '18px 20px' }}>
+            <div className="card-header" style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div className="card-title">
+                <Zap size={16} color="var(--blue-primary)" />
+                <span>Skill Priority & Level-Up Path</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Max Order:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {initialBuild.skillPriority.split('>').map((s, idx, arr) => {
+                    const skill = s.trim();
+                    const color = skill === 'Q' ? '#00c8ff' : skill === 'W' ? '#10b981' : skill === 'E' ? '#f59e0b' : '#c084fc';
+                    return (
+                      <React.Fragment key={skill + idx}>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 900,
+                            padding: '2px 8px',
+                            borderRadius: '5px',
+                            background: `${color}20`,
+                            color: color,
+                            border: `1px solid ${color}50`,
+                            boxShadow: `0 0 8px ${color}30`,
+                          }}
+                        >
+                          {skill}
+                        </span>
+                        {idx < arr.length - 1 && (
+                          <ChevronRight size={12} color="#64748b" />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Level 1 to 18 Matrix Grid */}
+            <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+              <div style={{ minWidth: '460px' }}>
+                {/* Column Headers: Levels 1 to 18 */}
+                <div style={{ display: 'grid', gridTemplateColumns: '32px repeat(18, 1fr)', gap: '3px', marginBottom: '6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '9px', fontWeight: 800, color: '#64748b' }}>LVL</div>
+                  {Array.from({ length: 18 }, (_, i) => i + 1).map((lvl) => (
+                    <div
+                      key={lvl}
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: lvl === 6 || lvl === 11 || lvl === 16 ? 900 : 700,
+                        color: lvl === 6 || lvl === 11 || lvl === 16 ? '#ec4899' : '#94a3b8',
+                      }}
+                    >
+                      {lvl}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 4 Skill Rows: Q, W, E, R */}
+                {['Q', 'W', 'E', 'R'].map((skillKey) => {
+                  const color = skillKey === 'Q' ? '#00c8ff' : skillKey === 'W' ? '#10b981' : skillKey === 'E' ? '#f59e0b' : '#ec4899';
+                  return (
+                    <div
+                      key={skillKey}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '32px repeat(18, 1fr)',
+                        gap: '3px',
+                        marginBottom: '4px',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {/* Skill Key Label */}
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 900,
+                          textAlign: 'center',
+                          color: color,
+                          background: `${color}15`,
+                          borderRadius: '4px',
+                          padding: '2px 0',
+                          border: `1px solid ${color}30`,
+                        }}
+                      >
+                        {skillKey}
+                      </div>
+
+                      {/* 18 Level Slots */}
+                      {Array.from({ length: 18 }, (_, i) => {
+                        const level = i + 1;
+                        const isLearned = initialBuild.skillOrder[i] === skillKey;
+                        const isUlt = skillKey === 'R' && isLearned;
+
+                        return (
+                          <div
+                            key={level}
+                            title={`Level ${level}: ${isLearned ? `Upgrade ${skillKey}` : '-'}`}
+                            style={{
+                              height: '22px',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '9px',
+                              fontWeight: 900,
+                              background: isLearned
+                                ? isUlt
+                                  ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.4), rgba(192, 132, 252, 0.4))'
+                                  : `${color}35`
+                                : 'rgba(255, 255, 255, 0.02)',
+                              color: isLearned ? (isUlt ? '#fff' : color) : 'transparent',
+                              border: isLearned
+                                ? `1px solid ${isUlt ? '#ec4899' : color}`
+                                : '1px solid rgba(255, 255, 255, 0.04)',
+                              boxShadow: isLearned ? `0 0 6px ${color}40` : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {isLearned ? skillKey : ''}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Matchups & Coaching Tips */}
           <div className="glass-card" style={{ padding: '18px 20px' }}>
             <div className="card-header" style={{ marginBottom: '12px' }}>

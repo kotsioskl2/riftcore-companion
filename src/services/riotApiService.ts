@@ -29,6 +29,16 @@ export interface RiotLeagueEntry {
   hotStreak: boolean;
 }
 
+export interface RiotChampionMastery {
+  championId: number;
+  championLevel: number;
+  championPoints: number;
+  lastPlayTime: number;
+  championPointsSinceLastLevel?: number;
+  championPointsUntilNextLevel?: number;
+  tokensEarned?: number;
+}
+
 export const RIOT_REGIONS = [
   { id: 'eun1', label: 'Europe Nordic & East (EUN1)', cluster: 'europe' },
   { id: 'euw1', label: 'Europe West (EUW1)', cluster: 'europe' },
@@ -172,6 +182,36 @@ class RiotApiService {
       return res.data as string[];
     }
     return [];
+  }
+
+  // Look up Top Champion Masteries
+  public async getTopChampionMasteries(
+    puuid: string,
+    apiKey: string,
+    platform: string = 'eun1',
+    count: number = 5
+  ): Promise<RiotChampionMastery[]> {
+    const url = `https://${platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=${count}`;
+    const res = await this.makeRequest(url, apiKey);
+    if (res.status === 200 && Array.isArray(res.data)) {
+      return res.data as RiotChampionMastery[];
+    }
+    return [];
+  }
+
+  // Look up Single Match Details
+  public async getMatchDetails(
+    matchId: string,
+    apiKey: string,
+    platform: string = 'eun1'
+  ): Promise<any | null> {
+    const cluster = this.getClusterForPlatform(platform);
+    const url = `https://${cluster}.api.riotgames.com/lol/match/v5/matches/${matchId}`;
+    const res = await this.makeRequest(url, apiKey);
+    if (res.status === 200 && res.data) {
+      return res.data;
+    }
+    return null;
   }
 }
 

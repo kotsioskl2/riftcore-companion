@@ -69,5 +69,9 @@ contextBridge.exposeInMainWorld('riftAPI', {
 
   checkClientStatus: () => {
     return ipcRenderer.invoke('check-client-status');
+  },
+
+  riotApiRequest: (url, key) => {
+    return ipcRenderer.invoke('riot-api-request', { url, key });
   }
 });
