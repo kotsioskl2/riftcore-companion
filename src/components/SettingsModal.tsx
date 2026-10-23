@@ -24,15 +24,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [verificationResult, setVerificationResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [hintReset, setHintReset] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [donationPlatform, setDonationPlatform] = useState<'kofi' | 'revolut'>('kofi');
   const [selectedDonationAmount, setSelectedDonationAmount] = useState<number | 'custom'>(5);
   const [customDonationAmount, setCustomDonationAmount] = useState<string>('15');
 
+  const KOFI_URL = 'https://ko-fi.com/X6I629C814';
+  const REVOLUT_BASE = 'https://revolut.me/kkleovoulou';
+
   const getDonationUrl = () => {
+    if (donationPlatform === 'kofi') {
+      return KOFI_URL;
+    }
     if (selectedDonationAmount === 'custom') {
       const val = parseFloat(customDonationAmount);
-      return val > 0 ? `https://revolut.me/kkleovoulou/${val}` : 'https://revolut.me/kkleovoulou';
+      return val > 0 ? `${REVOLUT_BASE}/${val}` : REVOLUT_BASE;
     }
-    return `https://revolut.me/kkleovoulou/${selectedDonationAmount}`;
+    return `${REVOLUT_BASE}/${selectedDonationAmount}`;
   };
 
   const handleCopySupportLink = () => {
@@ -540,11 +547,71 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           &ldquo;Building and hosting apps takes time and caffeine. If you want to help fuel the next project:&rdquo;
         </p>
 
+        {/* Platform Selector Tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setDonationPlatform('kofi');
+              soundService.playTimerTick();
+            }}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: '8px',
+              background: donationPlatform === 'kofi' ? 'linear-gradient(135deg, rgba(0, 200, 255, 0.2) 0%, rgba(0, 119, 255, 0.15) 100%)' : 'rgba(255, 255, 255, 0.03)',
+              border: donationPlatform === 'kofi' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+              color: donationPlatform === 'kofi' ? '#fff' : '#94a3b8',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: donationPlatform === 'kofi' ? '0 0 14px rgba(0, 200, 255, 0.25)' : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Coffee size={14} color="var(--blue-primary)" />
+            <span>Ko-fi (Apple Pay, G-Pay, Cards)</span>
+            <span style={{ fontSize: '9px', background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>NO ACCOUNT NEEDED</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDonationPlatform('revolut');
+              soundService.playTimerTick();
+            }}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '8px',
+              background: donationPlatform === 'revolut' ? 'linear-gradient(135deg, rgba(255, 42, 95, 0.2) 0%, rgba(255, 42, 95, 0.08) 100%)' : 'rgba(255, 255, 255, 0.03)',
+              border: donationPlatform === 'revolut' ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
+              color: donationPlatform === 'revolut' ? '#fff' : '#94a3b8',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: donationPlatform === 'revolut' ? '0 0 14px rgba(255, 42, 95, 0.25)' : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Zap size={14} color="var(--red-primary)" />
+            <span>Revolut Me</span>
+          </button>
+        </div>
+
         {/* Interactive Donation Tier Boxes */}
         <div style={{ marginBottom: '16px' }}>
           <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#94a3b8', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Choose Fuel Amount</span>
-            <span style={{ color: 'var(--blue-primary)', fontSize: '10px', fontWeight: 700 }}>Instant via Revolut</span>
+            <span style={{ color: 'var(--blue-primary)', fontSize: '10px', fontWeight: 700 }}>
+              {donationPlatform === 'kofi' ? 'Pay via Apple Pay, Google Pay or Card' : 'Direct via Revolut'}
+            </span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(95px, 1fr))', gap: '8px' }}>
@@ -669,38 +736,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
         </div>
 
-        {/* Action Button & Direct Link */}
+        {/* Action Buttons & Links */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <a
-            href={getDonationUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 20px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #00c8ff 0%, #0077ff 100%)',
-              color: '#000',
-              fontWeight: 900,
-              fontSize: '13px',
-              textDecoration: 'none',
-              boxShadow: '0 0 20px rgba(0, 200, 255, 0.4)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-            }}
-          >
-            <Zap size={15} fill="#000" />
-            <span>
-              Send {selectedDonationAmount === 'custom' ? `€${customDonationAmount || '0'}` : `€${selectedDonationAmount}`} with Revolut
-            </span>
-            <ExternalLink size={13} />
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <a
+              href={KOFI_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 22px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #13C3FF 0%, #0077ff 100%)',
+                color: '#000',
+                fontWeight: 900,
+                fontSize: '13px',
+                textDecoration: 'none',
+                boxShadow: '0 0 20px rgba(0, 200, 255, 0.4)',
+                transition: 'transform 0.15s, box-shadow 0.15s',
+              }}
+            >
+              <Coffee size={16} fill="#000" />
+              <span>
+                Support {selectedDonationAmount === 'custom' ? `€${customDonationAmount || '0'}` : `€${selectedDonationAmount}`} on Ko-fi
+              </span>
+              <ExternalLink size={13} />
+            </a>
+
+            <a
+              href={getDonationUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 16px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid var(--border-subtle)',
+                color: '#cbd5e1',
+                fontWeight: 700,
+                fontSize: '12px',
+                textDecoration: 'none',
+              }}
+              title="Donate with Revolut Me"
+            >
+              <Zap size={14} color="var(--red-primary)" />
+              <span>Revolut</span>
+            </a>
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748b' }}>
-            <span>Revolut Me:</span>
+            <span>Ko-fi Page:</span>
             <code style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 8px', borderRadius: '4px', color: 'var(--blue-primary)', fontFamily: 'var(--font-mono)' }}>
-              revolut.me/kkleovoulou{selectedDonationAmount === 'custom' ? (customDonationAmount ? `/${customDonationAmount}` : '') : `/${selectedDonationAmount}`}
+              ko-fi.com/X6I629C814
             </code>
           </div>
         </div>

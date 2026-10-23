@@ -154,11 +154,17 @@ riftcore-companion/
 
 > *"Building and hosting apps takes time and caffeine. If you want to help fuel the next project:"*
 
-### ⚡ Quick Fuel Boxes:
-| ☕ [**€3 (Espresso)**](https://revolut.me/kkleovoulou/3) | ⚡ [**€5 (Energy Fuel)**](https://revolut.me/kkleovoulou/5) | 🏆 [**€10 (Hextech Core)**](https://revolut.me/kkleovoulou/10) | 💎 [**€25 (Overdrive)**](https://revolut.me/kkleovoulou/25) | ✨ [**Custom Amount**](https://revolut.me/kkleovoulou) |
-| :---: | :---: | :---: | :---: | :---: |
+<div align="center">
 
-[![Fuel with Revolut](https://img.shields.io/badge/Fuel_with_Revolut-revolut.me%2Fkkleovoulou-0075FF?style=for-the-badge&logo=revolut&logoColor=white)](https://revolut.me/kkleovoulou)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/X6I629C814)
+
+*Pay with **Apple Pay**, **Google Pay**, or **Credit/Debit Card** — Zero account required!*
+
+</div>
+
+### ⚡ Quick Donation Options:
+| ☕ [**Support on Ko-fi (Apple Pay / G-Pay / Card)**](https://ko-fi.com/X6I629C814) | ⚡ [**Tip via Revolut**](https://revolut.me/kkleovoulou) |
+| :---: | :---: |
 
 ---
 

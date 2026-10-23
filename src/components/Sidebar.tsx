@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Creator Support & Caffeine Fuel Link */}
         <a
-          href="https://revolut.me/kkleovoulou"
+          href="https://ko-fi.com/X6I629C814"
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -117,18 +117,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             gap: '6px',
             padding: '7px 10px',
             borderRadius: '6px',
-            background: 'linear-gradient(135deg, rgba(0, 200, 255, 0.12) 0%, rgba(255, 42, 95, 0.12) 100%)',
-            border: '1px solid rgba(0, 200, 255, 0.25)',
-            color: '#cbd5e1',
+            background: 'linear-gradient(135deg, rgba(0, 200, 255, 0.15) 0%, rgba(255, 42, 95, 0.12) 100%)',
+            border: '1px solid rgba(0, 200, 255, 0.3)',
+            color: '#fff',
             fontSize: '11px',
             fontWeight: 700,
             textDecoration: 'none',
             transition: 'all 0.2s ease',
+            boxShadow: '0 0 12px rgba(0, 200, 255, 0.15)',
           }}
-          title="Building and hosting apps takes time and caffeine. Fuel the next project!"
+          title="Support RiftCore on Ko-fi (Apple Pay, Google Pay & Cards — No account needed)"
         >
           <Coffee size={13} color="var(--blue-primary)" />
-          <span>Fuel RiftCore ☕</span>
+          <span>Fuel on Ko-fi ☕</span>
         </a>
       </div>
     </aside>
