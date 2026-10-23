@@ -199,6 +199,7 @@ export interface AppSettings {
   soundAlerts: boolean;
   theme: string;
   alwaysOnTop: boolean;
+  closeToTray?: boolean;
   riotApiKey?: string;
   riotRegion?: string;
 }
@@ -217,7 +218,7 @@ declare global {
       importSpells: (spell1Id: number, spell2Id: number) => Promise<any>;
       acceptMatch: () => Promise<any>;
       getLiveClientData: () => Promise<LiveGameData | null>;
-      windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact' | 'set-pin-on' | 'set-pin-off') => Promise<any>;
+      windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact' | 'set-pin-on' | 'set-pin-off' | 'minimize-to-tray' | 'exit-app') => Promise<any>;
       setAlwaysOnTop?: (alwaysOnTop: boolean) => Promise<{ isPinned: boolean }>;
       setCompactHud?: (compact: boolean) => Promise<{ isCompactMode: boolean; isPinned: boolean }>;
       focusWindow?: () => Promise<{ success: boolean }>;

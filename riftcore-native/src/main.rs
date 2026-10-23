@@ -58,6 +58,7 @@ enum AppUserEvent {
     EvalScript(String),
     ToggleOverlay,
     ApplyTopmost(bool),
+    ShowAndFocus,
 }
 
 fn detect_league_client() -> Option<LcuCredentials> {
@@ -119,6 +120,8 @@ fn is_riot_client_open() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+#[link(name = "shell32")]
+#[link(name = "user32")]
 extern "system" {
     fn CreateMutexW(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u16) -> *mut std::ffi::c_void;
     fn GetLastError() -> u32;
@@ -130,6 +133,7 @@ extern "system" {
         phiconSmall: *mut *mut std::ffi::c_void,
         nIcons: u32,
     ) -> u32;
+    fn LoadIconW(hInstance: *mut std::ffi::c_void, lpIconName: *const u16) -> *mut std::ffi::c_void;
     fn SendMessageW(hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize) -> isize;
     fn SetClassLongPtrW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: isize) -> isize;
     fn SetCurrentProcessExplicitAppUserModelID(AppID: *const u16) -> i32;
@@ -146,6 +150,33 @@ extern "system" {
     ) -> i32;
     fn RegisterHotKey(hWnd: *mut std::ffi::c_void, id: i32, fsModifiers: u32, vk: u32) -> i32;
     fn GetMessageW(lpMsg: *mut MSG, hWnd: *mut std::ffi::c_void, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
+    fn TranslateMessage(lpMsg: *const MSG) -> i32;
+    fn DispatchMessageW(lpMsg: *const MSG) -> isize;
+    fn PostQuitMessage(nExitCode: i32);
+    fn Shell_NotifyIconW(dwMessage: u32, lpData: *mut NOTIFYICONDATAW) -> i32;
+    fn RegisterClassExW(lpWndClass: *const WNDCLASSEXW) -> u16;
+    fn CreateWindowExW(
+        dwExStyle: u32,
+        lpClassName: *const u16,
+        lpWindowName: *const u16,
+        dwStyle: u32,
+        X: i32,
+        Y: i32,
+        nWidth: i32,
+        nHeight: i32,
+        hWndParent: *mut std::ffi::c_void,
+        hMenu: *mut std::ffi::c_void,
+        hInstance: *mut std::ffi::c_void,
+        lpParam: *mut std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+    fn DefWindowProcW(hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize) -> isize;
+    fn CreatePopupMenu() -> *mut std::ffi::c_void;
+    fn AppendMenuW(hMenu: *mut std::ffi::c_void, uFlags: u32, uIDNewItem: usize, lpNewItem: *const u16) -> i32;
+    fn TrackPopupMenu(hMenu: *mut std::ffi::c_void, uFlags: u32, x: i32, y: i32, nReserved: i32, hWnd: *mut std::ffi::c_void, prcRect: *const std::ffi::c_void) -> i32;
+    fn DestroyMenu(hMenu: *mut std::ffi::c_void) -> i32;
+    fn GetCursorPos(lpPoint: *mut POINT) -> i32;
+    fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
+    fn DestroyWindow(hWnd: *mut std::ffi::c_void) -> i32;
 }
 
 #[cfg(target_os = "windows")]
@@ -164,6 +195,45 @@ struct MSG {
     lparam: isize,
     time: u32,
     pt: POINT,
+}
+
+#[allow(non_snake_case)]
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct WNDCLASSEXW {
+    cbSize: u32,
+    style: u32,
+    lpfnWndProc: Option<unsafe extern "system" fn(*mut std::ffi::c_void, u32, usize, isize) -> isize>,
+    cbClsExtra: i32,
+    cbWndExtra: i32,
+    hInstance: *mut std::ffi::c_void,
+    hIcon: *mut std::ffi::c_void,
+    hCursor: *mut std::ffi::c_void,
+    hbrBackground: *mut std::ffi::c_void,
+    lpszMenuName: *const u16,
+    lpszClassName: *const u16,
+    hIconSm: *mut std::ffi::c_void,
+}
+
+#[allow(non_snake_case)]
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct NOTIFYICONDATAW {
+    cbSize: u32,
+    hWnd: *mut std::ffi::c_void,
+    uID: u32,
+    uFlags: u32,
+    uCallbackMessage: u32,
+    hIcon: *mut std::ffi::c_void,
+    szTip: [u16; 128],
+    dwState: u32,
+    dwStateMask: u32,
+    szInfo: [u16; 256],
+    uTimeoutOrVersion: u32,
+    szInfoTitle: [u16; 64],
+    dwInfoFlags: u32,
+    guidItem: [u8; 16],
+    hBalloonIcon: *mut std::ffi::c_void,
 }
 
 const WM_SETICON: u32 = 0x0080;
@@ -192,6 +262,160 @@ const VK_SPACE: u32 = 0x20;
 const VK_OEM_3: u32 = 0xC0;
 
 const ERROR_ALREADY_EXISTS: u32 = 183;
+
+const WM_TRAYICON: u32 = 0x8000 + 101;
+const TRAY_ID: u32 = 1001;
+const IDM_OPEN: usize = 2001;
+const IDM_TOGGLE_HUD: usize = 2002;
+const IDM_EXIT: usize = 2003;
+
+static TRAY_PROXY: std::sync::OnceLock<tao::event_loop::EventLoopProxy<AppUserEvent>> = std::sync::OnceLock::new();
+static TRAY_HWND: std::sync::atomic::AtomicPtr<std::ffi::c_void> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn tray_wnd_proc(
+    hwnd: *mut std::ffi::c_void,
+    msg: u32,
+    wparam: usize,
+    lparam: isize,
+) -> isize {
+    match msg {
+        WM_TRAYICON => {
+            let event = lparam as u32;
+            const WM_LBUTTONUP: u32 = 0x0202;
+            const WM_LBUTTONDBLCLK: u32 = 0x0203;
+            const WM_RBUTTONUP: u32 = 0x0205;
+
+            if event == WM_LBUTTONUP || event == WM_LBUTTONDBLCLK {
+                if let Some(proxy) = TRAY_PROXY.get() {
+                    let _ = proxy.send_event(AppUserEvent::ShowAndFocus);
+                }
+            } else if event == WM_RBUTTONUP {
+                let hmenu = CreatePopupMenu();
+                if !hmenu.is_null() {
+                    let open_str: Vec<u16> = "Open RiftCore\0".encode_utf16().collect();
+                    let toggle_str: Vec<u16> = "Toggle Compact HUD\0".encode_utf16().collect();
+                    let exit_str: Vec<u16> = "Exit Completely\0".encode_utf16().collect();
+
+                    AppendMenuW(hmenu, 0, IDM_OPEN, open_str.as_ptr());
+                    AppendMenuW(hmenu, 0, IDM_TOGGLE_HUD, toggle_str.as_ptr());
+                    AppendMenuW(hmenu, 0x00000800 /* MF_SEPARATOR */, 0, std::ptr::null());
+                    AppendMenuW(hmenu, 0, IDM_EXIT, exit_str.as_ptr());
+
+                    let mut pt: POINT = std::mem::zeroed();
+                    GetCursorPos(&mut pt);
+                    SetForegroundWindow(hwnd);
+
+                    const TPM_RIGHTBUTTON: u32 = 0x0002;
+                    const TPM_BOTTOMALIGN: u32 = 0x0020;
+                    TrackPopupMenu(
+                        hmenu,
+                        TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
+                        pt.x,
+                        pt.y,
+                        0,
+                        hwnd,
+                        std::ptr::null(),
+                    );
+                    DestroyMenu(hmenu);
+                }
+            }
+            0
+        }
+        0x0111 /* WM_COMMAND */ => {
+            let id = wparam & 0xFFFF;
+            if let Some(proxy) = TRAY_PROXY.get() {
+                match id {
+                    IDM_OPEN => {
+                        let _ = proxy.send_event(AppUserEvent::ShowAndFocus);
+                    }
+                    IDM_TOGGLE_HUD => {
+                        let _ = proxy.send_event(AppUserEvent::ToggleOverlay);
+                    }
+                    IDM_EXIT => {
+                        let _ = proxy.send_event(AppUserEvent::Exit);
+                    }
+                    _ => {}
+                }
+            }
+            0
+        }
+        0x0002 /* WM_DESTROY */ => {
+            PostQuitMessage(0);
+            0
+        }
+        _ => DefWindowProcW(hwnd, msg, wparam, lparam),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn start_system_tray(
+    proxy: tao::event_loop::EventLoopProxy<AppUserEvent>,
+    h_icon: *mut std::ffi::c_void,
+) {
+    let _ = TRAY_PROXY.set(proxy);
+    let icon_usize = h_icon as usize;
+    std::thread::spawn(move || unsafe {
+        let mut h_icon = icon_usize as *mut std::ffi::c_void;
+        if h_icon.is_null() {
+            h_icon = LoadIconW(std::ptr::null_mut(), 32512 as *const u16);
+        }
+
+        let class_name: Vec<u16> = "RiftCoreTrayClass\0".encode_utf16().collect();
+        let mut wc: WNDCLASSEXW = std::mem::zeroed();
+        wc.cbSize = std::mem::size_of::<WNDCLASSEXW>() as u32;
+        wc.lpfnWndProc = Some(tray_wnd_proc);
+        wc.lpszClassName = class_name.as_ptr();
+        wc.hIcon = h_icon;
+        wc.hIconSm = h_icon;
+
+        RegisterClassExW(&wc);
+
+        let window_title: Vec<u16> = "RiftCoreTrayWindow\0".encode_utf16().collect();
+        let hwnd = CreateWindowExW(
+            0,
+            class_name.as_ptr(),
+            window_title.as_ptr(),
+            0,
+            0, 0, 0, 0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        );
+
+        if hwnd.is_null() {
+            return;
+        }
+
+        TRAY_HWND.store(hwnd, std::sync::atomic::Ordering::SeqCst);
+
+        let mut nid: NOTIFYICONDATAW = std::mem::zeroed();
+        nid.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
+        nid.hWnd = hwnd;
+        nid.uID = TRAY_ID;
+        nid.uFlags = 0x00000001 /* NIF_MESSAGE */ | 0x00000002 /* NIF_ICON */ | 0x00000004 /* NIF_TIP */;
+        nid.uCallbackMessage = WM_TRAYICON;
+        nid.hIcon = h_icon;
+
+        let tip = "RiftCore - Minimalist League Companion\0";
+        for (i, c) in tip.encode_utf16().enumerate() {
+            if i < nid.szTip.len() {
+                nid.szTip[i] = c;
+            }
+        }
+
+        Shell_NotifyIconW(0 /* NIM_ADD */, &mut nid);
+
+        let mut msg: MSG = std::mem::zeroed();
+        while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+
+        Shell_NotifyIconW(2 /* NIM_DELETE */, &mut nid);
+    });
+}
 
 #[cfg(target_os = "windows")]
 fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
@@ -270,6 +494,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let window = Arc::new(window);
 
+    let mut tray_icon_handle: *mut std::ffi::c_void = std::ptr::null_mut();
     // Apply native taskbar icon from own embedded PE binary (large & small)
     #[cfg(target_os = "windows")]
     unsafe {
@@ -288,11 +513,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if !h_small.is_null() {
                     SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_small as isize);
                     SetClassLongPtrW(hwnd, GCLP_HICONSM, h_small as isize);
+                    tray_icon_handle = h_small;
+                } else {
+                    tray_icon_handle = h_large;
                 }
             }
         }
     }
     let proxy = event_loop.create_proxy();
+
+    #[cfg(target_os = "windows")]
+    start_system_tray(proxy.clone(), tray_icon_handle);
 
     // Global in-game Hotkey Thread: Ctrl + Space and Alt + ~ (Tilde)
     #[cfg(target_os = "windows")]
@@ -428,7 +659,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let is_max = window_clone.is_maximized();
                                 window_clone.set_maximized(!is_max);
                             }
-                            "close" => {
+                            "close" | "minimize-to-tray" => {
+                                window_clone.set_visible(false);
+                            }
+                            "exit-app" => {
                                 let _ = proxy_ipc.send_event(AppUserEvent::Exit);
                             }
                             "toggle-pin" => {
@@ -842,7 +1076,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match event {
             Event::UserEvent(AppUserEvent::Exit) => {
+                #[cfg(target_os = "windows")]
+                unsafe {
+                    let tray_hwnd = TRAY_HWND.load(std::sync::atomic::Ordering::SeqCst);
+                    if !tray_hwnd.is_null() {
+                        let mut nid: NOTIFYICONDATAW = std::mem::zeroed();
+                        nid.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
+                        nid.hWnd = tray_hwnd;
+                        nid.uID = TRAY_ID;
+                        Shell_NotifyIconW(2 /* NIM_DELETE */, &mut nid);
+                        DestroyWindow(tray_hwnd);
+                    }
+                }
                 *control_flow = ControlFlow::Exit;
+            }
+            Event::UserEvent(AppUserEvent::ShowAndFocus) => {
+                window.set_visible(true);
+                window.set_minimized(false);
+                window.set_focus();
             }
             Event::UserEvent(AppUserEvent::EvalScript(script)) => {
                 let _ = webview.evaluate_script(&script);
@@ -881,7 +1132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                *control_flow = ControlFlow::Exit;
+                window.set_visible(false);
             }
             _ => (),
         }

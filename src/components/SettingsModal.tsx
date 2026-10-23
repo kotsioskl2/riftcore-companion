@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle, Minimize2, Keyboard } from 'lucide-react';
 import { AppSettings } from '../types';
 import { soundService } from '../services/soundService';
 import { riotApiService, RIOT_REGIONS } from '../services/riotApiService';
@@ -22,6 +22,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showKey, setShowKey] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{ valid: boolean; message: string } | null>(null);
+  const [hintReset, setHintReset] = useState(false);
 
   const handleVerifyAndSave = async () => {
     setIsVerifying(true);
@@ -143,6 +144,101 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               >
                 <div className="toggle-knob" />
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Windows System Tray & Background Automation Card */}
+      <div className="glass-card">
+        <div className="card-header">
+          <div className="card-title">
+            <Minimize2 size={18} color="var(--blue-primary)" />
+            <span>Windows System Tray & Background Operation</span>
+          </div>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: '#00c8ff',
+              background: 'rgba(0, 200, 255, 0.1)',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              border: '1px solid rgba(0, 200, 255, 0.3)',
+            }}
+          >
+            Tray Active
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Close to Tray Toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>
+                Minimize to System Tray on Close (X)
+              </div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                Hides window into the Windows taskbar tray when clicking (X) so Auto-Accept and In-Game HUD stay active.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.closeToTray !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('closeToTray', settings.closeToTray === false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* Reset Confirmation Dialog */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>
+                Close Confirmation Dialog
+              </div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                Reset your saved choice if you want RiftCore to ask before minimizing to tray when clicking (X).
+              </div>
+            </div>
+            <button
+              className="btn-secondary"
+              style={{ fontSize: '11px', padding: '5px 12px' }}
+              onClick={() => {
+                localStorage.removeItem('riftcore_tray_hint_dismissed');
+                setHintReset(true);
+                setTimeout(() => setHintReset(false), 2500);
+              }}
+            >
+              {hintReset ? (
+                <>
+                  <CheckCircle2 size={12} color="#22c55e" />
+                  <span style={{ color: '#22c55e' }}>Choice Reset!</span>
+                </>
+              ) : (
+                <>
+                  <RotateCw size={12} />
+                  <span>Reset Prompt</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Shortcuts Info */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: '6px',
+              background: 'rgba(0, 200, 255, 0.05)',
+              border: '1px solid rgba(0, 200, 255, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              fontSize: '12px',
+            }}
+          >
+            <Keyboard size={18} color="var(--blue-primary)" style={{ flexShrink: 0 }} />
+            <div style={{ color: '#cbd5e1' }}>
+              <strong>In-Game Hotkeys:</strong> Press <kbd style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }}>Ctrl + Space</kbd> or <kbd style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }}>Alt + ~</kbd> anytime during matches to toggle the Compact HUD overlay.
             </div>
           </div>
         </div>

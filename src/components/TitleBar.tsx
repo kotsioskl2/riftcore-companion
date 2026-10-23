@@ -12,6 +12,7 @@ interface TitleBarProps {
   onToggleCompact: () => void;
   onTogglePin: () => void;
   onLaunchLeague?: () => void;
+  onCloseClick?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
@@ -23,6 +24,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onToggleCompact,
   onTogglePin,
   onLaunchLeague,
+  onCloseClick,
 }) => {
   const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
 
@@ -34,6 +36,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   }, []);
 
   const handleControl = (action: 'minimize' | 'maximize' | 'close') => {
+    if (action === 'close' && onCloseClick) {
+      onCloseClick();
+      return;
+    }
     if (window.riftAPI) {
       window.riftAPI.windowControl(action);
     }

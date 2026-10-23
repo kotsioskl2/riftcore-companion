@@ -20,6 +20,7 @@ import {
   AppSettings
 } from './types';
 import { soundService } from './services/soundService';
+import { CloseConfirmationModal } from './components/CloseConfirmationModal';
 import { Check, Flame, ShieldAlert, Sparkles, Zap } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('champ-select');
   const [isCompactMode, setIsCompactMode] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
 
   // League Data
   const [summoner, setSummoner] = useState<SummonerProfile | null>(null);
@@ -45,6 +47,7 @@ export const App: React.FC = () => {
     soundAlerts: true,
     theme: 'hextech',
     alwaysOnTop: false,
+    closeToTray: true,
   });
 
   // Initialize and register electron event listeners
@@ -234,6 +237,33 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleTitleBarClose = () => {
+    if (settings.closeToTray === false) {
+      window.riftAPI?.windowControl('exit-app');
+      return;
+    }
+    const isDismissed = localStorage.getItem('riftcore_tray_hint_dismissed') === 'true';
+    if (isDismissed) {
+      window.riftAPI?.windowControl('close');
+    } else {
+      setShowCloseDialog(true);
+    }
+  };
+
+  const handleConfirmMinimizeToTray = (remember: boolean) => {
+    if (remember) {
+      localStorage.setItem('riftcore_tray_hint_dismissed', 'true');
+    }
+    handleUpdateSetting('closeToTray', true);
+    setShowCloseDialog(false);
+    window.riftAPI?.windowControl('close');
+  };
+
+  const handleConfirmExitApp = () => {
+    setShowCloseDialog(false);
+    window.riftAPI?.windowControl('exit-app');
+  };
+
   return (
     <div className={`app-container ${isCompactMode ? 'compact-mode' : ''}`}>
       {/* Titlebar */}
@@ -246,6 +276,15 @@ export const App: React.FC = () => {
         onToggleCompact={handleToggleCompact}
         onTogglePin={handleTogglePin}
         onLaunchLeague={handleLaunchLeague}
+        onCloseClick={handleTitleBarClose}
+      />
+
+      {/* Close Confirmation Modal */}
+      <CloseConfirmationModal
+        isOpen={showCloseDialog}
+        onMinimizeToTray={handleConfirmMinimizeToTray}
+        onExitApp={handleConfirmExitApp}
+        onCancel={() => setShowCloseDialog(false)}
       />
 
       {/* Queue Pop Notification Modal */}
