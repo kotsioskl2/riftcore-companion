@@ -4,20 +4,24 @@ import { GameflowPhase } from '../types';
 
 interface TitleBarProps {
   isConnected: boolean;
+  isRiotClientReady?: boolean;
   gameflowPhase: GameflowPhase;
   isCompactMode: boolean;
   isPinned: boolean;
   onToggleCompact: () => void;
   onTogglePin: () => void;
+  onLaunchLeague?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
   isConnected,
+  isRiotClientReady,
   gameflowPhase,
   isCompactMode,
   isPinned,
   onToggleCompact,
   onTogglePin,
+  onLaunchLeague,
 }) => {
   const handleControl = (action: 'minimize' | 'maximize' | 'close') => {
     if (window.riftAPI) {
@@ -41,11 +45,25 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       case 'WaitingForStats':
         return { text: 'Post Game', class: 'post-game' };
       default:
-        return isConnected ? { text: 'Client Idle', class: 'idle' } : { text: 'Client Offline', class: 'offline' };
+        if (isConnected) return { text: 'Client Idle', class: 'idle' };
+        if (isRiotClientReady) return { text: 'Launch League', class: 'ready-check' };
+        return { text: 'Client Offline', class: 'offline' };
     }
   };
 
   const phaseInfo = getPhaseDisplay(gameflowPhase);
+
+  const getStatusText = () => {
+    if (isConnected) return 'League Connected';
+    if (isRiotClientReady) return 'Riot Client Ready';
+    return 'Waiting for League Client...';
+  };
+
+  const getStatusDotClass = () => {
+    if (isConnected) return 'online';
+    if (isRiotClientReady) return 'ready';
+    return '';
+  };
 
   return (
     <header className="titlebar" id="app-titlebar">
@@ -58,9 +76,20 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       </div>
 
       <div className="titlebar-status">
-        <div className={`status-dot ${isConnected ? 'online' : ''}`} />
-        <span>{isConnected ? 'League Connected' : 'Waiting for League Client...'}</span>
-        <span className={`phase-pill ${phaseInfo.class}`}>{phaseInfo.text}</span>
+        <div className={`status-dot ${getStatusDotClass()}`} />
+        <span>{getStatusText()}</span>
+        {!isConnected && isRiotClientReady && onLaunchLeague ? (
+          <button
+            onClick={onLaunchLeague}
+            className="phase-pill ready-check"
+            style={{ cursor: 'pointer', border: '1px solid #00c8ff', background: 'rgba(0, 200, 255, 0.15)' }}
+            title="Launch League of Legends via Riot Client"
+          >
+            ▶ Launch League
+          </button>
+        ) : (
+          <span className={`phase-pill ${phaseInfo.class}`}>{phaseInfo.text}</span>
+        )}
       </div>
 
       <div className="titlebar-controls">

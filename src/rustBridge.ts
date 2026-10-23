@@ -170,5 +170,9 @@ export function initRustBridge() {
     checkClientStatus: async () => {
       return sendRustIpc('check-client-status');
     },
+
+    launchLeague: async () => {
+      return sendRustIpc('launch-league');
+    },
   };
 }

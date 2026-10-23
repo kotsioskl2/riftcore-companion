@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::process::Command;
 use std::borrow::Cow;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tao::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
@@ -36,38 +36,61 @@ enum AppUserEvent {
 }
 
 fn detect_league_client() -> Option<LcuCredentials> {
-    let output = Command::new("powershell")
+    // 1. Direct lockfile check in standard and installed directories (Fastest, 0ms, zero CPU)
+    let candidates = [
+        "E:\\Riot Games\\League of Legends\\lockfile",
+        "F:\\Riot Games\\League of Legends (PBE)\\lockfile",
+        "C:\\Riot Games\\League of Legends\\lockfile",
+        "D:\\Riot Games\\League of Legends\\lockfile",
+    ];
+
+    for path in &candidates {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            let parts: Vec<&str> = content.trim().split(':').collect();
+            if parts.len() >= 5 {
+                let port = parts[2].to_string();
+                let token = parts[3].to_string();
+                if !port.is_empty() && !token.is_empty() {
+                    return Some(LcuCredentials { port, token });
+                }
+            }
+        }
+    }
+
+    // 2. Query process path of LeagueClientUx if installed elsewhere
+    if let Ok(output) = Command::new("powershell")
         .args([
             "-NoProfile",
             "-Command",
-            "Get-CimInstance Win32_Process -Filter \"name = 'LeagueClientUx.exe'\" | Select-Object -ExpandProperty CommandLine",
+            "(Get-Process LeagueClientUx -ErrorAction SilentlyContinue).Path",
         ])
         .output()
-        .ok()?;
-
-    let cmdline = String::from_utf8_lossy(&output.stdout);
-    if cmdline.is_empty() {
-        return None;
+    {
+        let exe_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !exe_path.is_empty() {
+            if let Some(parent) = Path::new(&exe_path).parent() {
+                let lockfile = parent.join("lockfile");
+                if let Ok(content) = std::fs::read_to_string(lockfile) {
+                    let parts: Vec<&str> = content.trim().split(':').collect();
+                    if parts.len() >= 5 {
+                        let port = parts[2].to_string();
+                        let token = parts[3].to_string();
+                        if !port.is_empty() && !token.is_empty() {
+                            return Some(LcuCredentials { port, token });
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    let port_prefix = "--app-port=";
-    let token_prefix = "--remoting-auth-token=";
+    None
+}
 
-    let port = cmdline
-        .split_whitespace()
-        .find(|arg| arg.starts_with(port_prefix))?
-        .trim_start_matches(port_prefix)
-        .trim_matches('"')
-        .to_string();
-
-    let token = cmdline
-        .split_whitespace()
-        .find(|arg| arg.starts_with(token_prefix))?
-        .trim_start_matches(token_prefix)
-        .trim_matches('"')
-        .to_string();
-
-    Some(LcuCredentials { port, token })
+fn is_riot_client_open() -> bool {
+    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let lockfile = format!("{}\\Riot Games\\Riot Client\\Config\\lockfile", local_appdata);
+    Path::new(&lockfile).exists()
 }
 
 #[tokio::main]
@@ -238,11 +261,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let st = state_clone.lock().unwrap();
                         let connected = st.credentials.is_some();
                         let phase = st.gameflow_phase.clone();
+                        let riot_ready = is_riot_client_open();
                         let reply_script = format!(
-                            "window.__riftIpcReply({}, null, {{ connected: {}, gameflowPhase: '{}' }});",
-                            req_id, connected, phase
+                            "window.__riftIpcReply({}, null, {{ connected: {}, gameflowPhase: '{}', riotClient: {} }});",
+                            req_id, connected, phase, riot_ready
                         );
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                    }
+                    "launch-league" => {
+                        let league_paths = [
+                            "E:\\Riot Games\\League of Legends\\LeagueClient.exe",
+                            "F:\\Riot Games\\League of Legends (PBE)\\LeagueClient.exe",
+                            "C:\\Riot Games\\League of Legends\\LeagueClient.exe",
+                            "D:\\Riot Games\\League of Legends\\LeagueClient.exe",
+                        ];
+                        for path in &league_paths {
+                            if Path::new(path).exists() {
+                                let _ = Command::new("cmd")
+                                    .args(["/c", "start", "", path])
+                                    .spawn();
+                                break;
+                            }
+                        }
+                        let script = format!("window.__riftIpcReply({}, null, {{ success: true }});", req_id);
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
                     }
                     "lcu-request" => {
                         let endpoint = json.get("endpoint").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -383,21 +425,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::spawn(async move {
         let mut last_phase = String::new();
+        let mut last_connected = false;
 
         loop {
             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
             let current_creds = {
                 let mut st = bg_state.lock().unwrap();
-                if st.credentials.is_none() {
-                    st.credentials = detect_league_client();
-                    if st.credentials.is_some() {
-                        let script = "window.dispatchEvent(new CustomEvent('rift-lcu-status', { detail: { connected: true } }));";
-                        let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
-                    }
-                }
+                st.credentials = detect_league_client();
                 st.credentials.clone()
             };
+
+            let is_connected = current_creds.is_some();
+            if is_connected != last_connected {
+                last_connected = is_connected;
+                let riot_ready = is_riot_client_open();
+                let script = format!(
+                    "window.dispatchEvent(new CustomEvent('rift-lcu-status', {{ detail: {{ connected: {}, riotClient: {} }} }}));",
+                    is_connected, riot_ready
+                );
+                let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script));
+            }
 
             if let Some(ref creds) = current_creds {
                 let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", creds.token)));
@@ -461,9 +509,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
-            } else {
-                let script = "window.dispatchEvent(new CustomEvent('rift-lcu-status', { detail: { connected: false } }));";
-                let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
             }
         }
     });

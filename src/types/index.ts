@@ -208,7 +208,8 @@ declare global {
       windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact') => Promise<any>;
       getSettings: () => Promise<AppSettings>;
       saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
-      checkClientStatus: () => Promise<{ connected: boolean; gameflowPhase: GameflowPhase }>;
+      checkClientStatus: () => Promise<{ connected: boolean; gameflowPhase: GameflowPhase; riotClient?: boolean }>;
+      launchLeague?: () => Promise<any>;
     };
   }
 }

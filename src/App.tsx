@@ -19,6 +19,7 @@ import { Check, Flame, ShieldAlert, Sparkles, Zap } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
+  const [isRiotClientReady, setIsRiotClientReady] = useState(false);
   const [gameflowPhase, setGameflowPhase] = useState<GameflowPhase>('None');
   const [activeTab, setActiveTab] = useState<string>('champ-select');
   const [isCompactMode, setIsCompactMode] = useState(false);
@@ -51,6 +52,7 @@ export const App: React.FC = () => {
     // 1. Initial status check
     window.riftAPI.checkClientStatus().then((res) => {
       setIsConnected(res.connected);
+      if (res.riotClient !== undefined) setIsRiotClientReady(res.riotClient);
       if (res.gameflowPhase) setGameflowPhase(res.gameflowPhase);
       if (res.connected) fetchInitialData();
     });
@@ -64,8 +66,9 @@ export const App: React.FC = () => {
     });
 
     // 3. Listen to LCU Status
-    const unsubLCU = window.riftAPI.onLCUStatusChange((status) => {
+    const unsubLCU = window.riftAPI.onLCUStatusChange((status: any) => {
       setIsConnected(status.connected);
+      if (status.riotClient !== undefined) setIsRiotClientReady(status.riotClient);
       if (status.connected) {
         fetchInitialData();
       } else {
@@ -169,16 +172,24 @@ export const App: React.FC = () => {
     readyCheckData.state === 'InProgress' &&
     readyCheckData.playerResponse === 'None';
 
+  const handleLaunchLeague = () => {
+    if (window.riftAPI?.launchLeague) {
+      window.riftAPI.launchLeague();
+    }
+  };
+
   return (
     <div className={`app-container ${isCompactMode ? 'compact-mode' : ''}`}>
       {/* Titlebar */}
       <TitleBar
         isConnected={isConnected}
+        isRiotClientReady={isRiotClientReady}
         gameflowPhase={gameflowPhase}
         isCompactMode={isCompactMode}
         isPinned={isPinned}
         onToggleCompact={handleToggleCompact}
         onTogglePin={handleTogglePin}
+        onLaunchLeague={handleLaunchLeague}
       />
 
       {/* Queue Pop Notification Modal */}
