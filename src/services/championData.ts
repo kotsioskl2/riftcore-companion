@@ -1,3 +1,4 @@
+import { patchService } from './patchService';
 import { ChampionBuild } from '../types';
 
 export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: string; roles: string[] }[] = [
@@ -518,7 +519,9 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "key": "Jayce",
     "title": "the Defender of Tomorrow",
     "roles": [
-      "ADC"
+      "ADC",
+      "TOP",
+      "JUNGLE"
     ]
   },
   {
@@ -613,9 +616,7 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "key": "Kayle",
     "title": "the Righteous",
     "roles": [
-      "ADC",
-      "MID",
-      "SUPPORT"
+      "ADC"
     ]
   },
   {
@@ -727,6 +728,16 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     ]
   },
   {
+    "id": 805,
+    "name": "Locke",
+    "key": "Locke",
+    "title": "the Ashen Exorcist",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
     "id": 236,
     "name": "Lucian",
     "key": "Lucian",
@@ -790,8 +801,18 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "key": "MasterYi",
     "title": "the Wuju Bladesman",
     "roles": [
-      "MID",
+      "TOP",
       "JUNGLE"
+    ]
+  },
+  {
+    "id": 800,
+    "name": "Mel",
+    "key": "Mel",
+    "title": "the Soul's Reflection",
+    "roles": [
+      "MID",
+      "SUPPORT"
     ]
   },
   {
@@ -828,7 +849,6 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "key": "Morgana",
     "title": "the Fallen",
     "roles": [
-      "MID",
       "SUPPORT"
     ]
   },
@@ -1575,12 +1595,31 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     ]
   },
   {
+    "id": 804,
+    "name": "Yunara",
+    "key": "Yunara",
+    "title": "the Unbroken Faith",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
     "id": 350,
     "name": "Yuumi",
     "key": "Yuumi",
     "title": "the Magical Cat",
     "roles": [
       "SUPPORT"
+    ]
+  },
+  {
+    "id": 904,
+    "name": "Zaahen",
+    "key": "Zaahen",
+    "title": "The Unsundered",
+    "roles": [
+      "TOP",
+      "JUNGLE"
     ]
   },
   {
@@ -2182,15 +2221,16 @@ export function getChampionBuild(championId: number, championName?: string): Cha
 
 export function getChampionIcon(championIdOrKey: number | string): string {
   if (typeof championIdOrKey === 'number') {
-    const found = CHAMPIONS_LIST.find(c => c.id === championIdOrKey);
+    const list = patchService.getChampions() || CHAMPIONS_LIST;
+    const found = list.find((c) => c.id === championIdOrKey);
     if (found) {
-      return `https://ddragon.leagueoflegends.com/cdn/14.23.1/img/champion/${found.key}.png`;
+      return patchService.getChampionIconUrl(found.key);
     }
     return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${championIdOrKey}.png`;
   }
-  return `https://ddragon.leagueoflegends.com/cdn/14.23.1/img/champion/${championIdOrKey}.png`;
+  return patchService.getChampionIconUrl(championIdOrKey);
 }
 
 export function getChampionSplash(championKey: string): string {
-  return `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${championKey}_0.jpg`;
+  return patchService.getChampionSplashUrl(championKey);
 }

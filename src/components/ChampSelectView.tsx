@@ -23,6 +23,7 @@ import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon, getChampionSplash } 
 import { RUNE_TREES, STAT_SHARDS, SUMMONER_SPELLS } from '../services/runeData';
 import { RuneCustomizer } from './RuneCustomizer';
 import { soundService } from '../services/soundService';
+import { patchService, PatchState } from '../services/patchService';
 
 interface ChampSelectViewProps {
   session: ChampSelectSession | null;
@@ -30,13 +31,22 @@ interface ChampSelectViewProps {
 }
 
 export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSelectChampion }) => {
+  const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
   const [selectedChampId, setSelectedChampId] = useState<number>(420); // Default Illaoi
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
   const [showFullRosterModal, setShowFullRosterModal] = useState(false);
 
+  useEffect(() => {
+    return patchService.subscribe((state) => {
+      setPatchState(state);
+    });
+  }, []);
+
+  const currentChampions = patchService.getChampions() || CHAMPIONS_LIST;
+
   // Active Build & Customization State
-  const champ = CHAMPIONS_LIST.find((c) => c.id === selectedChampId) || CHAMPIONS_LIST[0];
+  const champ = currentChampions.find((c) => c.id === selectedChampId) || currentChampions[0];
   const initialBuild = getChampionBuild(champ.id, champ.name);
 
   const [activePreset, setActivePreset] = useState<'meta' | 'burst' | 'sustain' | 'custom'>('meta');
@@ -178,7 +188,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
   };
 
   // Champion filtering
-  const filteredChampions = CHAMPIONS_LIST.filter((c) => {
+  const filteredChampions = currentChampions.filter((c) => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           c.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = selectedRoleFilter === 'ALL' || c.roles.includes(selectedRoleFilter);

@@ -1,6 +1,7 @@
-import React from 'react';
-import { Minus, Square, X, Pin, LayoutTemplate } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Minus, Square, X, Pin, LayoutTemplate, RefreshCw, Zap } from 'lucide-react';
 import { GameflowPhase } from '../types';
+import { patchService, PatchState } from '../services/patchService';
 
 interface TitleBarProps {
   isConnected: boolean;
@@ -23,6 +24,15 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onTogglePin,
   onLaunchLeague,
 }) => {
+  const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
+
+  useEffect(() => {
+    const unsub = patchService.subscribe((state) => {
+      setPatchState(state);
+    });
+    return unsub;
+  }, []);
+
   const handleControl = (action: 'minimize' | 'maximize' | 'close') => {
     if (window.riftAPI) {
       window.riftAPI.windowControl(action);
@@ -93,6 +103,31 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       </div>
 
       <div className="titlebar-controls">
+        {/* Dynamic Riot Patch Badge */}
+        <button
+          onClick={() => patchService.checkAndApplyPatchUpdate()}
+          disabled={patchState.isChecking}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '3px 8px',
+            borderRadius: '4px',
+            background: 'rgba(0, 200, 255, 0.08)',
+            border: '1px solid rgba(0, 200, 255, 0.25)',
+            fontSize: '11px',
+            fontWeight: 700,
+            color: 'var(--blue-primary)',
+            cursor: 'pointer',
+            marginRight: '6px',
+            transition: 'all 0.15s ease',
+          }}
+          title={`Patch ${patchState.version} • Click to check Riot for updates`}
+        >
+          <RefreshCw size={11} style={{ animation: patchState.isChecking ? 'spin 1s linear infinite' : 'none' }} />
+          <span>Patch {patchState.majorMinor}</span>
+        </button>
+
         <button
           id="btn-toggle-pin"
           className={`control-btn ${isPinned ? 'active' : ''}`}

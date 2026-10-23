@@ -516,7 +516,9 @@
     "key": "Jayce",
     "title": "the Defender of Tomorrow",
     "roles": [
-      "ADC"
+      "ADC",
+      "TOP",
+      "JUNGLE"
     ]
   },
   {
@@ -611,9 +613,7 @@
     "key": "Kayle",
     "title": "the Righteous",
     "roles": [
-      "ADC",
-      "MID",
-      "SUPPORT"
+      "ADC"
     ]
   },
   {
@@ -725,6 +725,16 @@
     ]
   },
   {
+    "id": 805,
+    "name": "Locke",
+    "key": "Locke",
+    "title": "the Ashen Exorcist",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
     "id": 236,
     "name": "Lucian",
     "key": "Lucian",
@@ -788,8 +798,18 @@
     "key": "MasterYi",
     "title": "the Wuju Bladesman",
     "roles": [
-      "MID",
+      "TOP",
       "JUNGLE"
+    ]
+  },
+  {
+    "id": 800,
+    "name": "Mel",
+    "key": "Mel",
+    "title": "the Soul's Reflection",
+    "roles": [
+      "MID",
+      "SUPPORT"
     ]
   },
   {
@@ -826,7 +846,6 @@
     "key": "Morgana",
     "title": "the Fallen",
     "roles": [
-      "MID",
       "SUPPORT"
     ]
   },
@@ -1573,12 +1592,31 @@
     ]
   },
   {
+    "id": 804,
+    "name": "Yunara",
+    "key": "Yunara",
+    "title": "the Unbroken Faith",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
     "id": 350,
     "name": "Yuumi",
     "key": "Yuumi",
     "title": "the Magical Cat",
     "roles": [
       "SUPPORT"
+    ]
+  },
+  {
+    "id": 904,
+    "name": "Zaahen",
+    "key": "Zaahen",
+    "title": "The Unsundered",
+    "roles": [
+      "TOP",
+      "JUNGLE"
     ]
   },
   {

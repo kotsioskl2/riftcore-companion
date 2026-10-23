@@ -1,19 +1,29 @@
-import React, { useState } from 'react';
-import { Crown, Search, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Crown, Search, Zap, RefreshCw } from 'lucide-react';
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon } from '../services/championData';
+import { patchService, PatchState } from '../services/patchService';
 
 interface ChampionTierListViewProps {
   onSelectChampion: (championId: number) => void;
 }
 
 export const ChampionTierListView: React.FC<ChampionTierListViewProps> = ({ onSelectChampion }) => {
+  const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
   const [activeRole, setActiveRole] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'winRate' | 'pickRate' | 'banRate'>('winRate');
 
+  useEffect(() => {
+    return patchService.subscribe((state) => {
+      setPatchState(state);
+    });
+  }, []);
+
   const roles = ['ALL', 'TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
 
-  const champions = CHAMPIONS_LIST.map((c) => {
+  const currentChamps = patchService.getChampions() || CHAMPIONS_LIST;
+
+  const champions = currentChamps.map((c) => {
     const build = getChampionBuild(c.id, c.name);
     return {
       ...c,
@@ -41,10 +51,23 @@ export const ChampionTierListView: React.FC<ChampionTierListViewProps> = ({ onSe
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Crown size={20} color="var(--blue-primary)" />
-              <span>Patch 16.15 Meta Tier List</span>
+              <span>Patch {patchState.majorMinor} Meta Tier List</span>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(0, 200, 255, 0.1)',
+                  color: 'var(--blue-primary)',
+                  border: '1px solid var(--border-blue)',
+                }}
+              >
+                {patchState.totalChampions} Champions • Auto-Synced
+              </span>
             </h2>
             <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-              Win rates, pick rates, and optimal rune setups
+              Live patch win rates, pick rates, and optimal rune setups (Syncs every League patch)
             </p>
           </div>
 
