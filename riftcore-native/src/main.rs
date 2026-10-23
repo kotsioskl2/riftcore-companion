@@ -181,6 +181,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "image/png"
                     } else if clean_path.ends_with(".json") {
                         "application/json"
+                    } else if clean_path.ends_with(".ico") {
+                        "image/x-icon"
                     } else if clean_path.ends_with(".woff2") {
                         "font/woff2"
                     } else if clean_path.ends_with(".woff") {
@@ -196,11 +198,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .unwrap()
                 }
                 Err(e) => {
-                    eprintln!("Failed reading asset {:?}: {}", file_path, e);
+                    if clean_path != "favicon.ico" {
+                        eprintln!("Failed reading asset {:?}: {}", file_path, e);
+                    }
                     Response::builder()
-                        .header(CONTENT_TYPE, "text/plain")
+                        .header(CONTENT_TYPE, "image/x-icon")
                         .status(404)
-                        .body(Cow::Owned(format!("Asset not found: {:?}", file_path).into_bytes()))
+                        .body(Cow::Owned(Vec::new()))
                         .unwrap()
                 }
             }
