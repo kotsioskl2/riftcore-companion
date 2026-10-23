@@ -198,5 +198,13 @@ export function initRustBridge() {
     riotApiRequest: async (url: string, key?: string) => {
       return sendRustIpc('riot-web-api', { url, key });
     },
+
+    getLeagueWindowMode: async () => {
+      return sendRustIpc('get-league-window-mode');
+    },
+
+    setLeagueBorderless: async () => {
+      return sendRustIpc('set-league-borderless');
+    },
   };
 }

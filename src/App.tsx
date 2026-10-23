@@ -8,6 +8,7 @@ import { GameModesHubView } from './components/GameModesHubView';
 import { AramHubView } from './components/AramHubView';
 import { LobbyScoutView } from './components/LobbyScoutView';
 import { LiveGameOverlay } from './components/LiveGameOverlay';
+import { BlitzFloatingOverlay } from './components/BlitzFloatingOverlay';
 import { SummonerProfileView } from './components/SummonerProfileView';
 import { ChampionTierListView } from './components/ChampionTierListView';
 import { SettingsModal } from './components/SettingsModal';
@@ -171,7 +172,11 @@ export const App: React.FC = () => {
     });
 
     const handleCompactEvent = (e: any) => {
-      setIsCompactMode(Boolean(e.detail));
+      const isCompact = Boolean(e.detail);
+      setIsCompactMode(isCompact);
+      if (isCompact) {
+        setActiveTab('live-overlay');
+      }
     };
     window.addEventListener('rift-compact-hud', handleCompactEvent);
 
@@ -182,6 +187,36 @@ export const App: React.FC = () => {
       unsubReady();
       unsubLive();
       window.removeEventListener('rift-compact-hud', handleCompactEvent);
+    };
+  }, []);
+
+  // Direct In-Game Live Client Data poller (port 2999)
+  useEffect(() => {
+    let isSubscribed = true;
+    const pollLiveData = async () => {
+      if (!window.riftAPI?.getLiveClientData) return;
+      try {
+        const data = await window.riftAPI.getLiveClientData();
+        if (isSubscribed && data && data.gameData) {
+          setLiveData(data);
+          setActiveTab((prev) => {
+            if (prev !== 'live-overlay') {
+              window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+                if (r) setIsPinned(r.isPinned);
+              });
+              return 'live-overlay';
+            }
+            return prev;
+          });
+        }
+      } catch {}
+    };
+
+    pollLiveData();
+    const interval = setInterval(pollLiveData, 1000);
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -237,9 +272,16 @@ export const App: React.FC = () => {
       if (res) {
         setIsCompactMode(res.isCompactMode);
         setIsPinned(res.isPinned);
+        if (res.isCompactMode) {
+          setActiveTab('live-overlay');
+        }
       }
     } else {
-      setIsCompactMode(!isCompactMode);
+      const next = !isCompactMode;
+      setIsCompactMode(next);
+      if (next) {
+        setActiveTab('live-overlay');
+      }
     }
   };
 
@@ -300,8 +342,32 @@ export const App: React.FC = () => {
     window.riftAPI?.windowControl('exit-app');
   };
 
+  // Sync compact mode class to document body for transparency
+  useEffect(() => {
+    if (isCompactMode) {
+      document.body.classList.add('compact-mode');
+      document.documentElement.classList.add('compact-mode');
+    } else {
+      document.body.classList.remove('compact-mode');
+      document.documentElement.classList.remove('compact-mode');
+    }
+  }, [isCompactMode]);
+
+  // When in Compact In-Game Overlay Mode: Render Pure Floating Blitz-Style HUD Widget
+  if (isCompactMode) {
+    return (
+      <div className="app-container compact-mode" style={{ background: 'transparent' }}>
+        <BlitzFloatingOverlay
+          liveData={liveData}
+          onExpand={handleToggleCompact}
+          onMinimize={() => window.riftAPI?.windowControl('minimize')}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className={`app-container ${isCompactMode ? 'compact-mode' : ''}`}>
+    <div className="app-container">
       {/* Titlebar */}
       <TitleBar
         isConnected={isConnected}

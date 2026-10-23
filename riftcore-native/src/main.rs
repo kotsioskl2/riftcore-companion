@@ -148,6 +148,7 @@ extern "system" {
         cy: i32,
         uFlags: u32,
     ) -> i32;
+    #[allow(dead_code)]
     fn RegisterHotKey(hWnd: *mut std::ffi::c_void, id: i32, fsModifiers: u32, vk: u32) -> i32;
     fn GetMessageW(lpMsg: *mut MSG, hWnd: *mut std::ffi::c_void, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
     fn TranslateMessage(lpMsg: *const MSG) -> i32;
@@ -176,6 +177,11 @@ extern "system" {
     fn DestroyMenu(hMenu: *mut std::ffi::c_void) -> i32;
     fn GetCursorPos(lpPoint: *mut POINT) -> i32;
     fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
+    fn BringWindowToTop(hWnd: *mut std::ffi::c_void) -> i32;
+    fn SwitchToThisWindow(hWnd: *mut std::ffi::c_void, fUnknown: i32);
+    fn GetAsyncKeyState(vKey: i32) -> i16;
+    fn FindWindowW(lpClassName: *const u16, lpWindowName: *const u16) -> *mut std::ffi::c_void;
+    fn GetSystemMetrics(nIndex: i32) -> i32;
     fn DestroyWindow(hWnd: *mut std::ffi::c_void) -> i32;
 }
 
@@ -251,14 +257,21 @@ const HWND_NOTOPMOST: isize = -2;
 
 const SWP_NOSIZE: u32 = 0x0001;
 const SWP_NOMOVE: u32 = 0x0002;
+#[allow(dead_code)]
 const SWP_NOACTIVATE: u32 = 0x0010;
 const SWP_SHOWWINDOW: u32 = 0x0040;
 
+#[allow(dead_code)]
 const WM_HOTKEY: u32 = 0x0312;
+#[allow(dead_code)]
 const MOD_CONTROL: u32 = 0x0002;
+#[allow(dead_code)]
 const MOD_ALT: u32 = 0x0001;
+#[allow(dead_code)]
 const MOD_NOREPEAT: u32 = 0x4000;
+#[allow(dead_code)]
 const VK_SPACE: u32 = 0x20;
+#[allow(dead_code)]
 const VK_OEM_3: u32 = 0xC0;
 
 const ERROR_ALREADY_EXISTS: u32 = 183;
@@ -417,25 +430,73 @@ fn start_system_tray(
     });
 }
 
+fn find_league_game_cfg() -> Option<PathBuf> {
+    let candidate_paths = [
+        "E:\\Riot Games\\League of Legends\\Config\\game.cfg",
+        "C:\\Riot Games\\League of Legends\\Config\\game.cfg",
+        "D:\\Riot Games\\League of Legends\\Config\\game.cfg",
+        "F:\\Riot Games\\League of Legends\\Config\\game.cfg",
+        "E:\\Riot Games\\League of Legends (PBE)\\Config\\game.cfg",
+        "C:\\Riot Games\\League of Legends (PBE)\\Config\\game.cfg",
+    ];
+    for p in &candidate_paths {
+        let path = PathBuf::from(p);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_league_fullscreen() {
+    unsafe {
+        let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
+        let window_name: Vec<u16> = "League of Legends (TM) Client\0".encode_utf16().collect();
+        let mut hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
+        if hwnd.is_null() {
+            hwnd = FindWindowW(std::ptr::null(), window_name.as_ptr());
+        }
+        if !hwnd.is_null() {
+            let style = GetWindowLongW(hwnd, -16 /* GWL_STYLE */);
+            let target_style = (style & !(0x00C00000 /* WS_CAPTION */ | 0x00040000 /* WS_THICKFRAME */ | 0x00800000 /* WS_BORDER */)) | (0x80000000_u32 as i32 /* WS_POPUP */);
+            if style != target_style {
+                SetWindowLongW(hwnd, -16, target_style);
+                let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                SetWindowPos(
+                    hwnd,
+                    std::ptr::null_mut(),
+                    0, 0, sw, sh,
+                    0x0020 /* SWP_FRAMECHANGED */ | 0x0040 /* SWP_SHOWWINDOW */ | 0x0004 /* SWP_NOZORDER */
+                );
+            }
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
     unsafe {
         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
         if enable {
-            SetWindowLongW(hwnd, GWL_EXSTYLE, ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE);
+            SetWindowLongW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOPMOST) & !WS_EX_NOACTIVATE);
             SetWindowPos(
                 hwnd,
                 HWND_TOPMOST as *mut std::ffi::c_void,
                 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
             );
+            SetForegroundWindow(hwnd);
+            BringWindowToTop(hwnd);
+            SwitchToThisWindow(hwnd, 1);
         } else {
             SetWindowLongW(hwnd, GWL_EXSTYLE, ex & !(WS_EX_TOPMOST | WS_EX_NOACTIVATE));
             SetWindowPos(
                 hwnd,
                 HWND_NOTOPMOST as *mut std::ffi::c_void,
                 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                SWP_NOMOVE | SWP_NOSIZE,
             );
         }
     }
@@ -488,7 +549,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = WindowBuilder::new()
         .with_title("RiftCore - Minimalist League Companion")
         .with_inner_size(LogicalSize::new(1240.0, 820.0))
-        .with_min_inner_size(LogicalSize::new(420.0, 600.0))
+        .with_min_inner_size(LogicalSize::new(240.0, 180.0))
+        .with_transparent(true)
         .with_decorations(false)
         .build(&event_loop)?;
 
@@ -525,21 +587,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     start_system_tray(proxy.clone(), tray_icon_handle);
 
-    // Global in-game Hotkey Thread: Ctrl + Space and Alt + ~ (Tilde)
+    // Global in-game Hotkey Thread: GetAsyncKeyState hardware polling
+    // Bypasses DirectInput/RawInput locks in Fullscreen games!
     #[cfg(target_os = "windows")]
     {
         let hotkey_proxy = proxy.clone();
         std::thread::spawn(move || {
-            unsafe {
-                RegisterHotKey(std::ptr::null_mut(), 1001, MOD_CONTROL | MOD_NOREPEAT, VK_SPACE);
-                RegisterHotKey(std::ptr::null_mut(), 1002, MOD_ALT | MOD_NOREPEAT, VK_OEM_3);
+            let mut was_pressed = false;
 
-                let mut msg: MSG = std::mem::zeroed();
-                while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
-                    if msg.message == WM_HOTKEY {
-                        let _ = hotkey_proxy.send_event(AppUserEvent::ToggleOverlay);
-                    }
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+
+                let ctrl = unsafe { (GetAsyncKeyState(0x11 /* VK_CONTROL */) as u16 & 0x8000) != 0 };
+                let alt = unsafe { (GetAsyncKeyState(0x12 /* VK_MENU / Alt */) as u16 & 0x8000) != 0 };
+                let space = unsafe { (GetAsyncKeyState(0x20 /* VK_SPACE */) as u16 & 0x8000) != 0 };
+                let tilde = unsafe { (GetAsyncKeyState(0xC0 /* VK_OEM_3 / ~ */) as u16 & 0x8000) != 0 };
+                let x_key = unsafe { (GetAsyncKeyState(0x58 /* X */) as u16 & 0x8000) != 0 };
+                let f10 = unsafe { (GetAsyncKeyState(0x79 /* VK_F10 */) as u16 & 0x8000) != 0 };
+
+                let is_combo_down = (ctrl && space) || (alt && tilde) || (alt && x_key) || (ctrl && tilde) || f10;
+
+                if is_combo_down && !was_pressed {
+                    let _ = hotkey_proxy.send_event(AppUserEvent::ToggleOverlay);
                 }
+                was_pressed = is_combo_down;
             }
         });
     }
@@ -574,7 +645,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let dist_dir_protocol = dist_dir.clone();
 
-    let builder = WebViewBuilder::new();
+    let builder = WebViewBuilder::new()
+        .with_transparent(true);
 
     #[cfg(target_os = "windows")]
     let builder = builder
@@ -705,7 +777,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 #[cfg(target_os = "windows")]
                                 let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                                 if st.is_compact {
-                                    window_clone.set_inner_size(LogicalSize::new(360.0, 720.0));
+                                    window_clone.set_inner_size(LogicalSize::new(280.0, 310.0));
                                     st.is_pinned = true;
                                     #[cfg(target_os = "windows")]
                                     apply_fullscreen_topmost(hwnd, true);
@@ -742,7 +814,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         #[cfg(target_os = "windows")]
                         let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                         if compact {
-                            window_clone.set_inner_size(LogicalSize::new(360.0, 720.0));
+                            window_clone.set_inner_size(LogicalSize::new(280.0, 310.0));
                             st.is_pinned = true;
                             #[cfg(target_os = "windows")]
                             apply_fullscreen_topmost(hwnd, true);
@@ -996,8 +1068,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let live_url = "https://127.0.0.1:2999/liveclientdata/allgamedata";
                             match client.get(live_url).send().await {
                                 Ok(res) => {
-                                    let text = res.text().await.unwrap_or_else(|_| "null".to_string());
-                                    let script = format!("window.__riftIpcReply({}, null, {});", req_id, text);
+                                    let text = res.text().await.unwrap_or_default();
+                                    let compact = match serde_json::from_str::<serde_json::Value>(&text) {
+                                        Ok(val) => serde_json::to_string(&val).unwrap_or_else(|_| "null".to_string()),
+                                        Err(_) => "null".to_string(),
+                                    };
+                                    let script = format!("window.__riftIpcReply({}, null, {});", req_id, compact);
                                     let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
                                 }
                                 Err(_) => {
@@ -1007,41 +1083,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                     }
-                    "riot-web-api" => {
-                        let url = json.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let key = json.get("key").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let client = http_clone.clone();
-                        let proxy_worker = proxy_ipc.clone();
-
-                        tokio::spawn(async move {
-                            if url.is_empty() {
-                                let script = format!("window.__riftIpcReply({}, \"Empty URL\", null);", req_id);
-                                let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
-                                return;
-                            }
-
-                            let mut req = client.get(&url);
-                            if !key.is_empty() {
-                                req = req.header("X-Riot-Token", &key);
-                            }
-
-                            match req.send().await {
-                                Ok(res) => {
-                                    let status = res.status().as_u16();
-                                    let text = res.text().await.unwrap_or_else(|_| "{}".to_string());
-                                    let script = format!(
-                                        "window.__riftIpcReply({}, null, {{ status: {}, data: {} }});",
-                                        req_id, status, text
-                                    );
-                                    let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
-                                }
-                                Err(e) => {
-                                    let err_msg = format!("{:?}", e).replace('"', "\\\"");
-                                    let script = format!("window.__riftIpcReply({}, \"{}\", null);", req_id, err_msg);
-                                    let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
+                    "get-league-window-mode" => {
+                        let mut mode = 0;
+                        let mut found = false;
+                        let mut cfg_path_str = String::new();
+                        if let Some(cfg_path) = find_league_game_cfg() {
+                            cfg_path_str = cfg_path.to_string_lossy().to_string();
+                            if let Ok(content) = std::fs::read_to_string(&cfg_path) {
+                                found = true;
+                                for line in content.lines() {
+                                    let trimmed = line.trim();
+                                    if trimmed.starts_with("WindowMode=") {
+                                        if let Some(val_str) = trimmed.strip_prefix("WindowMode=") {
+                                            mode = val_str.parse::<i32>().unwrap_or(0);
+                                        }
+                                        break;
+                                    }
                                 }
                             }
-                        });
+                        }
+                        let script = format!(
+                            "window.__riftIpcReply({}, null, {{ found: {}, windowMode: {}, path: \"{}\" }});",
+                            req_id, found, mode, cfg_path_str.replace('\\', "\\\\")
+                        );
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
+                    }
+                    "set-league-borderless" => {
+                        let mut success = false;
+                        if let Some(cfg_path) = find_league_game_cfg() {
+                            if let Ok(content) = std::fs::read_to_string(&cfg_path) {
+                                let mut new_lines = Vec::new();
+                                let mut replaced = false;
+                                for line in content.lines() {
+                                    if line.trim().starts_with("WindowMode=") {
+                                        new_lines.push("WindowMode=2".to_string());
+                                        replaced = true;
+                                    } else {
+                                        new_lines.push(line.to_string());
+                                    }
+                                }
+                                if !replaced {
+                                    new_lines.push("WindowMode=2".to_string());
+                                }
+                                if std::fs::write(&cfg_path, new_lines.join("\r\n")).is_ok() {
+                                    success = true;
+                                }
+                            }
+                        }
+                        let script = format!(
+                            "window.__riftIpcReply({}, null, {{ success: {} }});",
+                            req_id, success
+                        );
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
                     }
                     _ => {}
                 }
@@ -1143,16 +1236,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let mut st = bg_state.lock().unwrap();
                                 st.gameflow_phase = "InProgress".to_string();
                                 st.is_pinned = true;
+                                #[cfg(target_os = "windows")]
+                                ensure_league_fullscreen();
                                 let script = "window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
                                 let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
                                 let _ = bg_proxy.send_event(AppUserEvent::ApplyTopmost(true));
                             }
 
-                            let script = format!(
-                                "window.dispatchEvent(new CustomEvent('rift-live-data', {{ detail: {} }}));",
-                                live_json
-                            );
-                            let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script));
+                            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&live_json) {
+                                if let Ok(compact_json) = serde_json::to_string(&val) {
+                                    let script = format!(
+                                        "window.dispatchEvent(new CustomEvent('rift-live-data', {{ detail: {} }}));",
+                                        compact_json
+                                    );
+                                    let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script));
+                                }
+                            }
                         }
                     }
                 }
@@ -1183,6 +1282,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 window.set_visible(true);
                 window.set_minimized(false);
                 window.set_focus();
+                #[cfg(target_os = "windows")]
+                {
+                    let hwnd = window.hwnd() as *mut std::ffi::c_void;
+                    unsafe {
+                        SetForegroundWindow(hwnd);
+                        BringWindowToTop(hwnd);
+                    }
+                }
             }
             Event::UserEvent(AppUserEvent::EvalScript(script)) => {
                 let _ = webview.evaluate_script(&script);
@@ -1192,19 +1299,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 #[cfg(target_os = "windows")]
                 let hwnd = window.hwnd() as *mut std::ffi::c_void;
 
-                if window.is_minimized() {
+                #[cfg(target_os = "windows")]
+                ensure_league_fullscreen();
+
+                if window.is_minimized() || !st.is_compact {
+                    window.set_visible(true);
                     window.set_minimized(false);
-                    st.is_pinned = true;
-                    #[cfg(target_os = "windows")]
-                    apply_fullscreen_topmost(hwnd, true);
-                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: true } }));");
-                } else if !st.is_compact {
+                    window.set_focus();
+
                     st.is_compact = true;
                     st.is_pinned = true;
-                    window.set_inner_size(LogicalSize::new(360.0, 720.0));
+                    window.set_inner_size(LogicalSize::new(280.0, 310.0));
                     #[cfg(target_os = "windows")]
-                    apply_fullscreen_topmost(hwnd, true);
+                    {
+                        apply_fullscreen_topmost(hwnd, true);
+                        unsafe {
+                            SwitchToThisWindow(hwnd, 1);
+                        }
+                    }
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true }));");
+                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: true } }));");
                 } else {
                     window.set_minimized(true);
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: false } }));");

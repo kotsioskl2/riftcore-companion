@@ -238,6 +238,8 @@ declare global {
       checkClientStatus: () => Promise<{ connected: boolean; gameflowPhase: GameflowPhase; riotClient?: boolean }>;
       launchLeague?: () => Promise<any>;
       riotApiRequest?: (url: string, key?: string) => Promise<{ status: number; data: any }>;
+      getLeagueWindowMode?: () => Promise<{ found: boolean; windowMode: number; path: string }>;
+      setLeagueBorderless?: () => Promise<{ success: boolean }>;
     };
   }
 }

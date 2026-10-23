@@ -96,6 +96,24 @@ body {
   overflow: hidden;
 }
 
+/* Compact Floating Overlay Mode (Blitz Style) */
+body.compact-mode,
+html.compact-mode {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.app-container.compact-mode {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  overflow: hidden !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 /* Minimalist Titlebar */
 .titlebar {
   display: flex;
