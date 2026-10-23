@@ -156,12 +156,18 @@ export const App: React.FC = () => {
       }
     });
 
+    const handleCompactEvent = (e: any) => {
+      setIsCompactMode(Boolean(e.detail));
+    };
+    window.addEventListener('rift-compact-hud', handleCompactEvent);
+
     return () => {
       unsubLCU();
       unsubPhase();
       unsubChamp();
       unsubReady();
       unsubLive();
+      window.removeEventListener('rift-compact-hud', handleCompactEvent);
     };
   }, []);
 

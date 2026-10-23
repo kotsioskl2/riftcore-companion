@@ -38,6 +38,8 @@ struct AppState {
 enum AppUserEvent {
     Exit,
     EvalScript(String),
+    ToggleOverlay,
+    ApplyTopmost(bool),
 }
 
 fn detect_league_client() -> Option<LcuCredentials> {
@@ -113,6 +115,37 @@ extern "system" {
     fn SendMessageW(hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize) -> isize;
     fn SetClassLongPtrW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: isize) -> isize;
     fn SetCurrentProcessExplicitAppUserModelID(AppID: *const u16) -> i32;
+    fn GetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32) -> i32;
+    fn SetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: i32) -> i32;
+    fn SetWindowPos(
+        hWnd: *mut std::ffi::c_void,
+        hWndInsertAfter: *mut std::ffi::c_void,
+        X: i32,
+        Y: i32,
+        cx: i32,
+        cy: i32,
+        uFlags: u32,
+    ) -> i32;
+    fn RegisterHotKey(hWnd: *mut std::ffi::c_void, id: i32, fsModifiers: u32, vk: u32) -> i32;
+    fn GetMessageW(lpMsg: *mut MSG, hWnd: *mut std::ffi::c_void, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct POINT {
+    x: i32,
+    y: i32,
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct MSG {
+    hwnd: *mut std::ffi::c_void,
+    message: u32,
+    wparam: usize,
+    lparam: isize,
+    time: u32,
+    pt: POINT,
 }
 
 const WM_SETICON: u32 = 0x0080;
@@ -121,7 +154,50 @@ const ICON_BIG: usize = 1;
 const GCLP_HICON: i32 = -14;
 const GCLP_HICONSM: i32 = -34;
 
+const GWL_EXSTYLE: i32 = -20;
+const WS_EX_TOPMOST: i32 = 0x00000008;
+const WS_EX_NOACTIVATE: i32 = 0x08000000;
+
+const HWND_TOPMOST: isize = -1;
+const HWND_NOTOPMOST: isize = -2;
+
+const SWP_NOSIZE: u32 = 0x0001;
+const SWP_NOMOVE: u32 = 0x0002;
+const SWP_NOACTIVATE: u32 = 0x0010;
+const SWP_SHOWWINDOW: u32 = 0x0040;
+
+const WM_HOTKEY: u32 = 0x0312;
+const MOD_CONTROL: u32 = 0x0002;
+const MOD_ALT: u32 = 0x0001;
+const MOD_NOREPEAT: u32 = 0x4000;
+const VK_SPACE: u32 = 0x20;
+const VK_OEM_3: u32 = 0xC0;
+
 const ERROR_ALREADY_EXISTS: u32 = 183;
+
+#[cfg(target_os = "windows")]
+fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
+    unsafe {
+        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+        if enable {
+            SetWindowLongW(hwnd, GWL_EXSTYLE, ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE);
+            SetWindowPos(
+                hwnd,
+                HWND_TOPMOST as *mut std::ffi::c_void,
+                0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            );
+        } else {
+            SetWindowLongW(hwnd, GWL_EXSTYLE, ex & !(WS_EX_TOPMOST | WS_EX_NOACTIVATE));
+            SetWindowPos(
+                hwnd,
+                HWND_NOTOPMOST as *mut std::ffi::c_void,
+                0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+        }
+    }
+}
 
 fn is_already_running() -> bool {
     #[cfg(target_os = "windows")]
@@ -196,6 +272,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let proxy = event_loop.create_proxy();
+
+    // Global in-game Hotkey Thread: Ctrl + Space and Alt + ~ (Tilde)
+    #[cfg(target_os = "windows")]
+    {
+        let hotkey_proxy = proxy.clone();
+        std::thread::spawn(move || {
+            unsafe {
+                RegisterHotKey(std::ptr::null_mut(), 1001, MOD_CONTROL | MOD_NOREPEAT, VK_SPACE);
+                RegisterHotKey(std::ptr::null_mut(), 1002, MOD_ALT | MOD_NOREPEAT, VK_OEM_3);
+
+                let mut msg: MSG = std::mem::zeroed();
+                while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
+                    if msg.message == WM_HOTKEY {
+                        let _ = hotkey_proxy.send_event(AppUserEvent::ToggleOverlay);
+                    }
+                }
+            }
+        });
+    }
 
     let http_client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
@@ -318,9 +413,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "toggle-pin" => {
                                 let mut st = state_clone.lock().unwrap();
                                 st.is_pinned = !st.is_pinned;
-                                window_clone.set_always_on_top(st.is_pinned);
-                                if st.is_pinned {
-                                    window_clone.set_focus();
+                                #[cfg(target_os = "windows")]
+                                {
+                                    let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                                    apply_fullscreen_topmost(hwnd, st.is_pinned);
                                 }
                                 let is_pinned = st.is_pinned;
                                 let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: {} }});", req_id, is_pinned);
@@ -329,26 +425,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "set-pin-on" => {
                                 let mut st = state_clone.lock().unwrap();
                                 st.is_pinned = true;
-                                window_clone.set_always_on_top(true);
-                                window_clone.set_focus();
+                                #[cfg(target_os = "windows")]
+                                {
+                                    let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                                    apply_fullscreen_topmost(hwnd, true);
+                                }
                                 let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: true }});", req_id);
                                 let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
                             }
                             "set-pin-off" => {
                                 let mut st = state_clone.lock().unwrap();
                                 st.is_pinned = false;
-                                window_clone.set_always_on_top(false);
+                                #[cfg(target_os = "windows")]
+                                {
+                                    let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                                    apply_fullscreen_topmost(hwnd, false);
+                                }
                                 let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: false }});", req_id);
                                 let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
                             }
                             "toggle-compact" => {
                                 let mut st = state_clone.lock().unwrap();
                                 st.is_compact = !st.is_compact;
+                                #[cfg(target_os = "windows")]
+                                let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                                 if st.is_compact {
                                     window_clone.set_inner_size(LogicalSize::new(360.0, 720.0));
-                                    window_clone.set_always_on_top(true);
                                     st.is_pinned = true;
-                                    window_clone.set_focus();
+                                    #[cfg(target_os = "windows")]
+                                    apply_fullscreen_topmost(hwnd, true);
                                 } else {
                                     window_clone.set_inner_size(LogicalSize::new(1240.0, 820.0));
                                 }
@@ -367,9 +472,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let on_top = json.get("alwaysOnTop").and_then(|v| v.as_bool()).unwrap_or(true);
                         let mut st = state_clone.lock().unwrap();
                         st.is_pinned = on_top;
-                        window_clone.set_always_on_top(on_top);
-                        if on_top {
-                            window_clone.set_focus();
+                        #[cfg(target_os = "windows")]
+                        {
+                            let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                            apply_fullscreen_topmost(hwnd, on_top);
                         }
                         let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: {} }});", req_id, on_top);
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
@@ -378,11 +484,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let compact = json.get("compact").and_then(|v| v.as_bool()).unwrap_or(true);
                         let mut st = state_clone.lock().unwrap();
                         st.is_compact = compact;
+                        #[cfg(target_os = "windows")]
+                        let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                         if compact {
                             window_clone.set_inner_size(LogicalSize::new(360.0, 720.0));
-                            window_clone.set_always_on_top(true);
                             st.is_pinned = true;
-                            window_clone.set_focus();
+                            #[cfg(target_os = "windows")]
+                            apply_fullscreen_topmost(hwnd, true);
                         } else {
                             window_clone.set_inner_size(LogicalSize::new(1240.0, 820.0));
                         }
@@ -654,8 +762,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 last_phase = "InProgress".to_string();
                                 let mut st = bg_state.lock().unwrap();
                                 st.gameflow_phase = "InProgress".to_string();
+                                st.is_pinned = true;
                                 let script = "window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
                                 let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
+                                let _ = bg_proxy.send_event(AppUserEvent::ApplyTopmost(true));
                             }
 
                             let script = format!(
@@ -679,6 +789,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Event::UserEvent(AppUserEvent::EvalScript(script)) => {
                 let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(AppUserEvent::ToggleOverlay) => {
+                let mut st = state.lock().unwrap();
+                #[cfg(target_os = "windows")]
+                let hwnd = window.hwnd() as *mut std::ffi::c_void;
+
+                if window.is_minimized() {
+                    window.set_minimized(false);
+                    st.is_pinned = true;
+                    #[cfg(target_os = "windows")]
+                    apply_fullscreen_topmost(hwnd, true);
+                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: true } }));");
+                } else if !st.is_compact {
+                    st.is_compact = true;
+                    st.is_pinned = true;
+                    window.set_inner_size(LogicalSize::new(360.0, 720.0));
+                    #[cfg(target_os = "windows")]
+                    apply_fullscreen_topmost(hwnd, true);
+                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true }));");
+                } else {
+                    window.set_minimized(true);
+                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: false } }));");
+                }
+            }
+            Event::UserEvent(AppUserEvent::ApplyTopmost(on_top)) => {
+                #[cfg(target_os = "windows")]
+                {
+                    let hwnd = window.hwnd() as *mut std::ffi::c_void;
+                    apply_fullscreen_topmost(hwnd, on_top);
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

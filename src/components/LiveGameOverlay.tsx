@@ -512,18 +512,18 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                background: isPinned ? 'rgba(0, 200, 255, 0.15)' : 'rgba(255, 170, 0, 0.15)',
+                background: isPinned ? 'rgba(0, 200, 255, 0.15)' : 'rgba(0, 255, 170, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              {isPinned ? <Pin size={16} color="var(--blue-primary)" /> : <AlertTriangle size={16} color="#fbbf24" />}
+              {isPinned ? <Pin size={16} color="var(--blue-primary)" /> : <TrendingUp size={16} color="#00ffaa" />}
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
-                  In-Game Overlay:
+                  Fullscreen HUD Engine:
                 </span>
                 <span
                   style={{
@@ -531,16 +531,28 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    background: isPinned ? 'rgba(0, 200, 255, 0.15)' : 'rgba(255, 170, 0, 0.15)',
-                    color: isPinned ? 'var(--blue-primary)' : '#fbbf24',
-                    border: `1px solid ${isPinned ? 'rgba(0, 200, 255, 0.3)' : 'rgba(255, 170, 0, 0.3)'}`,
+                    background: isPinned ? 'rgba(0, 200, 255, 0.15)' : 'rgba(0, 255, 170, 0.15)',
+                    color: isPinned ? 'var(--blue-primary)' : '#00ffaa',
+                    border: `1px solid ${isPinned ? 'rgba(0, 200, 255, 0.3)' : 'rgba(0, 255, 170, 0.3)'}`,
                   }}
                 >
-                  {isPinned ? '📌 ALWAYS ON TOP ACTIVE' : '⚠️ UNPINNED (May hide behind League)'}
+                  {isPinned ? '🟢 FULLSCREEN ACTIVE (ALWAYS ON TOP)' : '⚡ NATIVE FULLSCREEN READY'}
+                </span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: '3px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: '#94a3b8',
+                  }}
+                >
+                  In-Game Hotkey: <kbd style={{ color: '#00c8ff' }}>Ctrl + Space</kbd> or <kbd style={{ color: '#00c8ff' }}>Alt + ~</kbd>
                 </span>
               </div>
               <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                League Video setting must be <strong>Borderless Windowed</strong> (press <code>Alt + Enter</code> in-game) for overlays to float over League.
+                Optimized for <strong>Full Screen Mode</strong> with zero game minimizes, non-activating click handling, and instant hotkey toggling.
               </div>
             </div>
           </div>
@@ -564,7 +576,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 }}
               >
                 <Pin size={12} />
-                <span>{isPinned ? 'Overlay Pinned' : 'Pin Always on Top'}</span>
+                <span>{isPinned ? 'Fullscreen Pinned' : 'Pin Over Fullscreen'}</span>
               </button>
             )}
 
@@ -607,12 +619,12 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               }}
             >
               <HelpCircle size={13} />
-              <span>Guide</span>
+              <span>Fullscreen Guide</span>
             </button>
           </div>
         </div>
 
-        {/* Expandable Borderless Explanation */}
+        {/* Expandable Fullscreen HUD Guide */}
         {showBorderlessGuide && (
           <div
             style={{
@@ -624,16 +636,19 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               lineHeight: '1.6',
             }}
           >
-            <strong style={{ color: '#00c8ff' }}>Why couldn't you see the overlay in-game?</strong>
+            <strong style={{ color: '#00c8ff' }}>RiftCore Fullscreen In-Game Optimization:</strong>
             <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
               <li>
-                <strong>Windows Exclusive Fullscreen Block:</strong> When League runs in Exclusive Fullscreen, Windows directs the entire graphics card exclusively to League, hiding all desktop windows behind it.
+                <strong>True Fullscreen Support:</strong> RiftCore uses a non-activating DirectComposition layer (<code style={{ color: '#00c8ff' }}>WS_EX_NOACTIVATE</code>) that stays on top of League in Full Screen without stealing focus or minimizing your match!
               </li>
               <li>
-                <strong>The 1-Second Fix:</strong> Press <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px' }}>Alt + Enter</kbd> while inside a League match, or go to <em>Options &rarr; Video &rarr; Window Mode: Borderless</em>.
+                <strong>Instant In-Game Hotkeys:</strong> Press <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Ctrl + Space</kbd> or <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Alt + ~</kbd> at any time in-game to instantaneously toggle RiftCore into view or collapse it into the corner.
               </li>
               <li>
-                <strong>Always On Top (Pinned):</strong> When pinned, RiftCore floats smoothly over your borderless League game without losing focus or crashing your FPS!
+                <strong>Mini HUD Mode:</strong> Click <strong>🗖 Mini HUD Mode</strong> above to transform RiftCore into a sleek, compact side HUD displaying CS benchmarks, gold lead, and ultimate timers without obstructing your screen.
+              </li>
+              <li>
+                <strong>Zero Vanguard Conflict:</strong> 100% compliant with Riot Vanguard rules — RiftCore uses safe Win32 DWM composition and official local Live Client APIs with zero DLL injection.
               </li>
             </ul>
           </div>
