@@ -1,0 +1,53 @@
+{
+  "name": "riftcore-companion",
+  "version": "1.0.0",
+  "description": "Minimalist Red & Blue League of Legends companion & overlay",
+  "main": "electron/main.js",
+  "author": "RiftCore Team",
+  "scripts": {
+    "dev:renderer": "vite",
+    "build:renderer": "vite build",
+    "dev:electron": "electron .",
+    "dev": "concurrently -k \"npm run dev:renderer\" \"wait-on tcp:5173 && npm run dev:electron\"",
+    "build:dir": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false vite build && electron-builder --win --dir -c.win.sign=null",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "lucide-react": "^1.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^34.1.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "wait-on": "^8.0.2",
+    "ws": "^8.18.0"
+  },
+  "build": {
+    "appId": "com.riftcore.companion",
+    "productName": "RiftCore Companion",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "dir"
+      ]
+    }
+  }
+}
