@@ -6,11 +6,22 @@ import {
   Check,
   Search,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Flame,
+  Swords,
+  Grid,
+  ChevronDown,
+  Layers,
+  RotateCcw,
+  BookOpen,
+  Sliders,
+  ExternalLink,
+  Target
 } from 'lucide-react';
 import { ChampSelectSession } from '../types';
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon, getChampionSplash } from '../services/championData';
 import { RUNE_TREES, STAT_SHARDS, SUMMONER_SPELLS } from '../services/runeData';
+import { RuneCustomizer } from './RuneCustomizer';
 import { soundService } from '../services/soundService';
 
 interface ChampSelectViewProps {
@@ -18,42 +29,101 @@ interface ChampSelectViewProps {
   onSelectChampion?: (championId: number) => void;
 }
 
-export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => {
-  const [selectedChampId, setSelectedChampId] = useState<number>(420);
-  const [buildType, setBuildType] = useState<'primary' | 'secondary'>('primary');
+export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSelectChampion }) => {
+  const [selectedChampId, setSelectedChampId] = useState<number>(420); // Default Illaoi
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
+  const [showFullRosterModal, setShowFullRosterModal] = useState(false);
+
+  // Active Build & Customization State
+  const champ = CHAMPIONS_LIST.find((c) => c.id === selectedChampId) || CHAMPIONS_LIST[0];
+  const initialBuild = getChampionBuild(champ.id, champ.name);
+
+  const [activePreset, setActivePreset] = useState<'meta' | 'burst' | 'sustain' | 'custom'>('meta');
+  const [primaryStyleId, setPrimaryStyleId] = useState<number>(initialBuild.runes.primaryStyleId);
+  const [subStyleId, setSubStyleId] = useState<number>(initialBuild.runes.subStyleId);
+  const [selectedPerkIds, setSelectedPerkIds] = useState<number[]>(initialBuild.runes.selectedPerkIds);
+  const [selectedSpells, setSelectedSpells] = useState<[number, number]>(initialBuild.spells);
+
+  // Spell Switcher Popover
+  const [activeSpellSlot, setActiveSpellSlot] = useState<0 | 1 | null>(null);
+
+  // Status indicators
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
   const [spellStatus, setSpellStatus] = useState<'idle' | 'importing' | 'success'>('idle');
+  const [autoImport, setAutoImport] = useState(true);
 
+  // Auto-sync when LoL Client selects a champion in Champ Select
   useEffect(() => {
     if (session && session.myTeam && session.localPlayerCellId !== undefined) {
       const me = session.myTeam.find((p) => p.cellId === session.localPlayerCellId);
       if (me) {
         const champId = me.championId || me.championPickIntent;
-        if (champId && champId > 0) {
+        if (champId && champId > 0 && champId !== selectedChampId) {
           setSelectedChampId(champId);
+          if (onSelectChampion) onSelectChampion(champId);
         }
       }
     }
   }, [session]);
 
-  const champ = CHAMPIONS_LIST.find((c) => c.id === selectedChampId) || CHAMPIONS_LIST[0];
-  const build = getChampionBuild(champ.id, champ.name);
-  const activeRunes = buildType === 'primary' ? build.runes : build.secondaryRunes;
+  // When selected champion changes, reload default builds
+  useEffect(() => {
+    const build = getChampionBuild(champ.id, champ.name);
+    setPrimaryStyleId(build.runes.primaryStyleId);
+    setSubStyleId(build.runes.subStyleId);
+    setSelectedPerkIds(build.runes.selectedPerkIds);
+    setSelectedSpells(build.spells);
+    setActivePreset('meta');
 
-  const filteredChampions = CHAMPIONS_LIST.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    if (autoImport && window.riftAPI) {
+      window.riftAPI.importRunes({
+        name: `⚡ Rift: ${champ.name}`,
+        primaryStyleId: build.runes.primaryStyleId,
+        subStyleId: build.runes.subStyleId,
+        selectedPerkIds: build.runes.selectedPerkIds,
+      }).catch(() => {});
+    }
+  }, [selectedChampId]);
 
+  // Presets handler
+  const handleSelectPreset = (preset: 'meta' | 'burst' | 'sustain') => {
+    setActivePreset(preset);
+    const build = getChampionBuild(champ.id, champ.name);
+    if (preset === 'meta') {
+      setPrimaryStyleId(build.runes.primaryStyleId);
+      setSubStyleId(build.runes.subStyleId);
+      setSelectedPerkIds(build.runes.selectedPerkIds);
+    } else if (preset === 'burst') {
+      setPrimaryStyleId(8100); // Domination
+      setSubStyleId(8200); // Sorcery
+      setSelectedPerkIds([8112, 8143, 8138, 8106, 8226, 8210, 5008, 5008, 5001]);
+    } else if (preset === 'sustain') {
+      setPrimaryStyleId(8400); // Resolve
+      setSubStyleId(8000); // Precision
+      setSelectedPerkIds([8437, 8446, 8473, 8451, 9111, 8299, 5008, 5008, 5001]);
+    }
+    soundService.playTimerTick();
+  };
+
+  // Customizer callback
+  const handleCustomRunesChange = (newPerks: number[], newPrimaryStyleId: number, newSubStyleId: number) => {
+    setPrimaryStyleId(newPrimaryStyleId);
+    setSubStyleId(newSubStyleId);
+    setSelectedPerkIds(newPerks);
+    setActivePreset('custom');
+  };
+
+  // Push Runes to League Client via LCU
   const handleImportRunes = async () => {
     setImportStatus('importing');
     try {
       if (window.riftAPI) {
         await window.riftAPI.importRunes({
-          name: `⚡ Rift: ${build.championName}`,
-          primaryStyleId: activeRunes.primaryStyleId,
-          subStyleId: activeRunes.subStyleId,
-          selectedPerkIds: activeRunes.selectedPerkIds,
+          name: `⚡ Rift: ${champ.name}`,
+          primaryStyleId,
+          subStyleId,
+          selectedPerkIds,
         });
         soundService.playRuneImport();
         setImportStatus('success');
@@ -63,7 +133,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
           soundService.playRuneImport();
           setImportStatus('success');
           setTimeout(() => setImportStatus('idle'), 3000);
-        }, 400);
+        }, 350);
       }
     } catch (err) {
       console.error('Import runes error:', err);
@@ -72,11 +142,12 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
     }
   };
 
+  // Push Spells to League Client
   const handleImportSpells = async () => {
     setSpellStatus('importing');
     try {
       if (window.riftAPI) {
-        await window.riftAPI.importSpells(build.spells[0], build.spells[1]);
+        await window.riftAPI.importSpells(selectedSpells[0], selectedSpells[1]);
         soundService.playRuneImport();
         setSpellStatus('success');
         setTimeout(() => setSpellStatus('idle'), 2500);
@@ -85,28 +156,50 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
           soundService.playRuneImport();
           setSpellStatus('success');
           setTimeout(() => setSpellStatus('idle'), 2500);
-        }, 300);
+        }, 250);
       }
     } catch {
       setSpellStatus('idle');
     }
   };
 
-  const primaryTree = RUNE_TREES[activeRunes.primaryStyleId];
-  const subTree = RUNE_TREES[activeRunes.subStyleId];
+  // Swap Spell in slot
+  const handleSelectSpell = (spellId: number) => {
+    if (activeSpellSlot === null) return;
+    const nextSpells: [number, number] = [...selectedSpells];
+    // If the other slot already has this spell, swap them
+    if (nextSpells[1 - activeSpellSlot] === spellId) {
+      nextSpells[1 - activeSpellSlot] = nextSpells[activeSpellSlot];
+    }
+    nextSpells[activeSpellSlot] = spellId;
+    setSelectedSpells(nextSpells);
+    setActiveSpellSlot(null);
+    soundService.playTimerTick();
+  };
+
+  // Champion filtering
+  const filteredChampions = CHAMPIONS_LIST.filter((c) => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          c.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRole = selectedRoleFilter === 'ALL' || c.roles.includes(selectedRoleFilter);
+    return matchesSearch && matchesRole;
+  });
+
+  const roles = ['ALL', 'TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Champion Minimalist Hero Header */}
+      {/* Top Banner: Champion Hero Banner & Quick Actions */}
       <div
         className="glass-card"
         style={{
           position: 'relative',
           padding: '24px',
-          backgroundImage: `linear-gradient(90deg, rgba(6, 9, 15, 0.96) 0%, rgba(6, 9, 15, 0.8) 55%, rgba(6, 9, 15, 0.4) 100%), url(${getChampionSplash(champ.key)})`,
+          backgroundImage: `linear-gradient(90deg, rgba(6, 9, 15, 0.96) 0%, rgba(6, 9, 15, 0.8) 55%, rgba(6, 9, 15, 0.45) 100%), url(${getChampionSplash(champ.key)})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center 20%',
           border: '1px solid var(--border-blue)',
+          borderRadius: '12px',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
@@ -125,10 +218,10 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
                 <h1 style={{ fontSize: '24px', color: '#fff', fontWeight: 800, letterSpacing: '0.5px' }}>
-                  {build.championName}
+                  {champ.name}
                 </h1>
-                <span className={`tier-badge tier-${build.tier.toLowerCase().replace('+', '-plus')}`}>
-                  {build.tier} Tier
+                <span className={`tier-badge tier-${initialBuild.tier.toLowerCase().replace('+', '-plus')}`}>
+                  {initialBuild.tier} Tier
                 </span>
                 <span
                   style={{
@@ -141,19 +234,42 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
                     color: '#94a3b8',
                   }}
                 >
-                  {build.role}
+                  {initialBuild.role}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '18px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                <span>Win Rate: <strong style={{ color: 'var(--blue-primary)' }}>{build.winRate}%</strong></span>
-                <span>Pick Rate: <strong style={{ color: '#fff' }}>{build.pickRate}%</strong></span>
-                <span>Ban Rate: <strong style={{ color: 'var(--red-primary)' }}>{build.banRate}%</strong></span>
+                <span>Win Rate: <strong style={{ color: 'var(--blue-primary)' }}>{initialBuild.winRate}%</strong></span>
+                <span>Pick Rate: <strong style={{ color: '#fff' }}>{initialBuild.pickRate}%</strong></span>
+                <span>Ban Rate: <strong style={{ color: 'var(--red-primary)' }}>{initialBuild.banRate}%</strong></span>
               </div>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Quick Actions Bar */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Auto Import Toggle */}
+            <button
+              onClick={() => setAutoImport(!autoImport)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: autoImport ? 'rgba(0, 200, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                border: autoImport ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                color: autoImport ? 'var(--blue-primary)' : '#94a3b8',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Automatically push optimal runes upon picking champion"
+            >
+              <Zap size={13} />
+              <span>Auto-Import: {autoImport ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* Push Runes */}
             <button
               id="btn-import-runes"
               className="btn-primary"
@@ -176,6 +292,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
               )}
             </button>
 
+            {/* Push Spells */}
             <button
               id="btn-import-spells"
               className="btn-secondary"
@@ -186,29 +303,30 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
               ) : (
                 <Sparkles size={14} color="var(--blue-primary)" />
               )}
-              <span>Auto Spells</span>
+              <span>Push Spells</span>
             </button>
           </div>
         </div>
 
-        {/* Minimalist Champion Quick Bar */}
-        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Champion Search, Role Filters & Full Roster Bar */}
+        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Search Box */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              background: 'rgba(0, 0, 0, 0.5)',
+              background: 'rgba(0, 0, 0, 0.6)',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-md)',
               padding: '6px 12px',
-              width: '220px',
+              width: '210px',
             }}
           >
             <Search size={14} color="#64748b" />
             <input
               type="text"
-              placeholder="Search Champion..."
+              placeholder="Search 169 Champions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -222,193 +340,200 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', flex: 1 }}>
-            {filteredChampions.slice(0, 8).map((c) => (
+          {/* Role Filters */}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {roles.map((r) => (
               <button
-                key={c.id}
-                onClick={() => setSelectedChampId(c.id)}
+                key={r}
+                onClick={() => setSelectedRoleFilter(r)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
                   padding: '4px 10px',
                   borderRadius: '6px',
-                  background: selectedChampId === c.id ? 'var(--blue-subtle)' : 'rgba(255, 255, 255, 0.04)',
-                  border: selectedChampId === c.id ? '1px solid var(--blue-primary)' : '1px solid transparent',
-                  color: selectedChampId === c.id ? 'var(--blue-primary)' : '#94a3b8',
+                  background: selectedRoleFilter === r ? 'var(--blue-subtle)' : 'rgba(255, 255, 255, 0.04)',
+                  border: selectedRoleFilter === r ? '1px solid var(--blue-primary)' : '1px solid transparent',
+                  color: selectedRoleFilter === r ? 'var(--blue-primary)' : '#94a3b8',
                   fontSize: '11px',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap',
                 }}
               >
-                <img
-                  src={getChampionIcon(c.key)}
-                  alt={c.name}
-                  style={{ width: '18px', height: '18px', borderRadius: '50%' }}
-                />
-                <span>{c.name}</span>
+                {r}
               </button>
             ))}
           </div>
+
+          {/* Browse All Champions Toggle */}
+          <button
+            onClick={() => setShowFullRosterModal(!showFullRosterModal)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 12px',
+              borderRadius: '6px',
+              background: showFullRosterModal ? 'rgba(0, 200, 255, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid var(--border-blue)',
+              color: '#fff',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginLeft: 'auto',
+            }}
+          >
+            <Grid size={13} color="var(--blue-primary)" />
+            <span>{showFullRosterModal ? 'Close Roster' : 'Browse All 169 Champions'}</span>
+          </button>
         </div>
+
+        {/* Quick Horizontal Champion Ribbon (Scrollable) */}
+        {!showFullRosterModal && (
+          <div style={{ marginTop: '12px', display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
+            {filteredChampions.slice(0, 20).map((c) => {
+              const isSelected = selectedChampId === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedChampId(c.id);
+                    if (onSelectChampion) onSelectChampion(c.id);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    background: isSelected ? 'var(--blue-subtle)' : 'rgba(255, 255, 255, 0.04)',
+                    border: isSelected ? '1px solid var(--blue-primary)' : '1px solid transparent',
+                    color: isSelected ? 'var(--blue-primary)' : '#94a3b8',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <img
+                    src={getChampionIcon(c.key)}
+                    alt={c.name}
+                    style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                  />
+                  <span>{c.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Grid: Runes & Skills on Left, Items & Matchups on Right */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: '20px' }}>
-        {/* LEFT COLUMN */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Runes Tree Card */}
-          <div className="glass-card">
-            <div className="card-header">
-              <div className="card-title">
-                <Zap size={16} color="var(--blue-primary)" />
-                <span>Optimal Runes</span>
-              </div>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  className={`btn-secondary ${buildType === 'primary' ? 'active' : ''}`}
-                  onClick={() => setBuildType('primary')}
-                  style={{ fontSize: '11px', padding: '4px 10px' }}
-                >
-                  Highest Winrate ({build.winRate}%)
-                </button>
-                <button
-                  className={`btn-secondary ${buildType === 'secondary' ? 'active' : ''}`}
-                  onClick={() => setBuildType('secondary')}
-                  style={{ fontSize: '11px', padding: '4px 10px' }}
-                >
-                  Most Popular
-                </button>
-              </div>
+      {/* Full 169 Champion Grid Modal / Drawer */}
+      {showFullRosterModal && (
+        <div
+          className="glass-card"
+          style={{
+            padding: '20px',
+            border: '1px solid var(--border-blue)',
+            maxHeight: '340px',
+            overflowY: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Layers size={16} color="var(--blue-primary)" />
+              <span>Complete League Roster ({filteredChampions.length} Champions Found)</span>
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'start' }}>
-              {/* Primary Style */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
-                  <img src={primaryTree?.icon} alt={primaryTree?.name} style={{ width: '26px', height: '26px' }} />
-                  <span style={{ fontWeight: 700, color: 'var(--blue-primary)', fontSize: '13px' }}>
-                    {primaryTree?.name} (Primary)
-                  </span>
-                </div>
-
-                {/* Keystone */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--blue-subtle)', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-blue)' }}>
-                  <img
-                    src={activeRunes.keystoneIcon}
-                    alt={activeRunes.keystoneName}
-                    style={{ width: '40px', height: '40px', borderRadius: '50%', boxShadow: '0 0 12px var(--blue-glow)' }}
-                  />
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                      {activeRunes.keystoneName}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Keystone Perk</div>
-                  </div>
-                </div>
-
-                {/* Sub-runes */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {primaryTree?.slots.map((row, idx) => {
-                    const selected = row.find((r) => activeRunes.selectedPerkIds.includes(r.id)) || row[0];
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '6px 10px',
-                          borderRadius: '8px',
-                          background: 'rgba(255, 255, 255, 0.02)',
-                        }}
-                      >
-                        <img src={selected.icon} alt={selected.name} style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>{selected.name}</div>
-                          <div style={{ fontSize: '10px', color: '#64748b' }}>{selected.desc}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Secondary Style & Stat Shards */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
-                  <img src={subTree?.icon} alt={subTree?.name} style={{ width: '24px', height: '24px' }} />
-                  <span style={{ fontWeight: 700, color: '#94a3b8', fontSize: '13px' }}>
-                    {subTree?.name} (Secondary)
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {subTree?.slots.flatMap((row) => row).filter((r) => activeRunes.selectedPerkIds.includes(r.id)).map((perk) => (
-                    <div
-                      key={perk.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '6px 10px',
-                        borderRadius: '8px',
-                        background: 'rgba(255, 255, 255, 0.02)',
-                      }}
-                    >
-                      <img src={perk.icon} alt={perk.name} style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>{perk.name}</div>
-                        <div style={{ fontSize: '10px', color: '#64748b' }}>{perk.desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Shards */}
-                <div style={{ marginTop: '6px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                    Stat Shards
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {activeRunes.selectedPerkIds.slice(6, 9).map((shardId, idx) => {
-                      const shard = STAT_SHARDS[shardId] || { name: 'Stat Mod', icon: '' };
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: 'rgba(255, 255, 255, 0.04)',
-                            padding: '6px 8px',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border-subtle)',
-                            fontSize: '11px',
-                            color: '#cbd5e1',
-                          }}
-                          title={shard.name}
-                        >
-                          {shard.icon && (
-                            <img src={shard.icon} alt={shard.name} style={{ width: '16px', height: '16px' }} />
-                          )}
-                          <span>Mod {idx + 1}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              Click any champion to inspect optimal runes, items, and power spikes
+            </span>
           </div>
 
-          {/* Skill Order Card */}
-          <div className="glass-card">
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+              gap: '10px',
+            }}
+          >
+            {filteredChampions.map((c) => {
+              const isSelected = selectedChampId === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedChampId(c.id);
+                    setShowFullRosterModal(false);
+                    if (onSelectChampion) onSelectChampion(c.id);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    background: isSelected ? 'rgba(0, 200, 255, 0.18)' : 'rgba(255, 255, 255, 0.03)',
+                    border: isSelected ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <img
+                    src={getChampionIcon(c.key)}
+                    alt={c.name}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      border: isSelected ? '1px solid var(--blue-primary)' : 'none',
+                    }}
+                  />
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: isSelected ? 'var(--blue-primary)' : '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                      {c.name}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>
+                      {c.roles.join(', ')}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Main Grid: Runes on Left, Items & Spells & Matchups on Right */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: '20px' }}>
+        {/* LEFT COLUMN: INTERACTIVE RUNE CUSTOMIZER */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="glass-card" style={{ padding: '20px' }}>
+            <div className="card-header" style={{ marginBottom: '16px' }}>
+              <div className="card-title">
+                <Zap size={18} color="var(--blue-primary)" />
+                <span>Interactive Rune Page & Keystone Selector</span>
+              </div>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Click any keystone or rune to customize
+              </span>
+            </div>
+
+            {/* Interactive Rune Customizer */}
+            <RuneCustomizer
+              primaryStyleId={primaryStyleId}
+              subStyleId={subStyleId}
+              selectedPerkIds={selectedPerkIds}
+              onChangeRunes={handleCustomRunesChange}
+              activePreset={activePreset}
+              onSelectPreset={handleSelectPreset}
+            />
+          </div>
+
+          {/* Skill Order Matrix Card */}
+          <div className="glass-card" style={{ padding: '20px' }}>
             <div className="card-header">
               <div className="card-title">
-                <Shield size={16} color="var(--blue-primary)" />
-                <span>Ability Leveling Order</span>
+                <Target size={18} color="var(--blue-primary)" />
+                <span>Ability Leveling Order (Levels 1 - 18)</span>
               </div>
               <div
                 style={{
@@ -421,11 +546,11 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
                   border: '1px solid var(--border-blue)',
                 }}
               >
-                Priority: {build.skillPriority}
+                Max Priority: {initialBuild.skillPriority}
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowX: 'auto', marginTop: '12px' }}>
               {['Q', 'W', 'E', 'R'].map((skillKey) => (
                 <div key={skillKey} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <div
@@ -439,36 +564,42 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
                       borderRadius: '4px',
                       fontSize: '12px',
                       fontWeight: 800,
-                      color: 'var(--blue-primary)',
+                      color: skillKey === 'R' ? '#c084fc' : 'var(--blue-primary)',
                     }}
                   >
                     {skillKey}
                   </div>
                   <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
-                    {build.skillOrder.map((sk, lvlIdx) => {
+                    {initialBuild.skillOrder.map((sk, lvlIdx) => {
                       const isUpgraded = sk === skillKey;
+                      const isUlt = skillKey === 'R';
                       return (
                         <div
                           key={lvlIdx}
                           style={{
-                            width: '24px',
-                            height: '24px',
+                            flex: 1,
+                            minWidth: '22px',
+                            height: '26px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             borderRadius: '4px',
-                            fontSize: '10px',
+                            fontSize: '11px',
                             fontWeight: 700,
                             background: isUpgraded
-                              ? skillKey === 'R'
-                                ? 'linear-gradient(135deg, var(--red-primary), var(--red-deep))'
-                                : 'linear-gradient(135deg, var(--blue-primary), var(--blue-deep))'
-                              : 'rgba(255, 255, 255, 0.03)',
-                            color: isUpgraded ? '#fff' : '#475569',
-                            border: isUpgraded ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid transparent',
+                              ? isUlt
+                                ? 'rgba(192, 132, 252, 0.3)'
+                                : 'var(--blue-subtle)'
+                              : 'rgba(255, 255, 255, 0.02)',
+                            border: isUpgraded
+                              ? isUlt
+                                ? '1px solid #c084fc'
+                                : '1px solid var(--border-blue)'
+                              : '1px solid transparent',
+                            color: isUpgraded ? (isUlt ? '#c084fc' : 'var(--blue-primary)') : '#334155',
                           }}
                         >
-                          {lvlIdx + 1}
+                          {isUpgraded ? lvlIdx + 1 : ''}
                         </div>
                       );
                     })}
@@ -479,217 +610,311 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session }) => 
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
+        {/* RIGHT COLUMN: SPELLS, ITEMS, MATCHUPS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Item Builds Card */}
-          <div className="glass-card">
-            <div className="card-header">
+          {/* Summoner Spells Card */}
+          <div className="glass-card" style={{ padding: '16px 20px' }}>
+            <div className="card-header" style={{ marginBottom: '12px' }}>
               <div className="card-title">
                 <Sparkles size={16} color="var(--blue-primary)" />
-                <span>Item Build & Spells</span>
+                <span>Summoner Spells (Click to swap)</span>
               </div>
             </div>
 
-            {/* Spells */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '8px' }}>
-                Summoner Spells
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {build.spells.map((sId) => {
-                  const sp = SUMMONER_SPELLS[sId];
-                  return (
-                    <div
-                      key={sId}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      <img src={sp?.icon} alt={sp?.name} style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>{sp?.name}</div>
-                        <div style={{ fontSize: '10px', color: '#64748b' }}>{sp?.cooldown}s CD</div>
+            <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+              {[0, 1].map((slotIdx) => {
+                const sId = selectedSpells[slotIdx];
+                const spell = SUMMONER_SPELLS[sId] || SUMMONER_SPELLS[4];
+                return (
+                  <button
+                    key={slotIdx}
+                    onClick={() => setActiveSpellSlot(slotIdx as 0 | 1)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: activeSpellSlot === slotIdx ? '2px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                      cursor: 'pointer',
+                      boxShadow: activeSpellSlot === slotIdx ? '0 0 12px var(--blue-glow)' : 'none',
+                    }}
+                  >
+                    <img src={spell.icon} alt={spell.name} style={{ width: '32px', height: '32px', borderRadius: '6px' }} />
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>
+                        {slotIdx === 0 ? 'D Spell: ' : 'F Spell: '}{spell.name}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                        CD: {spell.cooldown}s • Click to swap
                       </div>
                     </div>
-                  );
-                })}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Spell Popover Selector */}
+            {activeSpellSlot !== null && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '12px',
+                  background: 'rgba(6, 9, 15, 0.95)',
+                  border: '1px solid var(--border-blue)',
+                  borderRadius: '8px',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--blue-primary)', marginBottom: '8px' }}>
+                  Select Spell for {activeSpellSlot === 0 ? 'Key D' : 'Key F'}:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                  {Object.values(SUMMONER_SPELLS).map((sp) => (
+                    <button
+                      key={sp.id}
+                      onClick={() => handleSelectSpell(sp.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid var(--border-subtle)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <img src={sp.icon} alt={sp.name} style={{ width: '20px', height: '20px', borderRadius: '4px' }} />
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#fff' }}>{sp.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Dynamic Item Build Paths */}
+          <div className="glass-card" style={{ padding: '18px 20px' }}>
+            <div className="card-header" style={{ marginBottom: '14px' }}>
+              <div className="card-title">
+                <Shield size={16} color="var(--blue-primary)" />
+                <span>Recommended Item Paths</span>
               </div>
             </div>
 
-            {/* Core Items */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '8px' }}>
-                Core Rush
-              </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                {build.coreItems.map((item, idx) => (
-                  <React.Fragment key={item.id}>
+            {/* Starting & Boots */}
+            <div style={{ display: 'flex', gap: '14px', marginBottom: '14px' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
+                  Starting Items
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {initialBuild.startingItems.map((item) => (
                     <div
+                      key={item.id}
                       style={{
                         display: 'flex',
-                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '4px',
-                        background: 'var(--blue-subtle)',
-                        padding: '8px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-blue)',
-                        minWidth: '78px',
-                        textAlign: 'center',
+                        gap: '6px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '11px',
+                        color: '#cbd5e1',
                       }}
                     >
                       <img
                         src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${item.id}.png`}
                         alt={item.name}
-                        style={{ width: '36px', height: '36px', borderRadius: '6px' }}
-                        onError={(e: any) => { e.target.style.display = 'none'; }}
+                        style={{ width: '22px', height: '22px', borderRadius: '4px' }}
+                        onError={(e) => { (e.target as any).style.display = 'none'; }}
                       />
-                      <span style={{ fontSize: '10px', fontWeight: 600, color: '#fff' }}>{item.name}</span>
+                      <span>{item.name}</span>
                     </div>
-                    {idx < build.coreItems.length - 1 && (
-                      <ChevronRight size={14} color="#64748b" />
-                    )}
-                  </React.Fragment>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Situational & Boots */}
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '8px' }}>
-                Boots & Situational
-              </div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
+                  Boots
+                </div>
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    background: 'rgba(255, 255, 255, 0.03)',
+                    background: 'rgba(255, 255, 255, 0.04)',
                     padding: '6px 10px',
-                    borderRadius: '8px',
+                    borderRadius: '6px',
                     border: '1px solid var(--border-subtle)',
+                    fontSize: '11px',
+                    color: '#cbd5e1',
                   }}
                 >
                   <img
-                    src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${build.boots.id}.png`}
-                    alt={build.boots.name}
+                    src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${initialBuild.boots.id}.png`}
+                    alt={initialBuild.boots.name}
                     style={{ width: '22px', height: '22px', borderRadius: '4px' }}
-                    onError={(e: any) => { e.target.style.display = 'none'; }}
+                    onError={(e) => { (e.target as any).style.display = 'none'; }}
                   />
-                  <span style={{ fontSize: '11px', color: '#cbd5e1' }}>{build.boots.name}</span>
+                  <span>{initialBuild.boots.name}</span>
                 </div>
+              </div>
+            </div>
 
-                {build.situationalItems.map((item) => (
+            {/* Core 3 Items */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
+                Core Rush (Build in Order)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                {initialBuild.coreItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div style={{ position: 'relative' }}>
+                      <img
+                        src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${item.id}.png`}
+                        alt={item.name}
+                        style={{ width: '32px', height: '32px', borderRadius: '6px', border: '1px solid var(--border-blue)' }}
+                        onError={(e) => { (e.target as any).style.display = 'none'; }}
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          right: '-4px',
+                          background: 'var(--blue-primary)',
+                          color: '#000',
+                          fontSize: '9px',
+                          fontWeight: 900,
+                          borderRadius: '50%',
+                          width: '14px',
+                          height: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {idx + 1}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#fff' }}>
+                      {item.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Situational Counter Items */}
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
+                Situational Counter Items
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {initialBuild.situationalItems.map((item) => (
                   <div
                     key={item.id}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      gap: '10px',
                       padding: '6px 10px',
-                      borderRadius: '8px',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.02)',
                       border: '1px solid var(--border-subtle)',
                     }}
                   >
                     <img
                       src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${item.id}.png`}
                       alt={item.name}
-                      style={{ width: '22px', height: '22px', borderRadius: '4px' }}
-                      onError={(e: any) => { e.target.style.display = 'none'; }}
+                      style={{ width: '24px', height: '24px', borderRadius: '4px' }}
+                      onError={(e) => { (e.target as any).style.display = 'none'; }}
                     />
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>{item.name}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{item.name}</div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(255, 42, 95, 0.15)',
+                        color: 'var(--red-primary)',
+                        border: '1px solid rgba(255, 42, 95, 0.3)',
+                      }}
+                    >
+                      Counter
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Matchups Card: Red for Counters, Blue for Favored */}
-          <div className="glass-card">
-            <div className="card-header">
+          {/* Matchups & Coaching Tips */}
+          <div className="glass-card" style={{ padding: '18px 20px' }}>
+            <div className="card-header" style={{ marginBottom: '12px' }}>
               <div className="card-title">
-                <ShieldAlert size={16} color="var(--red-primary)" />
-                <span>Matchups & Counters</span>
+                <Swords size={16} color="var(--red-primary)" />
+                <span>Matchups & Power Spikes</span>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              {/* Favored (Blue) */}
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--blue-primary)', marginBottom: '8px' }}>
-                  ✓ Favored Matchups
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+              {/* Strong Against */}
+              <div style={{ background: 'rgba(34, 197, 94, 0.06)', borderRadius: '8px', padding: '10px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#22c55e', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Favorable Matchups
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {build.counters.strongAgainst.map((c) => (
-                    <div
-                      key={c.name}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: 'var(--blue-subtle)',
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        border: '1px solid var(--border-blue)',
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, color: '#fff' }}>{c.name}</span>
-                      <span style={{ color: 'var(--blue-primary)', fontWeight: 700 }}>{c.winRate}%</span>
-                    </div>
-                  ))}
-                </div>
+                {initialBuild.counters.strongAgainst.map((c) => (
+                  <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '2px 0' }}>
+                    <span style={{ color: '#fff', fontWeight: 600 }}>{c.name}</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700 }}>{c.winRate}%</span>
+                  </div>
+                ))}
               </div>
 
-              {/* Hard Counters (Red) */}
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--red-primary)', marginBottom: '8px' }}>
-                  ✕ Hard Counters
+              {/* Weak Against */}
+              <div style={{ background: 'rgba(255, 42, 95, 0.06)', borderRadius: '8px', padding: '10px', border: '1px solid rgba(255, 42, 95, 0.2)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red-primary)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Tough Counters
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {build.counters.weakAgainst.map((c) => (
-                    <div
-                      key={c.name}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: 'var(--red-subtle)',
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        border: '1px solid var(--border-red)',
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, color: '#fff' }}>{c.name}</span>
-                      <span style={{ color: 'var(--red-primary)', fontWeight: 700 }}>{c.winRate}%</span>
-                    </div>
-                  ))}
-                </div>
+                {initialBuild.counters.weakAgainst.map((c) => (
+                  <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '2px 0' }}>
+                    <span style={{ color: '#fff', fontWeight: 600 }}>{c.name}</span>
+                    <span style={{ color: 'var(--red-primary)', fontWeight: 700 }}>{c.winRate}%</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Tips */}
-            {build.tips && build.tips.length > 0 && (
-              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--blue-primary)', marginBottom: '6px' }}>
-                  Strategy Notes
+            {/* Pro Coaching Tips */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {initialBuild.tips.map((tip, idx) => (
+                <div key={idx} style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', gap: '6px' }}>
+                  <span style={{ color: 'var(--blue-primary)', fontWeight: 800 }}>•</span>
+                  <span>{tip}</span>
                 </div>
-                <ul style={{ paddingLeft: '16px', fontSize: '11px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {build.tips.map((tip, idx) => (
-                    <li key={idx}>{tip}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         </div>
       </div>

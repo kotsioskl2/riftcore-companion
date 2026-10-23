@@ -165,6 +165,15 @@ export const STAT_SHARDS: Record<number, { id: number; name: string; icon: strin
   5013: { id: 5013, name: 'Flat Health (+65 HP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthPlusIcon.png' }
 };
 
+export const STAT_SHARD_ROWS = [
+  // Row 1: Offense
+  [5008, 5005, 5007],
+  // Row 2: Flex
+  [5008, 5010, 5001],
+  // Row 3: Defense
+  [5013, 5011, 5001],
+];
+
 export const SUMMONER_SPELLS: Record<number, { id: number; name: string; cooldown: number; icon: string }> = {
   4: { id: 4, name: 'Flash', cooldown: 300, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/SummonerFlash.png' },
   12: { id: 12, name: 'Teleport', cooldown: 360, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/SummonerTeleport.png' },

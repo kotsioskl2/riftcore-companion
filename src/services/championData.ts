@@ -1,36 +1,1656 @@
 import { ChampionBuild } from '../types';
 
 export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: string; roles: string[] }[] = [
-  { id: 420, name: 'Illaoi', key: 'Illaoi', title: 'The Kraken Priestess', roles: ['TOP'] },
-  { id: 266, name: 'Aatrox', key: 'Aatrox', title: 'The Darkin Blade', roles: ['TOP'] },
-  { id: 103, name: 'Ahri', key: 'Ahri', title: 'The Nine-Tailed Fox', roles: ['MID'] },
-  { id: 84, name: 'Akali', key: 'Akali', title: 'The Rogue Assassin', roles: ['MID', 'TOP'] },
-  { id: 222, name: 'Jinx', key: 'Jinx', title: 'The Loose Cannon', roles: ['ADC'] },
-  { id: 51, name: 'Caitlyn', key: 'Caitlyn', title: 'The Sheriff of Piltover', roles: ['ADC'] },
-  { id: 64, name: 'Lee Sin', key: 'LeeSin', title: 'The Blind Monk', roles: ['JUNGLE'] },
-  { id: 157, name: 'Yasuo', key: 'Yasuo', title: 'The Unforgiven', roles: ['MID', 'TOP'] },
-  { id: 777, name: 'Yone', key: 'Yone', title: 'The Unforgotten', roles: ['MID', 'TOP'] },
-  { id: 412, name: 'Thresh', key: 'Thresh', title: 'The Chain Warden', roles: ['SUPPORT'] },
-  { id: 99, name: 'Lux', key: 'Lux', title: 'The Lady of Luminosity', roles: ['SUPPORT', 'MID'] },
-  { id: 122, name: 'Darius', key: 'Darius', title: 'The Hand of Noxus', roles: ['TOP'] },
-  { id: 67, name: 'Vayne', key: 'Vayne', title: 'The Night Hunter', roles: ['ADC', 'TOP'] },
-  { id: 238, name: 'Zed', key: 'Zed', title: 'The Master of Shadows', roles: ['MID'] },
-  { id: 81, name: 'Ezreal', key: 'Ezreal', title: 'The Prodigal Explorer', roles: ['ADC'] },
-  { id: 145, name: "Kai'Sa", key: 'Kaisa', title: 'Daughter of the Void', roles: ['ADC'] },
-  { id: 517, name: 'Sylas', key: 'Sylas', title: 'The Dethroned Mage', roles: ['MID', 'TOP'] },
-  { id: 106, name: 'Volibear', key: 'Volibear', title: 'The Relentless Storm', roles: ['TOP', 'JUNGLE'] },
-  { id: 24, name: 'Jax', key: 'Jax', title: 'Grandmaster at Arms', roles: ['TOP', 'JUNGLE'] },
-  { id: 53, name: 'Blitzcrank', key: 'Blitzcrank', title: 'The Great Steam Golem', roles: ['SUPPORT'] },
-  { id: 89, name: 'Leona', key: 'Leona', title: 'The Radiant Dawn', roles: ['SUPPORT'] },
-  { id: 111, name: 'Nautilus', key: 'Nautilus', title: 'The Titan of the Depths', roles: ['SUPPORT'] },
-  { id: 19, name: 'Warwick', key: 'Warwick', title: 'The Uncaged Wrath of Zaun', roles: ['JUNGLE', 'TOP'] },
-  { id: 11, name: 'Master Yi', key: 'MasterYi', title: 'The Wuju Bladesman', roles: ['JUNGLE'] },
-  { id: 121, name: "Kha'Zix", key: 'Khazix', title: 'The Voidreaver', roles: ['JUNGLE'] },
-  { id: 254, name: 'Vi', key: 'Vi', title: 'The Piltover Enforcer', roles: ['JUNGLE'] },
-  { id: 910, name: 'Hwei', key: 'Hwei', title: 'The Visionary', roles: ['MID'] },
-  { id: 901, name: 'Smolder', key: 'Smolder', title: 'The Fiery Fledgling', roles: ['ADC', 'MID'] },
-  { id: 799, name: 'Ambessa', key: 'Ambessa', title: 'Matriarch of War', roles: ['TOP', 'JUNGLE'] },
-  { id: 897, name: "K'Sante", key: 'KSante', title: 'The Pride of Nazumah', roles: ['TOP'] }
+  {
+    "id": 266,
+    "name": "Aatrox",
+    "key": "Aatrox",
+    "title": "the Darkin Blade",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 103,
+    "name": "Ahri",
+    "key": "Ahri",
+    "title": "the Nine-Tailed Fox",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 84,
+    "name": "Akali",
+    "key": "Akali",
+    "title": "the Rogue Assassin",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 166,
+    "name": "Akshan",
+    "key": "Akshan",
+    "title": "the Rogue Sentinel",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 12,
+    "name": "Alistar",
+    "key": "Alistar",
+    "title": "the Minotaur",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 799,
+    "name": "Ambessa",
+    "key": "Ambessa",
+    "title": "Matriarch of War",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 32,
+    "name": "Amumu",
+    "key": "Amumu",
+    "title": "the Sad Mummy",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 34,
+    "name": "Anivia",
+    "key": "Anivia",
+    "title": "the Cryophoenix",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 1,
+    "name": "Annie",
+    "key": "Annie",
+    "title": "the Dark Child",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 523,
+    "name": "Aphelios",
+    "key": "Aphelios",
+    "title": "the Weapon of the Faithful",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 22,
+    "name": "Ashe",
+    "key": "Ashe",
+    "title": "the Frost Archer",
+    "roles": [
+      "ADC",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 136,
+    "name": "Aurelion Sol",
+    "key": "AurelionSol",
+    "title": "The Star Forger",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 893,
+    "name": "Aurora",
+    "key": "Aurora",
+    "title": "the Witch Between Worlds",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 268,
+    "name": "Azir",
+    "key": "Azir",
+    "title": "the Emperor of the Sands",
+    "roles": [
+      "ADC",
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 432,
+    "name": "Bard",
+    "key": "Bard",
+    "title": "the Wandering Caretaker",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 200,
+    "name": "Bel'Veth",
+    "key": "Belveth",
+    "title": "the Empress of the Void",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 53,
+    "name": "Blitzcrank",
+    "key": "Blitzcrank",
+    "title": "the Great Steam Golem",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 63,
+    "name": "Brand",
+    "key": "Brand",
+    "title": "the Burning Vengeance",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 201,
+    "name": "Braum",
+    "key": "Braum",
+    "title": "the Heart of the Freljord",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 233,
+    "name": "Briar",
+    "key": "Briar",
+    "title": "the Restrained Hunger",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 51,
+    "name": "Caitlyn",
+    "key": "Caitlyn",
+    "title": "the Sheriff of Piltover",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 164,
+    "name": "Camille",
+    "key": "Camille",
+    "title": "the Steel Shadow",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 69,
+    "name": "Cassiopeia",
+    "key": "Cassiopeia",
+    "title": "the Serpent's Embrace",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 31,
+    "name": "Cho'Gath",
+    "key": "Chogath",
+    "title": "the Terror of the Void",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 42,
+    "name": "Corki",
+    "key": "Corki",
+    "title": "the Daring Bombardier",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 122,
+    "name": "Darius",
+    "key": "Darius",
+    "title": "the Hand of Noxus",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 131,
+    "name": "Diana",
+    "key": "Diana",
+    "title": "Scorn of the Moon",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 36,
+    "name": "Dr. Mundo",
+    "key": "DrMundo",
+    "title": "the Madman of Zaun",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 119,
+    "name": "Draven",
+    "key": "Draven",
+    "title": "the Glorious Executioner",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 245,
+    "name": "Ekko",
+    "key": "Ekko",
+    "title": "the Boy Who Shattered Time",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 60,
+    "name": "Elise",
+    "key": "Elise",
+    "title": "the Spider Queen",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 28,
+    "name": "Evelynn",
+    "key": "Evelynn",
+    "title": "Agony's Embrace",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 81,
+    "name": "Ezreal",
+    "key": "Ezreal",
+    "title": "the Prodigal Explorer",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 9,
+    "name": "Fiddlesticks",
+    "key": "Fiddlesticks",
+    "title": "the Ancient Fear",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 114,
+    "name": "Fiora",
+    "key": "Fiora",
+    "title": "the Grand Duelist",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 105,
+    "name": "Fizz",
+    "key": "Fizz",
+    "title": "the Tidal Trickster",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Galio",
+    "key": "Galio",
+    "title": "the Colossus",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 41,
+    "name": "Gangplank",
+    "key": "Gangplank",
+    "title": "the Saltwater Scourge",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 86,
+    "name": "Garen",
+    "key": "Garen",
+    "title": "The Might of Demacia",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 150,
+    "name": "Gnar",
+    "key": "Gnar",
+    "title": "the Missing Link",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 79,
+    "name": "Gragas",
+    "key": "Gragas",
+    "title": "the Rabble Rouser",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 104,
+    "name": "Graves",
+    "key": "Graves",
+    "title": "the Outlaw",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 887,
+    "name": "Gwen",
+    "key": "Gwen",
+    "title": "The Hallowed Seamstress",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 120,
+    "name": "Hecarim",
+    "key": "Hecarim",
+    "title": "the Shadow of War",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 74,
+    "name": "Heimerdinger",
+    "key": "Heimerdinger",
+    "title": "the Revered Inventor",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 910,
+    "name": "Hwei",
+    "key": "Hwei",
+    "title": "the Visionary",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 420,
+    "name": "Illaoi",
+    "key": "Illaoi",
+    "title": "the Kraken Priestess",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 39,
+    "name": "Irelia",
+    "key": "Irelia",
+    "title": "the Blade Dancer",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 427,
+    "name": "Ivern",
+    "key": "Ivern",
+    "title": "the Green Father",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 40,
+    "name": "Janna",
+    "key": "Janna",
+    "title": "the Storm's Fury",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 59,
+    "name": "Jarvan IV",
+    "key": "JarvanIV",
+    "title": "the Exemplar of Demacia",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 24,
+    "name": "Jax",
+    "key": "Jax",
+    "title": "Grandmaster at Arms",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 126,
+    "name": "Jayce",
+    "key": "Jayce",
+    "title": "the Defender of Tomorrow",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 202,
+    "name": "Jhin",
+    "key": "Jhin",
+    "title": "the Virtuoso",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 222,
+    "name": "Jinx",
+    "key": "Jinx",
+    "title": "the Loose Cannon",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 897,
+    "name": "K'Sante",
+    "key": "KSante",
+    "title": "the Pride of Nazumah",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 145,
+    "name": "Kai'Sa",
+    "key": "Kaisa",
+    "title": "Daughter of the Void",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 429,
+    "name": "Kalista",
+    "key": "Kalista",
+    "title": "the Spear of Vengeance",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 43,
+    "name": "Karma",
+    "key": "Karma",
+    "title": "the Enlightened One",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 30,
+    "name": "Karthus",
+    "key": "Karthus",
+    "title": "the Deathsinger",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 38,
+    "name": "Kassadin",
+    "key": "Kassadin",
+    "title": "the Void Walker",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 55,
+    "name": "Katarina",
+    "key": "Katarina",
+    "title": "the Sinister Blade",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 10,
+    "name": "Kayle",
+    "key": "Kayle",
+    "title": "the Righteous",
+    "roles": [
+      "ADC",
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 141,
+    "name": "Kayn",
+    "key": "Kayn",
+    "title": "the Shadow Reaper",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 85,
+    "name": "Kennen",
+    "key": "Kennen",
+    "title": "the Heart of the Tempest",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 121,
+    "name": "Kha'Zix",
+    "key": "Khazix",
+    "title": "the Voidreaver",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 203,
+    "name": "Kindred",
+    "key": "Kindred",
+    "title": "The Eternal Hunters",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 240,
+    "name": "Kled",
+    "key": "Kled",
+    "title": "the Cantankerous Cavalier",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 96,
+    "name": "Kog'Maw",
+    "key": "KogMaw",
+    "title": "the Mouth of the Abyss",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 7,
+    "name": "LeBlanc",
+    "key": "Leblanc",
+    "title": "the Deceiver",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 64,
+    "name": "Lee Sin",
+    "key": "LeeSin",
+    "title": "the Blind Monk",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 89,
+    "name": "Leona",
+    "key": "Leona",
+    "title": "the Radiant Dawn",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 876,
+    "name": "Lillia",
+    "key": "Lillia",
+    "title": "the Bashful Bloom",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 127,
+    "name": "Lissandra",
+    "key": "Lissandra",
+    "title": "the Ice Witch",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 236,
+    "name": "Lucian",
+    "key": "Lucian",
+    "title": "the Purifier",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 117,
+    "name": "Lulu",
+    "key": "Lulu",
+    "title": "the Fae Sorceress",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 99,
+    "name": "Lux",
+    "key": "Lux",
+    "title": "the Lady of Luminosity",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 54,
+    "name": "Malphite",
+    "key": "Malphite",
+    "title": "Shard of the Monolith",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 90,
+    "name": "Malzahar",
+    "key": "Malzahar",
+    "title": "the Prophet of the Void",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 57,
+    "name": "Maokai",
+    "key": "Maokai",
+    "title": "the Twisted Treant",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 11,
+    "name": "Master Yi",
+    "key": "MasterYi",
+    "title": "the Wuju Bladesman",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 902,
+    "name": "Milio",
+    "key": "Milio",
+    "title": "The Gentle Flame",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 21,
+    "name": "Miss Fortune",
+    "key": "MissFortune",
+    "title": "the Bounty Hunter",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 82,
+    "name": "Mordekaiser",
+    "key": "Mordekaiser",
+    "title": "the Iron Revenant",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 25,
+    "name": "Morgana",
+    "key": "Morgana",
+    "title": "the Fallen",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 950,
+    "name": "Naafiri",
+    "key": "Naafiri",
+    "title": "the Hound of a Hundred Bites",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 267,
+    "name": "Nami",
+    "key": "Nami",
+    "title": "the Tidecaller",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 75,
+    "name": "Nasus",
+    "key": "Nasus",
+    "title": "the Curator of the Sands",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 111,
+    "name": "Nautilus",
+    "key": "Nautilus",
+    "title": "the Titan of the Depths",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 518,
+    "name": "Neeko",
+    "key": "Neeko",
+    "title": "the Curious Chameleon",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 76,
+    "name": "Nidalee",
+    "key": "Nidalee",
+    "title": "the Bestial Huntress",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 895,
+    "name": "Nilah",
+    "key": "Nilah",
+    "title": "the Joy Unbound",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 56,
+    "name": "Nocturne",
+    "key": "Nocturne",
+    "title": "the Eternal Nightmare",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 20,
+    "name": "Nunu & Willump",
+    "key": "Nunu",
+    "title": "the Boy and His Yeti",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Olaf",
+    "key": "Olaf",
+    "title": "the Berserker",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 61,
+    "name": "Orianna",
+    "key": "Orianna",
+    "title": "the Lady of Clockwork",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 516,
+    "name": "Ornn",
+    "key": "Ornn",
+    "title": "The Fire below the Mountain",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 80,
+    "name": "Pantheon",
+    "key": "Pantheon",
+    "title": "the Unbreakable Spear",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 78,
+    "name": "Poppy",
+    "key": "Poppy",
+    "title": "Keeper of the Hammer",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 555,
+    "name": "Pyke",
+    "key": "Pyke",
+    "title": "the Bloodharbor Ripper",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 246,
+    "name": "Qiyana",
+    "key": "Qiyana",
+    "title": "Empress of the Elements",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 133,
+    "name": "Quinn",
+    "key": "Quinn",
+    "title": "Demacia's Wings",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 497,
+    "name": "Rakan",
+    "key": "Rakan",
+    "title": "The Charmer",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 33,
+    "name": "Rammus",
+    "key": "Rammus",
+    "title": "the Armordillo",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 421,
+    "name": "Rek'Sai",
+    "key": "RekSai",
+    "title": "the Void Burrower",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 526,
+    "name": "Rell",
+    "key": "Rell",
+    "title": "the Iron Maiden",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 888,
+    "name": "Renata Glasc",
+    "key": "Renata",
+    "title": "the Chem-Baroness",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 58,
+    "name": "Renekton",
+    "key": "Renekton",
+    "title": "the Butcher of the Sands",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 107,
+    "name": "Rengar",
+    "key": "Rengar",
+    "title": "the Pridestalker",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 92,
+    "name": "Riven",
+    "key": "Riven",
+    "title": "the Exile",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 68,
+    "name": "Rumble",
+    "key": "Rumble",
+    "title": "the Mechanized Menace",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 13,
+    "name": "Ryze",
+    "key": "Ryze",
+    "title": "the Rune Mage",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 360,
+    "name": "Samira",
+    "key": "Samira",
+    "title": "the Desert Rose",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 113,
+    "name": "Sejuani",
+    "key": "Sejuani",
+    "title": "Fury of the North",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 235,
+    "name": "Senna",
+    "key": "Senna",
+    "title": "the Redeemer",
+    "roles": [
+      "ADC",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 147,
+    "name": "Seraphine",
+    "key": "Seraphine",
+    "title": "the Starry-Eyed Songstress",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 875,
+    "name": "Sett",
+    "key": "Sett",
+    "title": "the Boss",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 35,
+    "name": "Shaco",
+    "key": "Shaco",
+    "title": "the Demon Jester",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 98,
+    "name": "Shen",
+    "key": "Shen",
+    "title": "the Eye of Twilight",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 102,
+    "name": "Shyvana",
+    "key": "Shyvana",
+    "title": "the Half-Dragon",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 27,
+    "name": "Singed",
+    "key": "Singed",
+    "title": "the Mad Chemist",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 14,
+    "name": "Sion",
+    "key": "Sion",
+    "title": "The Undead Juggernaut",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 15,
+    "name": "Sivir",
+    "key": "Sivir",
+    "title": "the Battle Mistress",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 72,
+    "name": "Skarner",
+    "key": "Skarner",
+    "title": "the Primordial Sovereign",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 901,
+    "name": "Smolder",
+    "key": "Smolder",
+    "title": "the Fiery Fledgling",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 37,
+    "name": "Sona",
+    "key": "Sona",
+    "title": "Maven of the Strings",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 16,
+    "name": "Soraka",
+    "key": "Soraka",
+    "title": "the Starchild",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 50,
+    "name": "Swain",
+    "key": "Swain",
+    "title": "the Noxian Grand General",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 517,
+    "name": "Sylas",
+    "key": "Sylas",
+    "title": "the Unshackled",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 134,
+    "name": "Syndra",
+    "key": "Syndra",
+    "title": "the Dark Sovereign",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 223,
+    "name": "Tahm Kench",
+    "key": "TahmKench",
+    "title": "The River King",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 163,
+    "name": "Taliyah",
+    "key": "Taliyah",
+    "title": "the Stoneweaver",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 91,
+    "name": "Talon",
+    "key": "Talon",
+    "title": "the Blade's Shadow",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 44,
+    "name": "Taric",
+    "key": "Taric",
+    "title": "the Shield of Valoran",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 17,
+    "name": "Teemo",
+    "key": "Teemo",
+    "title": "the Swift Scout",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 412,
+    "name": "Thresh",
+    "key": "Thresh",
+    "title": "the Chain Warden",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 18,
+    "name": "Tristana",
+    "key": "Tristana",
+    "title": "the Yordle Gunner",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 48,
+    "name": "Trundle",
+    "key": "Trundle",
+    "title": "the Troll King",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 23,
+    "name": "Tryndamere",
+    "key": "Tryndamere",
+    "title": "the Barbarian King",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Twisted Fate",
+    "key": "TwistedFate",
+    "title": "the Card Master",
+    "roles": [
+      "ADC",
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 29,
+    "name": "Twitch",
+    "key": "Twitch",
+    "title": "the Plague Rat",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 77,
+    "name": "Udyr",
+    "key": "Udyr",
+    "title": "the Spirit Walker",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 6,
+    "name": "Urgot",
+    "key": "Urgot",
+    "title": "the Dreadnought",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 110,
+    "name": "Varus",
+    "key": "Varus",
+    "title": "the Arrow of Retribution",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 67,
+    "name": "Vayne",
+    "key": "Vayne",
+    "title": "the Night Hunter",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 45,
+    "name": "Veigar",
+    "key": "Veigar",
+    "title": "the Tiny Master of Evil",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 161,
+    "name": "Vel'Koz",
+    "key": "Velkoz",
+    "title": "the Eye of the Void",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 711,
+    "name": "Vex",
+    "key": "Vex",
+    "title": "the Gloomist",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 254,
+    "name": "Vi",
+    "key": "Vi",
+    "title": "the Piltover Enforcer",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 234,
+    "name": "Viego",
+    "key": "Viego",
+    "title": "The Ruined King",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 112,
+    "name": "Viktor",
+    "key": "Viktor",
+    "title": "the Herald of the Arcane",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 8,
+    "name": "Vladimir",
+    "key": "Vladimir",
+    "title": "the Crimson Reaper",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 106,
+    "name": "Volibear",
+    "key": "Volibear",
+    "title": "the Relentless Storm",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 19,
+    "name": "Warwick",
+    "key": "Warwick",
+    "title": "the Uncaged Wrath of Zaun",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 62,
+    "name": "Wukong",
+    "key": "MonkeyKing",
+    "title": "the Monkey King",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 498,
+    "name": "Xayah",
+    "key": "Xayah",
+    "title": "the Rebel",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 101,
+    "name": "Xerath",
+    "key": "Xerath",
+    "title": "the Magus Ascendant",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 5,
+    "name": "Xin Zhao",
+    "key": "XinZhao",
+    "title": "the Seneschal of Demacia",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 157,
+    "name": "Yasuo",
+    "key": "Yasuo",
+    "title": "the Unforgiven",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 777,
+    "name": "Yone",
+    "key": "Yone",
+    "title": "the Unforgotten",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 83,
+    "name": "Yorick",
+    "key": "Yorick",
+    "title": "Shepherd of Souls",
+    "roles": [
+      "TOP",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 350,
+    "name": "Yuumi",
+    "key": "Yuumi",
+    "title": "the Magical Cat",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 154,
+    "name": "Zac",
+    "key": "Zac",
+    "title": "the Secret Weapon",
+    "roles": [
+      "TOP",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 238,
+    "name": "Zed",
+    "key": "Zed",
+    "title": "the Master of Shadows",
+    "roles": [
+      "MID",
+      "JUNGLE"
+    ]
+  },
+  {
+    "id": 221,
+    "name": "Zeri",
+    "key": "Zeri",
+    "title": "The Spark of Zaun",
+    "roles": [
+      "ADC"
+    ]
+  },
+  {
+    "id": 115,
+    "name": "Ziggs",
+    "key": "Ziggs",
+    "title": "the Hexplosives Expert",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 26,
+    "name": "Zilean",
+    "key": "Zilean",
+    "title": "the Chronokeeper",
+    "roles": [
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 142,
+    "name": "Zoe",
+    "key": "Zoe",
+    "title": "the Aspect of Twilight",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  },
+  {
+    "id": 143,
+    "name": "Zyra",
+    "key": "Zyra",
+    "title": "Rise of the Thorns",
+    "roles": [
+      "MID",
+      "SUPPORT"
+    ]
+  }
 ];
 
 export const CHAMPION_BUILDS: Record<number, ChampionBuild> = {
