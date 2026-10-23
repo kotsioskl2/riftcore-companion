@@ -16,7 +16,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
   8000: {
     id: 8000,
     name: 'Precision',
-    icon: 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/perk-images/Styles/7201_Precision.png',
+    icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7201_Precision.png',
     color: '#c8aa6e',
     keystones: [
       { id: 8010, name: 'Conqueror', desc: 'Gain stacking AD/AP and heal at max stacks.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/Conqueror/Conqueror.png' },
@@ -45,7 +45,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
   8100: {
     id: 8100,
     name: 'Domination',
-    icon: 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/perk-images/Styles/7200_Domination.png',
+    icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7200_Domination.png',
     color: '#dc3545',
     keystones: [
       { id: 8112, name: 'Electrocute', desc: 'Striking a champion with 3 attacks/spells deals burst damage.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png' },
@@ -73,7 +73,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
   8200: {
     id: 8200,
     name: 'Sorcery',
-    icon: 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/perk-images/Styles/7202_Sorcery.png',
+    icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7202_Sorcery.png',
     color: '#0070ba',
     keystones: [
       { id: 8214, name: 'Summon Aery', desc: 'Attacks and abilities send Aery to damage or shield.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/SummonAery/SummonAery.png' },
@@ -82,7 +82,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
     ],
     slots: [
       [
-        { id: 8224, name: 'Nullifying Orb', desc: 'Gain a magic shield when low on health.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/NullifyingOrb/PNullifyingOrb.png' },
+        { id: 8224, name: 'Nullifying Orb', desc: 'Gain a magic shield when low on health.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/NullifyingOrb/Pokeshield.png' },
         { id: 8226, name: 'Manaflow Band', desc: 'Hitting enemies permanently increases max mana.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/ManaflowBand/ManaflowBand.png' },
         { id: 8275, name: 'Nimbus Cloak', desc: 'Casting a summoner spell grants a burst of MS.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/NimbusCloak/6361.png' }
       ],
@@ -101,7 +101,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
   8400: {
     id: 8400,
     name: 'Resolve',
-    icon: 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/perk-images/Styles/7204_Resolve.png',
+    icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7204_Resolve.png',
     color: '#28a745',
     keystones: [
       { id: 8437, name: 'Grasp of the Undying', desc: 'Periodic empowered attack deals bonus damage, heals, and increases permanent max HP.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Resolve/GraspOfTheUndying/GraspOfTheUndying.png' },
@@ -129,7 +129,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
   8300: {
     id: 8300,
     name: 'Inspiration',
-    icon: 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/perk-images/Styles/7203_Whimsy.png',
+    icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7203_Whimsy.png',
     color: '#00c3ba',
     keystones: [
       { id: 8351, name: 'Glacial Augment', desc: 'Immobilizing enemy champions emits freezing rays that slow and reduce damage.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/GlacialAugment/GlacialAugment.png' },
@@ -139,17 +139,17 @@ export const RUNE_TREES: Record<number, RuneTree> = {
       [
         { id: 8306, name: 'Hextech Flashtraption', desc: 'Channel to blink to a new location while Flash is on cooldown.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/HextechFlashtraption/HextechFlashtraption.png' },
         { id: 8304, name: 'Magical Footwear', desc: 'Receive free slightly magical boots at 12 min (faster per takedown).', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/MagicalFootwear/MagicalFootwear.png' },
-        { id: 8321, name: 'Cash Back', desc: 'Receive 6% gold refund on Legendary items purchased.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/CashBack/CashBack.png' }
+        { id: 8321, name: 'Cash Back', desc: 'Receive 6% gold refund on Legendary items purchased.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/CashBack/CashBack2.png' }
       ],
       [
-        { id: 8313, name: 'Triple Tonic', desc: 'Receive Elixirs at levels 3, 6, and 9 with bonus combat stats.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/TripleTonic/TripleTonic.png' },
+        { id: 8313, name: 'Triple Tonic', desc: 'Receive Elixirs at levels 3, 6, and 9 with bonus combat stats.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/PerfectTiming/AlchemistCabinet.png' },
         { id: 8352, name: 'Time Warp Tonic', desc: 'Potions grant instantaneous health restoration and MS.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/TimeWarpTonic/TimeWarpTonic.png' },
         { id: 8345, name: 'Biscuit Delivery', desc: 'Gain free biscuits every 2 mins that restore HP and mana.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/BiscuitDelivery/BiscuitDelivery.png' }
       ],
       [
         { id: 8347, name: 'Cosmic Insight', desc: '+18 Summoner Spell Haste and +10 Item Haste.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/CosmicInsight/CosmicInsight.png' },
         { id: 8410, name: 'Approach Velocity', desc: 'Gain bonus MS toward movement-impaired enemy champions.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Resolve/ApproachVelocity/ApproachVelocity.png' },
-        { id: 8316, name: 'Jack of All Trades', desc: 'Gain stacking stats for each different stat gained from items.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/JackOfAllTrades/JackofAllTrades.png' }
+        { id: 8316, name: 'Jack of All Trades', desc: 'Gain stacking stats for each different stat gained from items.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/JackOfAllTrades/JackofAllTrades2.png' }
       ]
     ]
   }
@@ -158,7 +158,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
 export const STAT_SHARDS: Record<number, { id: number; name: string; icon: string }> = {
   5008: { id: 5008, name: 'Adaptive Force (+9 AD/AP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsAdaptiveForceIcon.png' },
   5005: { id: 5005, name: 'Attack Speed (+10% AS)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsAttackSpeedIcon.png' },
-  5007: { id: 5007, name: 'Ability Haste (+8 AH)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsCDRIcon.png' },
+  5007: { id: 5007, name: 'Ability Haste (+8 AH)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsCDRScalingIcon.png' },
   5010: { id: 5010, name: 'Move Speed (+2% MS)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsMovementSpeedIcon.png' },
   5001: { id: 5001, name: 'Scaling Health (+10-180 HP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthScalingIcon.png' },
   5011: { id: 5011, name: 'Tenacity & Slow Resist', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsTenacityIcon.png' },

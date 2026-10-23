@@ -249,7 +249,14 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                       boxShadow: isSelected ? `0 0 10px ${tree.color}55` : 'none',
                     }}
                   >
-                    <img src={tree.icon} alt={tree.name} style={{ width: '18px', height: '18px' }} />
+                    <img
+                      src={tree.icon}
+                      alt={tree.name}
+                      style={{ width: '18px', height: '18px' }}
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
                   </button>
                 );
               })}
@@ -404,7 +411,14 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                         boxShadow: isSelected ? `0 0 10px ${tree.color}55` : 'none',
                       }}
                     >
-                      <img src={tree.icon} alt={tree.name} style={{ width: '16px', height: '16px' }} />
+                      <img
+                        src={tree.icon}
+                        alt={tree.name}
+                        style={{ width: '16px', height: '16px' }}
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
                     </button>
                   );
                 })}

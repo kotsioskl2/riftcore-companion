@@ -2226,7 +2226,7 @@ export function getChampionIcon(championIdOrKey: number | string): string {
     if (found) {
       return patchService.getChampionIconUrl(found.key);
     }
-    return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${championIdOrKey}.png`;
+    return patchService.getChampionIconUrl(String(championIdOrKey));
   }
   return patchService.getChampionIconUrl(championIdOrKey);
 }
