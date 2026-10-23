@@ -34,16 +34,21 @@ cd /d "F:\league app"
 if not exist "RiftCore_Rust_Portable" mkdir "RiftCore_Rust_Portable"
 copy /Y "riftcore-native\target\release\riftcore-native.exe" "RiftCore_Rust_Portable\RiftCore.exe" >nul
 copy /Y "riftcore-native\target\release\WebView2Loader.dll" "RiftCore_Rust_Portable\WebView2Loader.dll" >nul
+copy /Y "riftcore-native\icon.ico" "RiftCore_Rust_Portable\icon.ico" >nul
 xcopy /E /I /Y "dist" "RiftCore_Rust_Portable\dist" >nul
 
 echo.
-echo [4/4] Generating Windows Installer (NSIS)...
+echo [4/5] Generating Windows Installer (NSIS)...
 if not exist "installer_output" mkdir "installer_output"
 makensis "installer\installer.nsi"
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Installer generation failed!
     exit /b %ERRORLEVEL%
 )
+
+echo.
+echo [5/5] Packaging Portable ZIP Archive...
+powershell -Command "Compress-Archive -Path 'RiftCore_Rust_Portable\*' -DestinationPath 'installer_output\RiftCore-Portable-1.0.0.zip' -Force"
 
 echo.
 echo ===================================================

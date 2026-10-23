@@ -18,6 +18,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use base64::prelude::*;
 
+#[cfg(target_os = "windows")]
+use tao::platform::windows::WindowExtWindows;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct LcuCredentials {
     port: String,
@@ -99,16 +102,33 @@ fn is_riot_client_open() -> bool {
 extern "system" {
     fn CreateMutexW(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u16) -> *mut std::ffi::c_void;
     fn GetLastError() -> u32;
+    fn GetModuleFileNameW(hModule: *mut std::ffi::c_void, lpFilename: *mut u16, nSize: u32) -> u32;
+    fn ExtractIconExW(
+        lpszFile: *const u16,
+        nIconIndex: i32,
+        phiconLarge: *mut *mut std::ffi::c_void,
+        phiconSmall: *mut *mut std::ffi::c_void,
+        nIcons: u32,
+    ) -> u32;
+    fn SendMessageW(hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize) -> isize;
+    fn SetClassLongPtrW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: isize) -> isize;
+    fn SetCurrentProcessExplicitAppUserModelID(AppID: *const u16) -> i32;
 }
+
+const WM_SETICON: u32 = 0x0080;
+const ICON_SMALL: usize = 0;
+const ICON_BIG: usize = 1;
+const GCLP_HICON: i32 = -14;
+const GCLP_HICONSM: i32 = -34;
 
 const ERROR_ALREADY_EXISTS: u32 = 183;
 
 fn is_already_running() -> bool {
     #[cfg(target_os = "windows")]
     unsafe {
-        let name: Vec<u16> = "Global\\RiftCoreCompanion_SingleInstance\0".encode_utf16().collect();
+        let name: Vec<u16> = "Local\\RiftCoreCompanion_SingleInstance\0".encode_utf16().collect();
         let handle = CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr());
-        if handle.is_null() || GetLastError() == ERROR_ALREADY_EXISTS {
+        if !handle.is_null() && GetLastError() == ERROR_ALREADY_EXISTS {
             return true;
         }
     }
@@ -117,6 +137,13 @@ fn is_already_running() -> bool {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Register explicit AppUserModelID so Windows Taskbar binds to RiftCore branding rather than generic host
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let app_id: Vec<u16> = "RiftCore.Companion.App.1.0\0".encode_utf16().collect();
+        let _ = SetCurrentProcessExplicitAppUserModelID(app_id.as_ptr());
+    }
+
     // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
@@ -145,6 +172,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build(&event_loop)?;
 
     let window = Arc::new(window);
+
+    // Apply native taskbar icon from own embedded PE binary (large & small)
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let mut exe_path = [0u16; 1024];
+        let len = GetModuleFileNameW(std::ptr::null_mut(), exe_path.as_mut_ptr(), 1024);
+        if len > 0 {
+            let mut h_large: *mut std::ffi::c_void = std::ptr::null_mut();
+            let mut h_small: *mut std::ffi::c_void = std::ptr::null_mut();
+            let count = ExtractIconExW(exe_path.as_ptr(), 0, &mut h_large, &mut h_small, 1);
+            if count > 0 {
+                let hwnd = window.hwnd() as *mut std::ffi::c_void;
+                if !h_large.is_null() {
+                    SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_large as isize);
+                    SetClassLongPtrW(hwnd, GCLP_HICON, h_large as isize);
+                }
+                if !h_small.is_null() {
+                    SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_small as isize);
+                    SetClassLongPtrW(hwnd, GCLP_HICONSM, h_small as isize);
+                }
+            }
+        }
+    }
     let proxy = event_loop.create_proxy();
 
     let http_client = reqwest::Client::builder()

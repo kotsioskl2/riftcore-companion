@@ -61,11 +61,11 @@ Section "MainSection" SEC01
 
   ; Create Start Menu Shortcuts
   CreateDirectory "$SMPROGRAMS\RiftCore Companion"
-  CreateShortCut "$SMPROGRAMS\RiftCore Companion\RiftCore Companion.lnk" "$INSTDIR\RiftCore.exe"
-  CreateShortCut "$SMPROGRAMS\RiftCore Companion\Uninstall RiftCore.lnk" "$INSTDIR\uninstall.exe"
+  CreateShortCut "$SMPROGRAMS\RiftCore Companion\RiftCore Companion.lnk" "$INSTDIR\RiftCore.exe" "" "$INSTDIR\RiftCore.exe" 0
+  CreateShortCut "$SMPROGRAMS\RiftCore Companion\Uninstall RiftCore.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
 
   ; Create Desktop Shortcut
-  CreateShortCut "$DESKTOP\RiftCore Companion.lnk" "$INSTDIR\RiftCore.exe"
+  CreateShortCut "$DESKTOP\RiftCore Companion.lnk" "$INSTDIR\RiftCore.exe" "" "$INSTDIR\RiftCore.exe" 0
 
   ; Register in Windows Add/Remove Programs (Installed Apps)
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayName" "${PRODUCT_NAME}"
