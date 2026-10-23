@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChampSelectView } from './components/ChampSelectView';
 import { DraftSimulatorView } from './components/DraftSimulatorView';
 import { ChampionPoolBuilderView } from './components/ChampionPoolBuilderView';
+import { GameModesHubView } from './components/GameModesHubView';
 import { AramHubView } from './components/AramHubView';
 import { LobbyScoutView } from './components/LobbyScoutView';
 import { LiveGameOverlay } from './components/LiveGameOverlay';
@@ -279,8 +280,8 @@ export const App: React.FC = () => {
             <ChampionPoolBuilderView />
           )}
 
-          {activeTab === 'aram' && (
-            <AramHubView />
+          {(activeTab === 'game-modes' || activeTab === 'aram') && (
+            <GameModesHubView />
           )}
 
           {activeTab === 'champions' && (

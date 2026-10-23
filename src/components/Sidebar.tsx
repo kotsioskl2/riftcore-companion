@@ -1,4 +1,4 @@
-import { Zap, Crosshair, Crown, User, Settings, Volume2, CheckCircle2, Users, Swords, Layers, Snowflake } from 'lucide-react';
+import { Zap, Crosshair, Crown, User, Settings, Volume2, CheckCircle2, Users, Swords, Layers, Snowflake, Trophy } from 'lucide-react';
 import { AppSettings } from '../types';
 
 interface SidebarProps {
@@ -20,7 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'lobby-scout', label: 'Lobby Scout', icon: Users, badge: 'Smart' },
     { id: 'live-overlay', label: 'In-Game HUD', icon: Crosshair },
     { id: 'champion-pool', label: 'Champion Pool', icon: Layers },
-    { id: 'aram', label: 'ARAM Mayhem', icon: Snowflake, badge: 'Buffs' },
+    { id: 'game-modes', label: 'Arena & Modes', icon: Trophy, badge: 'All Modes' },
     { id: 'champions', label: 'Tier List & Builds', icon: Crown },
     { id: 'profile', label: 'Profile & History', icon: User },
     { id: 'settings', label: 'Preferences', icon: Settings },
