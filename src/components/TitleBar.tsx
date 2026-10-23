@@ -124,7 +124,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
 
       <div className="titlebar-status">
         <div className={`status-dot ${getStatusDotClass()}`} />
-        <span>{getStatusText()}</span>
+        <span className="titlebar-status-text">{getStatusText()}</span>
         {!isConnected && isRiotClientReady && onLaunchLeague ? (
           <button
             onClick={onLaunchLeague}

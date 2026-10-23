@@ -507,7 +507,7 @@ export const GameModesHubView: React.FC<GameModesHubViewProps> = ({ initialMode,
 
       {/* 2. ARAM MAYHEM VIEW */}
       {selectedMode === 'aram' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px' }}>
+        <div className="game-modes-grid">
           <div className="glass-card" style={{ padding: '24px', border: '1px solid var(--border-blue)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

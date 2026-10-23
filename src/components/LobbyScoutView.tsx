@@ -449,16 +449,10 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
           return (
             <div
               key={player.name}
-              className="glass-card"
+              className="glass-card player-scout-card"
               style={{
-                padding: '14px 20px',
                 border: player.isMe ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
                 background: player.isMe ? 'rgba(0, 200, 255, 0.04)' : undefined,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '14px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

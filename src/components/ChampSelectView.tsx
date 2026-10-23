@@ -285,7 +285,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
               className="btn-primary"
               onClick={handleImportRunes}
               disabled={importStatus === 'importing'}
-              style={{ minWidth: '190px' }}
+              style={{ flexShrink: 0 }}
             >
               {importStatus === 'importing' ? (
                 <>Applying Runes...</>
@@ -513,7 +513,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
       )}
 
       {/* Main Grid: Runes on Left, Items & Spells & Matchups on Right */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(320px, 0.8fr)', gap: '20px', alignItems: 'start' }}>
+      <div className="champ-select-grid">
         {/* LEFT COLUMN: INTERACTIVE RUNE CUSTOMIZER */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
           <div className="glass-card" style={{ padding: '20px' }}>

@@ -38,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               id={`nav-${item.id}`}
               className={`nav-item ${isActive ? 'active' : ''}`}
               onClick={() => setActiveTab(item.id)}
+              title={item.label}
             >
               <Icon size={16} />
               <span style={{ flex: 1 }}>{item.label}</span>

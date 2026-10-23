@@ -233,7 +233,7 @@ export const DraftSimulatorView: React.FC<DraftSimulatorViewProps> = ({ session,
       </div>
 
       {/* 5v5 Arena Board */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div className="draft-board-grid">
         {/* BLUE TEAM (Ally) */}
         <div className="glass-card" style={{ padding: '20px', border: '1px solid var(--border-blue)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
@@ -392,7 +392,7 @@ export const DraftSimulatorView: React.FC<DraftSimulatorViewProps> = ({ session,
       </div>
 
       {/* AI RECOMMENDATION ADVISOR & CHAMPION PICKER */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px' }}>
+      <div className="draft-analysis-grid">
         {/* AI Recommendations */}
         <div className="glass-card" style={{ padding: '20px' }}>
           <div className="card-header" style={{ marginBottom: '14px' }}>

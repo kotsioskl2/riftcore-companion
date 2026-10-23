@@ -209,7 +209,7 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
       )}
 
       {/* Primary & Secondary Dual Columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 0.85fr)', gap: '16px' }}>
+      <div className="rune-dual-columns">
         {/* PRIMARY STYLE */}
         <div
           style={{
