@@ -39,11 +39,12 @@ export const CloseConfirmationModal: React.FC<CloseConfirmationModalProps> = ({
           maxWidth: '460px',
           padding: '24px',
           border: '1px solid var(--border-blue)',
-          boxShadow: '0 0 30px rgba(0, 200, 255, 0.18)',
+          boxShadow: '0 0 35px rgba(0, 200, 255, 0.22)',
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
           position: 'relative',
+          animation: 'modalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         {/* Close dialog button */}

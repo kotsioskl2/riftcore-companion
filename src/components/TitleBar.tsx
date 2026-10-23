@@ -83,18 +83,43 @@ export const TitleBar: React.FC<TitleBarProps> = ({
 
   return (
     <header className="titlebar" id="app-titlebar">
-      <div className="titlebar-brand">
+      <div className="titlebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <img
           src="/logo.png"
           alt="RiftCore"
           style={{
-            width: '20px',
-            height: '20px',
-            borderRadius: '4px',
-            boxShadow: '0 0 10px rgba(0, 200, 255, 0.4)',
+            width: '22px',
+            height: '22px',
+            borderRadius: '5px',
+            boxShadow: '0 0 12px rgba(0, 200, 255, 0.45)',
           }}
         />
-        <span>RIFTCORE</span>
+        <span
+          style={{
+            background: 'linear-gradient(90deg, #ffffff 0%, #b8f0ff 60%, #00c8ff 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            fontWeight: 900,
+            fontSize: '13px',
+            letterSpacing: '1.5px',
+          }}
+        >
+          RIFTCORE
+        </span>
+        <span
+          style={{
+            fontSize: '9px',
+            fontWeight: 800,
+            letterSpacing: '0.5px',
+            padding: '1px 6px',
+            borderRadius: '4px',
+            background: 'rgba(0, 200, 255, 0.1)',
+            border: '1px solid rgba(0, 200, 255, 0.25)',
+            color: 'var(--blue-primary)',
+          }}
+        >
+          PRO
+        </span>
       </div>
 
       <div className="titlebar-status">
