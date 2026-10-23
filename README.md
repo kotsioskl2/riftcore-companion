@@ -153,10 +153,12 @@ riftcore-companion/
 ## ☕ Support & Fuel Development
 
 > *"Building and hosting apps takes time and caffeine. If you want to help fuel the next project:"*
-> 
-> 💻 **[revolut.me/kkleovoulou](https://revolut.me/kkleovoulou)**
 
-[![Donate with Revolut](https://img.shields.io/badge/Fuel_with_Revolut-revolut.me%2Fkkleovoulou-0075FF?style=for-the-badge&logo=revolut&logoColor=white)](https://revolut.me/kkleovoulou)
+### ⚡ Quick Fuel Boxes:
+| ☕ [**€3 (Espresso)**](https://revolut.me/kkleovoulou/3) | ⚡ [**€5 (Energy Fuel)**](https://revolut.me/kkleovoulou/5) | 🏆 [**€10 (Hextech Core)**](https://revolut.me/kkleovoulou/10) | 💎 [**€25 (Overdrive)**](https://revolut.me/kkleovoulou/25) | ✨ [**Custom Amount**](https://revolut.me/kkleovoulou) |
+| :---: | :---: | :---: | :---: | :---: |
+
+[![Fuel with Revolut](https://img.shields.io/badge/Fuel_with_Revolut-revolut.me%2Fkkleovoulou-0075FF?style=for-the-badge&logo=revolut&logoColor=white)](https://revolut.me/kkleovoulou)
 
 ---
 

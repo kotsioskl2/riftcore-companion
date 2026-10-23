@@ -24,9 +24,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [verificationResult, setVerificationResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [hintReset, setHintReset] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [selectedDonationAmount, setSelectedDonationAmount] = useState<number | 'custom'>(5);
+  const [customDonationAmount, setCustomDonationAmount] = useState<string>('15');
+
+  const getDonationUrl = () => {
+    if (selectedDonationAmount === 'custom') {
+      const val = parseFloat(customDonationAmount);
+      return val > 0 ? `https://revolut.me/kkleovoulou/${val}` : 'https://revolut.me/kkleovoulou';
+    }
+    return `https://revolut.me/kkleovoulou/${selectedDonationAmount}`;
+  };
 
   const handleCopySupportLink = () => {
-    navigator.clipboard.writeText('https://revolut.me/kkleovoulou');
+    navigator.clipboard.writeText(getDonationUrl());
     setCopiedLink(true);
     soundService.playRuneImport();
     setTimeout(() => setCopiedLink(false), 2500);
@@ -462,36 +472,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <div
         className="glass-card"
         style={{
-          padding: '20px 22px',
-          background: 'linear-gradient(135deg, rgba(0, 200, 255, 0.06) 0%, rgba(255, 42, 95, 0.05) 50%, rgba(6, 9, 15, 0.9) 100%)',
-          border: '1px solid rgba(0, 200, 255, 0.3)',
-          borderRadius: '10px',
-          boxShadow: '0 0 24px rgba(0, 200, 255, 0.12)',
+          padding: '22px 24px',
+          background: 'linear-gradient(135deg, rgba(0, 200, 255, 0.08) 0%, rgba(255, 42, 95, 0.05) 50%, rgba(6, 9, 15, 0.95) 100%)',
+          border: '1px solid rgba(0, 200, 255, 0.35)',
+          borderRadius: '12px',
+          boxShadow: '0 0 28px rgba(0, 200, 255, 0.14)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Top Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
                 background: 'rgba(0, 200, 255, 0.15)',
                 border: '1px solid var(--border-blue)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'var(--blue-primary)',
+                boxShadow: '0 0 15px rgba(0, 200, 255, 0.25)',
               }}
             >
-              <Coffee size={20} />
+              <Coffee size={22} />
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>Fuel RiftCore Development</span>
-                <Heart size={14} color="var(--red-primary)" fill="var(--red-primary)" />
+                <Heart size={15} color="var(--red-primary)" fill="var(--red-primary)" />
               </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
                 Zero ads. 100% free and open-source forever.
               </div>
             </div>
@@ -499,6 +511,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
+              type="button"
               onClick={handleCopySupportLink}
               style={{
                 padding: '7px 12px',
@@ -514,45 +527,182 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 gap: '6px',
                 transition: 'all 0.2s',
               }}
-              title="Copy Revolut support URL to clipboard"
+              title="Copy link with current amount to clipboard"
             >
               {copiedLink ? <Check size={13} /> : <Copy size={13} />}
               <span>{copiedLink ? 'Link Copied!' : 'Copy Link'}</span>
             </button>
-
-            <a
-              href="https://revolut.me/kkleovoulou"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '7px 14px',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #00c8ff 0%, #0077ff 100%)',
-                color: '#000',
-                fontWeight: 800,
-                fontSize: '11px',
-                textDecoration: 'none',
-                boxShadow: '0 0 16px rgba(0, 200, 255, 0.35)',
-              }}
-            >
-              <span>💻 revolut.me/kkleovoulou</span>
-              <ExternalLink size={12} />
-            </a>
           </div>
         </div>
 
-        <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#cbd5e1', fontStyle: 'italic', lineHeight: '1.5' }}>
+        {/* Creator Quote */}
+        <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#cbd5e1', fontStyle: 'italic', lineHeight: '1.6' }}>
           &ldquo;Building and hosting apps takes time and caffeine. If you want to help fuel the next project:&rdquo;
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748b' }}>
-          <span>Direct Link:</span>
-          <code style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 8px', borderRadius: '4px', color: 'var(--blue-primary)', fontFamily: 'var(--font-mono)' }}>
-            revolut.me/kkleovoulou
-          </code>
+        {/* Interactive Donation Tier Boxes */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#94a3b8', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Choose Fuel Amount</span>
+            <span style={{ color: 'var(--blue-primary)', fontSize: '10px', fontWeight: 700 }}>Instant via Revolut</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(95px, 1fr))', gap: '8px' }}>
+            {[
+              { amount: 3, label: '€3', title: 'Espresso', icon: Coffee },
+              { amount: 5, label: '€5', title: 'Energy Fuel', icon: Zap, popular: true },
+              { amount: 10, label: '€10', title: 'Hextech Core', icon: Sparkles },
+              { amount: 25, label: '€25', title: 'Overdrive', icon: Heart },
+            ].map((box) => {
+              const isSelected = selectedDonationAmount === box.amount;
+              const IconComp = box.icon;
+              return (
+                <button
+                  key={box.amount}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDonationAmount(box.amount);
+                    soundService.playTimerTick();
+                  }}
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '12px 8px',
+                    borderRadius: '8px',
+                    background: isSelected
+                      ? 'linear-gradient(180deg, rgba(0, 200, 255, 0.22) 0%, rgba(0, 200, 255, 0.08) 100%)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                    border: isSelected ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                    boxShadow: isSelected ? '0 0 16px rgba(0, 200, 255, 0.3)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                >
+                  {box.popular && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-7px',
+                        fontSize: '8px',
+                        fontWeight: 900,
+                        textTransform: 'uppercase',
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(90deg, var(--blue-primary), #0077ff)',
+                        color: '#000',
+                        letterSpacing: '0.4px',
+                      }}
+                    >
+                      POPULAR
+                    </span>
+                  )}
+                  <IconComp size={16} color={isSelected ? 'var(--blue-primary)' : '#94a3b8'} style={{ marginBottom: '4px' }} />
+                  <span style={{ fontSize: '16px', fontWeight: 900, color: isSelected ? '#fff' : '#cbd5e1' }}>
+                    {box.label}
+                  </span>
+                  <span style={{ fontSize: '10px', fontWeight: 600, color: isSelected ? 'var(--blue-primary)' : '#64748b', marginTop: '2px' }}>
+                    {box.title}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Custom Amount Box */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDonationAmount('custom');
+                soundService.playTimerTick();
+              }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '12px 8px',
+                borderRadius: '8px',
+                background: selectedDonationAmount === 'custom'
+                  ? 'linear-gradient(180deg, rgba(255, 42, 95, 0.22) 0%, rgba(255, 42, 95, 0.08) 100%)'
+                  : 'rgba(255, 255, 255, 0.03)',
+                border: selectedDonationAmount === 'custom' ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
+                boxShadow: selectedDonationAmount === 'custom' ? '0 0 16px rgba(255, 42, 95, 0.3)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Heart size={16} color={selectedDonationAmount === 'custom' ? 'var(--red-primary)' : '#94a3b8'} style={{ marginBottom: '4px' }} />
+              <span style={{ fontSize: '14px', fontWeight: 900, color: selectedDonationAmount === 'custom' ? '#fff' : '#cbd5e1' }}>
+                Custom
+              </span>
+              <span style={{ fontSize: '10px', fontWeight: 600, color: selectedDonationAmount === 'custom' ? 'var(--red-primary)' : '#64748b', marginTop: '2px' }}>
+                Choose
+              </span>
+            </button>
+          </div>
+
+          {/* Custom Input Field */}
+          {selectedDonationAmount === 'custom' && (
+            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px', color: '#fff', fontWeight: 800 }}>€</span>
+              <input
+                type="number"
+                min="1"
+                placeholder="Enter custom EUR amount (e.g. 15, 50)"
+                value={customDonationAmount}
+                onChange={(e) => setCustomDonationAmount(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  border: '1px solid var(--red-primary)',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  outline: 'none',
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Action Button & Direct Link */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <a
+            href={getDonationUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #00c8ff 0%, #0077ff 100%)',
+              color: '#000',
+              fontWeight: 900,
+              fontSize: '13px',
+              textDecoration: 'none',
+              boxShadow: '0 0 20px rgba(0, 200, 255, 0.4)',
+              transition: 'transform 0.15s, box-shadow 0.15s',
+            }}
+          >
+            <Zap size={15} fill="#000" />
+            <span>
+              Send {selectedDonationAmount === 'custom' ? `€${customDonationAmount || '0'}` : `€${selectedDonationAmount}`} with Revolut
+            </span>
+            <ExternalLink size={13} />
+          </a>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748b' }}>
+            <span>Revolut Me:</span>
+            <code style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 8px', borderRadius: '4px', color: 'var(--blue-primary)', fontFamily: 'var(--font-mono)' }}>
+              revolut.me/kkleovoulou{selectedDonationAmount === 'custom' ? (customDonationAmount ? `/${customDonationAmount}` : '') : `/${selectedDonationAmount}`}
+            </code>
+          </div>
         </div>
       </div>
 
