@@ -49,6 +49,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   soundAlerts: true,
   theme: 'hextech',
   alwaysOnTop: false,
+  closeToTray: true,
+  riotApiKey: 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9',
+  riotRegion: 'eun1',
 };
 
 export function initRustBridge() {
@@ -141,7 +144,7 @@ export function initRustBridge() {
       return sendRustIpc('get-live-client-data');
     },
 
-    windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact' | 'set-pin-on' | 'set-pin-off') => {
+    windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact' | 'set-pin-on' | 'set-pin-off' | 'minimize-to-tray' | 'exit-app') => {
       return sendRustIpc('window-control', { subAction: action });
     },
 
