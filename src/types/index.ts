@@ -4,10 +4,12 @@ export type GameflowPhase =
   | 'Matchmaking'
   | 'ReadyCheck'
   | 'ChampSelect'
+  | 'GameStart'
   | 'InProgress'
   | 'WaitingForStats'
   | 'PreEndOfGame'
-  | 'EndOfGame';
+  | 'EndOfGame'
+  | 'TerminatedInError';
 
 export interface SummonerProfile {
   accountId: number;
@@ -159,6 +161,7 @@ export interface LiveGameData {
   allPlayers: LiveGamePlayer[];
   activePlayer: {
     summonerName: string;
+    level?: number;
     championStats: {
       currentHealth: number;
       maxHealth: number;
@@ -170,6 +173,13 @@ export interface LiveGameData {
       moveSpeed: number;
     };
     currentGold: number;
+    scores?: {
+      kills: number;
+      deaths: number;
+      assists: number;
+      creepScore: number;
+      wardScore: number;
+    };
   };
   events: {
     Events: {

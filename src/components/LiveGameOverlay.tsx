@@ -464,7 +464,12 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
   };
 
   // CS Benchmark
-  const currentCs = isLive ? (liveData?.activePlayer?.scores?.creepScore || 0) : isDemoMode ? 104 : 0;
+  const activePlayerInList = liveData?.allPlayers?.find(
+    (p) => p.summonerName === liveData?.activePlayer?.summonerName
+  );
+  const currentCs = isLive
+    ? (liveData?.activePlayer?.scores?.creepScore ?? activePlayerInList?.scores?.creepScore ?? 0)
+    : isDemoMode ? 104 : 0;
   const gameMinutes = Math.max(1, activeGameTime / 60);
   const csPerMin = activeGameTime > 0 ? (currentCs / gameMinutes).toFixed(1) : '0.0';
   const numCsPerMin = parseFloat(csPerMin);
