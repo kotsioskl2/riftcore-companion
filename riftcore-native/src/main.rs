@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use std::sync::{Arc, Mutex};
 use std::process::Command;
 use std::borrow::Cow;
@@ -93,8 +95,33 @@ fn is_riot_client_open() -> bool {
     Path::new(&lockfile).exists()
 }
 
+#[cfg(target_os = "windows")]
+extern "system" {
+    fn CreateMutexW(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u16) -> *mut std::ffi::c_void;
+    fn GetLastError() -> u32;
+}
+
+const ERROR_ALREADY_EXISTS: u32 = 183;
+
+fn is_already_running() -> bool {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let name: Vec<u16> = "Global\\RiftCoreCompanion_SingleInstance\0".encode_utf16().collect();
+        let handle = CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr());
+        if handle.is_null() || GetLastError() == ERROR_ALREADY_EXISTS {
+            return true;
+        }
+    }
+    false
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if is_already_running() {
+        // Enforce single window instance
+        return Ok(());
+    }
+
     let state = Arc::new(Mutex::new(AppState {
         credentials: detect_league_client(),
         gameflow_phase: "None".to_string(),
