@@ -36,6 +36,7 @@ export const App: React.FC = () => {
   const [summoner, setSummoner] = useState<SummonerProfile | null>(null);
   const [rankedData, setRankedData] = useState<RankedData | null>(null);
   const [champSelectSession, setChampSelectSession] = useState<ChampSelectSession | null>(null);
+  const [activeChampionId, setActiveChampionId] = useState<number>(420);
   const [liveData, setLiveData] = useState<LiveGameData | null>(null);
   const [readyCheckData, setReadyCheckData] = useState<any>(null);
 
@@ -175,6 +176,31 @@ export const App: React.FC = () => {
       window.removeEventListener('rift-compact-hud', handleCompactEvent);
     };
   }, []);
+
+  // Active session poller during ChampSelect phase (guarantees session freshness even if websocket dropped)
+  useEffect(() => {
+    if (gameflowPhase !== 'ChampSelect' || !window.riftAPI) {
+      if (gameflowPhase !== 'ChampSelect') setChampSelectSession(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    const pollSession = async () => {
+      try {
+        const sess = await window.riftAPI.lcuRequest('/lol-champ-select/v1/session');
+        if (isSubscribed && sess && !sess.errorCode) {
+          setChampSelectSession(sess);
+        }
+      } catch {}
+    };
+
+    pollSession();
+    const interval = setInterval(pollSession, 1000);
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [gameflowPhase]);
 
   const fetchInitialData = async () => {
     if (!window.riftAPI) return;
@@ -344,13 +370,18 @@ export const App: React.FC = () => {
         {/* Viewport Content */}
         <main className="main-viewport" id="app-viewport">
           {activeTab === 'champ-select' && (
-            <ChampSelectView session={champSelectSession} />
+            <ChampSelectView
+              session={champSelectSession}
+              selectedChampionId={activeChampionId}
+              onSelectChampion={setActiveChampionId}
+            />
           )}
 
           {activeTab === 'draft-simulator' && (
             <DraftSimulatorView
               session={champSelectSession}
               onSelectChampion={(champId) => {
+                setActiveChampionId(champId);
                 setActiveTab('champ-select');
               }}
             />
@@ -375,19 +406,29 @@ export const App: React.FC = () => {
           )}
 
           {activeTab === 'champion-pool' && (
-            <ChampionPoolBuilderView />
+            <ChampionPoolBuilderView
+              onSelectChampion={(champId) => {
+                setActiveChampionId(champId);
+                setActiveTab('champ-select');
+              }}
+            />
           )}
 
           {(activeTab === 'game-modes' || activeTab === 'aram') && (
             <GameModesHubView
               initialMode={activeTab === 'aram' ? 'aram' : undefined}
               liveGameMode={liveData?.gameData?.gameMode}
+              onSelectChampion={(champId) => {
+                setActiveChampionId(champId);
+                setActiveTab('champ-select');
+              }}
             />
           )}
 
           {activeTab === 'champions' && (
             <ChampionTierListView
               onSelectChampion={(champId) => {
+                setActiveChampionId(champId);
                 setActiveTab('champ-select');
               }}
             />

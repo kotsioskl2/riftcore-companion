@@ -130,6 +130,15 @@ export interface ChampSelectSession {
     totalTimeInPhase: number;
   };
   localPlayerCellId: number;
+  actions?: {
+    id: number;
+    actorCellId: number;
+    championId: number;
+    completed: boolean;
+    type: string;
+    isInProgress?: boolean;
+  }[][];
+  benchChampions?: { championId: number }[];
 }
 
 export interface LiveGamePlayer {

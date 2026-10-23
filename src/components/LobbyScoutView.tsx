@@ -47,7 +47,7 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
   const myLp = rankedData?.queues?.[0]?.leaguePoints || 55;
   const myName = summoner ? `${summoner.gameName}#${summoner.tagLine}` : 'WhiteDeathAwaits#0408';
 
-  const teammates: PlayerScout[] = [
+  const defaultAllies: PlayerScout[] = [
     {
       role: 'TOP',
       name: myName,
@@ -130,6 +130,39 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       isMe: false,
     },
   ];
+
+  const teammates: PlayerScout[] = session?.myTeam && session.myTeam.length > 0
+    ? session.myTeam.map((p, idx) => {
+        const isMe = p.cellId === session.localPlayerCellId;
+        const champId = p.championId || p.championPickIntent || defaultAllies[idx]?.championId || 420;
+        const champObj = CHAMPIONS_LIST.find((c) => c.id === champId);
+        const standardRoles: ('TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT')[] = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
+        const role = (p.assignedPosition ? p.assignedPosition.toUpperCase() : standardRoles[idx] || 'TOP') as any;
+
+        return {
+          role,
+          name: isMe ? myName : `Ally ${idx + 1}#${session.gameId ? session.gameId.toString().slice(-4) : 'EUN1'}`,
+          championId: champId,
+          championName: champObj ? champObj.name : 'Picking...',
+          rank: `${myTier} ${myDiv}`,
+          lp: isMe ? myLp : 45 + idx * 8,
+          winRate: isMe ? 62.5 : 51.0 + (idx % 3) * 3,
+          games: isMe ? 48 : 35 + idx * 10,
+          kda: isMe ? '3.4:1' : '2.8:1',
+          badges: isMe
+            ? [
+                { label: 'HARD CARRY', type: 'carry' as const },
+                { label: 'OTP MAIN', type: 'otp' as const },
+                { label: 'HOT STREAK', type: 'hot' as const },
+              ]
+            : [
+                { label: 'LOBBY SCOUT', type: 'carry' as const },
+                { label: 'CONSISTENT', type: 'vision' as const },
+              ],
+          isMe,
+        };
+      })
+    : defaultAllies;
 
   const enemyThreats: PlayerScout[] = [
     {

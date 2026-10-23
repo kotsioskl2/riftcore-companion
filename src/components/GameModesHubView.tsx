@@ -41,9 +41,10 @@ interface ArenaDuo {
 interface GameModesHubViewProps {
   initialMode?: ModeTab;
   liveGameMode?: string;
+  onSelectChampion?: (championId: number) => void;
 }
 
-export const GameModesHubView: React.FC<GameModesHubViewProps> = ({ initialMode, liveGameMode }) => {
+export const GameModesHubView: React.FC<GameModesHubViewProps> = ({ initialMode, liveGameMode, onSelectChampion }) => {
   const currentChamps = patchService.getChampions() || CHAMPIONS_LIST;
   const [selectedMode, setSelectedMode] = useState<ModeTab>(initialMode || 'arena');
   const [search, setSearch] = useState('');
@@ -529,24 +530,36 @@ export const GameModesHubView: React.FC<GameModesHubViewProps> = ({ initialMode,
                 </div>
               </div>
 
-              <button
-                onClick={() => handlePushModeRunes('ARAM')}
-                className="btn-primary"
-                disabled={importStatus === 'importing'}
-                style={{ minWidth: '180px' }}
-              >
-                {importStatus === 'success' ? (
-                  <>
-                    <Check size={16} />
-                    <span>ARAM Runes Pushed!</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap size={16} />
-                    <span>Push ARAM Runes</span>
-                  </>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {onSelectChampion && (
+                  <button
+                    onClick={() => onSelectChampion(champ.id)}
+                    className="btn-secondary"
+                    style={{ minWidth: '140px', padding: '8px 14px' }}
+                  >
+                    <Sparkles size={15} color="var(--blue-primary)" />
+                    <span>Inspect Build</span>
+                  </button>
                 )}
-              </button>
+                <button
+                  onClick={() => handlePushModeRunes('ARAM')}
+                  className="btn-primary"
+                  disabled={importStatus === 'importing'}
+                  style={{ minWidth: '160px' }}
+                >
+                  {importStatus === 'success' ? (
+                    <>
+                      <Check size={16} />
+                      <span>ARAM Runes Pushed!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={16} />
+                      <span>Push ARAM Runes</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Multipliers */}

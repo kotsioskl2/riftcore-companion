@@ -214,6 +214,19 @@ function handleLCUEvent(event) {
     gameflowPhase = data;
     notifyRenderer('gameflow-phase', data);
 
+    if (data === 'ChampSelect') {
+      requestLCU('/lol-champ-select/v1/session')
+        .then((sess) => {
+          if (sess && !sess.errorCode) {
+            champSelectSession = sess;
+            notifyRenderer('champ-select-session', sess);
+          }
+        })
+        .catch(() => {});
+    } else {
+      champSelectSession = null;
+    }
+
     // If entering InProgress, start polling Live Client Data
     if (data === 'InProgress') {
       startLiveGamePolling();

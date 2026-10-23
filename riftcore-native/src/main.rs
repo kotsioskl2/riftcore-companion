@@ -1069,12 +1069,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if last_phase == "ChampSelect" {
                     let cs_url = format!("https://127.0.0.1:{}/lol-champ-select/v1/session", creds.port);
                     if let Ok(res) = bg_http.get(&cs_url).header("Authorization", &auth).send().await {
-                        if let Ok(cs_json) = res.text().await {
-                            let script = format!(
-                                "window.dispatchEvent(new CustomEvent('rift-champ-select', {{ detail: {} }}));",
-                                cs_json
-                            );
-                            let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script));
+                        if res.status().is_success() {
+                            if let Ok(cs_json) = res.text().await {
+                                if !cs_json.contains("errorCode") {
+                                    let script = format!(
+                                        "window.dispatchEvent(new CustomEvent('rift-champ-select', {{ detail: {} }}));",
+                                        cs_json
+                                    );
+                                    let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script));
+                                }
+                            }
                         }
                     }
                 }

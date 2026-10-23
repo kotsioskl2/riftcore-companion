@@ -21,7 +21,11 @@ interface PoolChampion {
   championId: number;
 }
 
-export const ChampionPoolBuilderView: React.FC = () => {
+interface ChampionPoolBuilderViewProps {
+  onSelectChampion?: (championId: number) => void;
+}
+
+export const ChampionPoolBuilderView: React.FC<ChampionPoolBuilderViewProps> = ({ onSelectChampion }) => {
   const currentChamps = patchService.getChampions() || CHAMPIONS_LIST;
   const [selectedRole, setSelectedRole] = useState<'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT'>('MID');
   const [search, setSearch] = useState('');
@@ -148,12 +152,24 @@ export const ChampionPoolBuilderView: React.FC = () => {
             </div>
 
             {blindChamp ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
-                <img src={getChampionIcon(blindChamp.key)} alt={blindChamp.name} style={{ width: '48px', height: '48px', borderRadius: '10px', border: '2px solid var(--blue-primary)' }} />
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{blindChamp.name}</div>
-                  <div style={{ fontSize: '11px', color: '#22c55e', fontWeight: 700 }}>52.4% Win Rate • Low Ban</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
+                  <img src={getChampionIcon(blindChamp.key)} alt={blindChamp.name} style={{ width: '48px', height: '48px', borderRadius: '10px', border: '2px solid var(--blue-primary)' }} />
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{blindChamp.name}</div>
+                    <div style={{ fontSize: '11px', color: '#22c55e', fontWeight: 700 }}>52.4% Win Rate • Low Ban</div>
+                  </div>
                 </div>
+                {onSelectChampion && (
+                  <button
+                    onClick={() => onSelectChampion(blindChamp.id)}
+                    className="btn-secondary"
+                    style={{ marginTop: '10px', width: '100%', padding: '7px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <Zap size={13} color="var(--blue-primary)" />
+                    <span>View Build & Runes</span>
+                  </button>
+                )}
               </div>
             ) : (
               <button
@@ -208,12 +224,24 @@ export const ChampionPoolBuilderView: React.FC = () => {
             </div>
 
             {counterChamp ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
-                <img src={getChampionIcon(counterChamp.key)} alt={counterChamp.name} style={{ width: '48px', height: '48px', borderRadius: '10px', border: '2px solid var(--red-primary)' }} />
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{counterChamp.name}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--red-primary)', fontWeight: 700 }}>Lane Assassin • High Kill Rate</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
+                  <img src={getChampionIcon(counterChamp.key)} alt={counterChamp.name} style={{ width: '48px', height: '48px', borderRadius: '10px', border: '2px solid var(--red-primary)' }} />
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{counterChamp.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--red-primary)', fontWeight: 700 }}>Lane Assassin • High Kill Rate</div>
+                  </div>
                 </div>
+                {onSelectChampion && (
+                  <button
+                    onClick={() => onSelectChampion(counterChamp.id)}
+                    className="btn-secondary"
+                    style={{ marginTop: '10px', width: '100%', padding: '7px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <Zap size={13} color="var(--red-primary)" />
+                    <span>View Build & Runes</span>
+                  </button>
+                )}
               </div>
             ) : (
               <button
@@ -268,12 +296,24 @@ export const ChampionPoolBuilderView: React.FC = () => {
             </div>
 
             {pocketChamp ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
-                <img src={getChampionIcon(pocketChamp.key)} alt={pocketChamp.name} style={{ width: '48px', height: '48px', borderRadius: '10px', border: '2px solid #c084fc' }} />
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{pocketChamp.name}</div>
-                  <div style={{ fontSize: '11px', color: '#c084fc', fontWeight: 700 }}>High Scaling • Solo Carry</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px' }}>
+                  <img src={getChampionIcon(pocketChamp.key)} alt={pocketChamp.name} style={{ width: '48px', height: '48px', borderRadius: '10px', border: '2px solid #c084fc' }} />
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{pocketChamp.name}</div>
+                    <div style={{ fontSize: '11px', color: '#c084fc', fontWeight: 700 }}>High Scaling • Solo Carry</div>
+                  </div>
                 </div>
+                {onSelectChampion && (
+                  <button
+                    onClick={() => onSelectChampion(pocketChamp.id)}
+                    className="btn-secondary"
+                    style={{ marginTop: '10px', width: '100%', padding: '7px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <Zap size={13} color="#c084fc" />
+                    <span>View Build & Runes</span>
+                  </button>
+                )}
               </div>
             ) : (
               <button

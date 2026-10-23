@@ -345,6 +345,97 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
     return () => clearInterval(timer);
   }, [isLive, isDemoMode, soundAlerts]);
 
+  // Dynamically populate enemy summoner spells from live game data
+  useEffect(() => {
+    if (!liveData || !liveData.allPlayers || liveData.allPlayers.length === 0) return;
+
+    const myName = liveData.activePlayer?.summonerName;
+    const me = liveData.allPlayers.find((p) => p.summonerName === myName);
+    const myTeam = me?.team || 'ORDER';
+    const enemyTeam = myTeam === 'ORDER' ? 'CHAOS' : 'ORDER';
+
+    const enemyPlayers = liveData.allPlayers.filter((p) => p.team === enemyTeam);
+    if (enemyPlayers.length === 0) return;
+
+    const roles = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
+
+    const getCd = (spell: string) => {
+      const s = spell.toLowerCase();
+      if (s.includes('flash')) return 300;
+      if (s.includes('teleport')) return 360;
+      if (s.includes('ghost')) return 240;
+      if (s.includes('heal')) return 240;
+      if (s.includes('barrier')) return 180;
+      if (s.includes('exhaust')) return 210;
+      if (s.includes('ignite')) return 180;
+      if (s.includes('cleanse')) return 210;
+      if (s.includes('smite')) return 90;
+      return 300;
+    };
+
+    const getSpellId = (spell: string) => {
+      const s = spell.toLowerCase();
+      if (s.includes('flash')) return 4;
+      if (s.includes('teleport')) return 12;
+      if (s.includes('ghost')) return 6;
+      if (s.includes('heal')) return 7;
+      if (s.includes('barrier')) return 21;
+      if (s.includes('exhaust')) return 3;
+      if (s.includes('ignite')) return 14;
+      if (s.includes('cleanse')) return 1;
+      if (s.includes('smite')) return 11;
+      return 4;
+    };
+
+    const newEnemySpells: SpellTracker[] = [];
+    enemyPlayers.forEach((p, idx) => {
+      const role = roles[idx] || 'FLEX';
+      const champ = p.championName || `Enemy ${idx + 1}`;
+
+      const s1Name = p.summonerSpells?.summonerSpellOne?.displayName || 'Flash';
+      const s2Name = p.summonerSpells?.summonerSpellTwo?.displayName || 'Ignite';
+
+      newEnemySpells.push({
+        champion: champ,
+        role,
+        spellId: getSpellId(s1Name),
+        spellName: s1Name,
+        cooldownTotal: getCd(s1Name),
+        cooldownRemaining: 0,
+        timerActive: false,
+        readyGameTime: 0,
+      });
+
+      newEnemySpells.push({
+        champion: champ,
+        role,
+        spellId: getSpellId(s2Name),
+        spellName: s2Name,
+        cooldownTotal: getCd(s2Name),
+        cooldownRemaining: 0,
+        timerActive: false,
+        readyGameTime: 0,
+      });
+    });
+
+    if (newEnemySpells.length > 0) {
+      setSrEnemySpells((prev) => {
+        return newEnemySpells.map((ns) => {
+          const match = prev.find((ps) => ps.champion === ns.champion && ps.spellName === ns.spellName);
+          if (match && match.timerActive) {
+            return {
+              ...ns,
+              timerActive: match.timerActive,
+              cooldownRemaining: match.cooldownRemaining,
+              readyGameTime: match.readyGameTime,
+            };
+          }
+          return ns;
+        });
+      });
+    }
+  }, [liveData]);
+
   // Actions
   const triggerSrSpell = (index: number) => {
     setSrEnemySpells((prev) => {

@@ -16,7 +16,8 @@ import {
   BookOpen,
   Sliders,
   ExternalLink,
-  Target
+  Target,
+  Pin
 } from 'lucide-react';
 import { ChampSelectSession } from '../types';
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon, getChampionSplash } from '../services/championData';
@@ -27,12 +28,18 @@ import { patchService, PatchState } from '../services/patchService';
 
 interface ChampSelectViewProps {
   session: ChampSelectSession | null;
+  selectedChampionId?: number;
   onSelectChampion?: (championId: number) => void;
 }
 
-export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSelectChampion }) => {
+export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
+  session,
+  selectedChampionId,
+  onSelectChampion,
+}) => {
   const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
-  const [selectedChampId, setSelectedChampId] = useState<number>(420); // Default Illaoi
+  const [selectedChampId, setSelectedChampId] = useState<number>(selectedChampionId || 420);
+  const [lastSyncedLcuChampId, setLastSyncedLcuChampId] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
   const [showFullRosterModal, setShowFullRosterModal] = useState(false);
@@ -49,11 +56,28 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
   const champ = currentChampions.find((c) => c.id === selectedChampId) || currentChampions[0];
   const initialBuild = getChampionBuild(champ.id, champ.name);
 
-  const [activePreset, setActivePreset] = useState<'meta' | 'burst' | 'sustain' | 'custom'>('meta');
-  const [primaryStyleId, setPrimaryStyleId] = useState<number>(initialBuild.runes.primaryStyleId);
-  const [subStyleId, setSubStyleId] = useState<number>(initialBuild.runes.subStyleId);
-  const [selectedPerkIds, setSelectedPerkIds] = useState<number[]>(initialBuild.runes.selectedPerkIds);
-  const [selectedSpells, setSelectedSpells] = useState<[number, number]>(initialBuild.spells);
+  // Per-champion custom overrides (presets, custom runes, and swapped spells)
+  const [customRunesByChamp, setCustomRunesByChamp] = useState<Record<number, {
+    primaryStyleId: number;
+    subStyleId: number;
+    selectedPerkIds: number[];
+    spells: [number, number];
+    activePreset: 'meta' | 'burst' | 'sustain' | 'custom';
+  }>>({});
+
+  const activeBuildData = customRunesByChamp[selectedChampId] || {
+    primaryStyleId: initialBuild.runes.primaryStyleId,
+    subStyleId: initialBuild.runes.subStyleId,
+    selectedPerkIds: initialBuild.runes.selectedPerkIds,
+    spells: initialBuild.spells,
+    activePreset: 'meta' as const,
+  };
+
+  const primaryStyleId = activeBuildData.primaryStyleId;
+  const subStyleId = activeBuildData.subStyleId;
+  const selectedPerkIds = activeBuildData.selectedPerkIds;
+  const selectedSpells = activeBuildData.spells;
+  const activePreset = activeBuildData.activePreset;
 
   // Spell Switcher Popover
   const [activeSpellSlot, setActiveSpellSlot] = useState<0 | 1 | null>(null);
@@ -63,65 +87,127 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
   const [spellStatus, setSpellStatus] = useState<'idle' | 'importing' | 'success'>('idle');
   const [autoImport, setAutoImport] = useState(true);
 
-  // Auto-sync when LoL Client selects a champion in Champ Select
-  useEffect(() => {
-    if (session && session.myTeam && session.localPlayerCellId !== undefined) {
-      const me = session.myTeam.find((p) => p.cellId === session.localPlayerCellId);
-      if (me) {
-        const champId = me.championId || me.championPickIntent;
-        if (champId && champId > 0 && champId !== selectedChampId) {
-          setSelectedChampId(champId);
-          if (onSelectChampion) onSelectChampion(champId);
+  // Helper to extract active hovered or locked champion from League Client session
+  const extractLcuChampionId = (sess: ChampSelectSession | null): number => {
+    if (!sess) return 0;
+    const localCell = Number(sess.localPlayerCellId);
+
+    // 1. Check in-progress pick actions FIRST (active hover or current pick turn)
+    if (Array.isArray(sess.actions)) {
+      for (const actionGroup of sess.actions) {
+        const group = Array.isArray(actionGroup) ? actionGroup : [actionGroup];
+        for (const action of group) {
+          if (Number(action?.actorCellId) === localCell && action?.type === 'pick') {
+            if (action?.isInProgress && action?.championId && action?.championId > 0) {
+              return action.championId;
+            }
+          }
+        }
+      }
+      // If none currently in progress, check any completed or queued pick action with championId
+      for (const actionGroup of sess.actions) {
+        const group = Array.isArray(actionGroup) ? actionGroup : [actionGroup];
+        for (const action of group) {
+          if (Number(action?.actorCellId) === localCell && action?.type === 'pick') {
+            if (action?.championId && action?.championId > 0) {
+              return action.championId;
+            }
+          }
         }
       }
     }
-  }, [session]);
 
-  // When selected champion changes, reload default builds
+    // 2. Check local player in myTeam (locked in, assigned in ARAM/Blind, or intent hovered)
+    if (Array.isArray(sess.myTeam)) {
+      const me = sess.myTeam.find((p) => Number(p.cellId) === localCell);
+      if (me) {
+        if (me.championId && me.championId > 0) return me.championId;
+        if (me.championPickIntent && me.championPickIntent > 0) return me.championPickIntent;
+      }
+    }
+
+    return 0;
+  };
+
+  // Auto-sync ONLY when the LoL Client genuinely changes champion selection/hover
   useEffect(() => {
-    const build = getChampionBuild(champ.id, champ.name);
-    setPrimaryStyleId(build.runes.primaryStyleId);
-    setSubStyleId(build.runes.subStyleId);
-    setSelectedPerkIds(build.runes.selectedPerkIds);
-    setSelectedSpells(build.spells);
-    setActivePreset('meta');
+    if (!session) return;
+    const lcuChampId = extractLcuChampionId(session);
+    if (lcuChampId > 0 && lcuChampId !== lastSyncedLcuChampId) {
+      setLastSyncedLcuChampId(lcuChampId);
+      setSelectedChampId(lcuChampId);
+      if (onSelectChampion) onSelectChampion(lcuChampId);
+    }
+  }, [session, lastSyncedLcuChampId]);
 
-    if (autoImport && window.riftAPI) {
+  // Sync when parent component passes a new selectedChampionId (e.g. from Tier List or Draft Simulator)
+  useEffect(() => {
+    if (selectedChampionId && selectedChampionId > 0 && selectedChampionId !== selectedChampId) {
+      setSelectedChampId(selectedChampionId);
+    }
+  }, [selectedChampionId]);
+
+  // Auto-import runes to client if enabled
+  useEffect(() => {
+    if (autoImport && window.riftAPI && activeBuildData) {
       window.riftAPI.importRunes({
         name: `⚡ Rift: ${champ.name}`,
-        primaryStyleId: build.runes.primaryStyleId,
-        subStyleId: build.runes.subStyleId,
-        selectedPerkIds: build.runes.selectedPerkIds,
+        primaryStyleId: activeBuildData.primaryStyleId,
+        subStyleId: activeBuildData.subStyleId,
+        selectedPerkIds: activeBuildData.selectedPerkIds,
       }).catch(() => {});
     }
   }, [selectedChampId]);
 
+  // User chooses champion in RiftCore UI
+  const handleSelectChampion = (champId: number) => {
+    setSelectedChampId(champId);
+    if (onSelectChampion) onSelectChampion(champId);
+    soundService.playTimerTick();
+  };
+
   // Presets handler
   const handleSelectPreset = (preset: 'meta' | 'burst' | 'sustain') => {
-    setActivePreset(preset);
     const build = getChampionBuild(champ.id, champ.name);
-    if (preset === 'meta') {
-      setPrimaryStyleId(build.runes.primaryStyleId);
-      setSubStyleId(build.runes.subStyleId);
-      setSelectedPerkIds(build.runes.selectedPerkIds);
-    } else if (preset === 'burst') {
-      setPrimaryStyleId(8100); // Domination
-      setSubStyleId(8200); // Sorcery
-      setSelectedPerkIds([8112, 8143, 8138, 8106, 8226, 8210, 5008, 5008, 5001]);
+    let pStyle = build.runes.primaryStyleId;
+    let sStyle = build.runes.subStyleId;
+    let perks = build.runes.selectedPerkIds;
+
+    if (preset === 'burst') {
+      pStyle = 8100; // Domination
+      sStyle = 8200; // Sorcery
+      perks = [8112, 8143, 8138, 8106, 8226, 8210, 5008, 5008, 5001];
     } else if (preset === 'sustain') {
-      setPrimaryStyleId(8400); // Resolve
-      setSubStyleId(8000); // Precision
-      setSelectedPerkIds([8437, 8446, 8473, 8451, 9111, 8299, 5008, 5008, 5001]);
+      pStyle = 8400; // Resolve
+      sStyle = 8000; // Precision
+      perks = [8437, 8446, 8473, 8451, 9111, 8299, 5008, 5008, 5001];
     }
+
+    setCustomRunesByChamp((prev) => ({
+      ...prev,
+      [selectedChampId]: {
+        primaryStyleId: pStyle,
+        subStyleId: sStyle,
+        selectedPerkIds: perks,
+        spells: selectedSpells,
+        activePreset: preset,
+      },
+    }));
     soundService.playTimerTick();
   };
 
   // Customizer callback
   const handleCustomRunesChange = (newPerks: number[], newPrimaryStyleId: number, newSubStyleId: number) => {
-    setPrimaryStyleId(newPrimaryStyleId);
-    setSubStyleId(newSubStyleId);
-    setSelectedPerkIds(newPerks);
-    setActivePreset('custom');
+    setCustomRunesByChamp((prev) => ({
+      ...prev,
+      [selectedChampId]: {
+        primaryStyleId: newPrimaryStyleId,
+        subStyleId: newSubStyleId,
+        selectedPerkIds: newPerks,
+        spells: selectedSpells,
+        activePreset: 'custom',
+      },
+    }));
   };
 
   // Push Runes to League Client via LCU
@@ -182,7 +268,16 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
       nextSpells[1 - activeSpellSlot] = nextSpells[activeSpellSlot];
     }
     nextSpells[activeSpellSlot] = spellId;
-    setSelectedSpells(nextSpells);
+    setCustomRunesByChamp((prev) => ({
+      ...prev,
+      [selectedChampId]: {
+        primaryStyleId,
+        subStyleId,
+        selectedPerkIds,
+        spells: nextSpells,
+        activePreset,
+      },
+    }));
     setActiveSpellSlot(null);
     soundService.playTimerTick();
   };
@@ -257,6 +352,31 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
 
           {/* Quick Actions Bar */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Sync to Client Pick Button */}
+            {lastSyncedLcuChampId > 0 && selectedChampId !== lastSyncedLcuChampId && (
+              <button
+                onClick={() => handleSelectChampion(lastSyncedLcuChampId)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  background: 'rgba(0, 200, 255, 0.15)',
+                  border: '1px solid var(--blue-primary)',
+                  color: 'var(--blue-primary)',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 0 10px rgba(0, 200, 255, 0.2)',
+                }}
+                title="Return to the champion currently selected in League Client"
+              >
+                <Pin size={12} />
+                <span>Sync to Client Pick</span>
+              </button>
+            )}
+
             {/* Auto Import Toggle */}
             <button
               onClick={() => setAutoImport(!autoImport)}
@@ -398,15 +518,12 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
         {/* Quick Horizontal Champion Ribbon (Scrollable) */}
         {!showFullRosterModal && (
           <div style={{ marginTop: '12px', display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {filteredChampions.slice(0, 20).map((c) => {
+            {filteredChampions.slice(0, 24).map((c) => {
               const isSelected = selectedChampId === c.id;
               return (
                 <button
                   key={c.id}
-                  onClick={() => {
-                    setSelectedChampId(c.id);
-                    if (onSelectChampion) onSelectChampion(c.id);
-                  }}
+                  onClick={() => handleSelectChampion(c.id)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -470,9 +587,8 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
                 <button
                   key={c.id}
                   onClick={() => {
-                    setSelectedChampId(c.id);
+                    handleSelectChampion(c.id);
                     setShowFullRosterModal(false);
-                    if (onSelectChampion) onSelectChampion(c.id);
                   }}
                   style={{
                     display: 'flex',
@@ -536,87 +652,6 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
               activePreset={activePreset}
               onSelectPreset={handleSelectPreset}
             />
-          </div>
-
-          {/* Skill Order Matrix Card */}
-          <div className="glass-card" style={{ padding: '20px' }}>
-            <div className="card-header">
-              <div className="card-title">
-                <Target size={18} color="var(--blue-primary)" />
-                <span>Ability Leveling Order (Levels 1 - 18)</span>
-              </div>
-              <div
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  color: 'var(--blue-primary)',
-                  background: 'var(--blue-subtle)',
-                  padding: '3px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-blue)',
-                }}
-              >
-                Max Priority: {initialBuild.skillPriority}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowX: 'auto', marginTop: '12px' }}>
-              {['Q', 'W', 'E', 'R'].map((skillKey) => (
-                <div key={skillKey} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div
-                    style={{
-                      width: '26px',
-                      height: '26px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      color: skillKey === 'R' ? '#c084fc' : 'var(--blue-primary)',
-                    }}
-                  >
-                    {skillKey}
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
-                    {initialBuild.skillOrder.map((sk, lvlIdx) => {
-                      const isUpgraded = sk === skillKey;
-                      const isUlt = skillKey === 'R';
-                      return (
-                        <div
-                          key={lvlIdx}
-                          style={{
-                            flex: 1,
-                            minWidth: '22px',
-                            height: '26px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            background: isUpgraded
-                              ? isUlt
-                                ? 'rgba(192, 132, 252, 0.3)'
-                                : 'var(--blue-subtle)'
-                              : 'rgba(255, 255, 255, 0.02)',
-                            border: isUpgraded
-                              ? isUlt
-                                ? '1px solid #c084fc'
-                                : '1px solid var(--border-blue)'
-                              : '1px solid transparent',
-                            color: isUpgraded ? (isUlt ? '#c084fc' : 'var(--blue-primary)') : '#334155',
-                          }}
-                        >
-                          {isUpgraded ? lvlIdx + 1 : ''}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
 
