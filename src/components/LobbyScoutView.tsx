@@ -285,6 +285,21 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
                   >
                     {session ? '● LIVE LOBBY CONNECTED' : 'ℹ️ PREVIEW MODE — Connect LoL Client & Enter Lobby for Live Team Intel'}
                   </span>
+                  {Boolean(localStorage.getItem('riftcore_settings')?.includes('RGAPI-')) && (
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: 'rgba(0, 200, 255, 0.15)',
+                        color: 'var(--blue-primary)',
+                        border: '1px solid var(--border-blue)',
+                      }}
+                    >
+                      ⚡ RIOT CLOUD API CONNECTED
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

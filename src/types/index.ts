@@ -199,6 +199,8 @@ export interface AppSettings {
   soundAlerts: boolean;
   theme: string;
   alwaysOnTop: boolean;
+  riotApiKey?: string;
+  riotRegion?: string;
 }
 
 declare global {
@@ -223,6 +225,7 @@ declare global {
       saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
       checkClientStatus: () => Promise<{ connected: boolean; gameflowPhase: GameflowPhase; riotClient?: boolean }>;
       launchLeague?: () => Promise<any>;
+      riotApiRequest?: (url: string, key?: string) => Promise<{ status: number; data: any }>;
     };
   }
 }

@@ -688,6 +688,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                     }
+                    "riot-web-api" => {
+                        let url = json.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let key = json.get("key").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let client = http_clone.clone();
+                        let proxy_worker = proxy_ipc.clone();
+
+                        tokio::spawn(async move {
+                            if url.is_empty() {
+                                let script = format!("window.__riftIpcReply({}, \"Empty URL\", null);", req_id);
+                                let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
+                                return;
+                            }
+
+                            let mut req = client.get(&url);
+                            if !key.is_empty() {
+                                req = req.header("X-Riot-Token", &key);
+                            }
+
+                            match req.send().await {
+                                Ok(res) => {
+                                    let status = res.status().as_u16();
+                                    let text = res.text().await.unwrap_or_else(|_| "{}".to_string());
+                                    let script = format!(
+                                        "window.__riftIpcReply({}, null, {{ status: {}, data: {} }});",
+                                        req_id, status, text
+                                    );
+                                    let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
+                                }
+                                Err(e) => {
+                                    let err_msg = format!("{:?}", e).replace('"', "\\\"");
+                                    let script = format!("window.__riftIpcReply({}, \"{}\", null);", req_id, err_msg);
+                                    let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
+                                }
+                            }
+                        });
+                    }
                     _ => {}
                 }
             }

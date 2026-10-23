@@ -186,5 +186,9 @@ export function initRustBridge() {
     launchLeague: async () => {
       return sendRustIpc('launch-league');
     },
+
+    riotApiRequest: async (url: string, key?: string) => {
+      return sendRustIpc('riot-web-api', { url, key });
+    },
   };
 }

@@ -184,7 +184,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleUpdateSetting = async (key: keyof AppSettings, value: boolean) => {
+  const handleUpdateSetting = async (key: keyof AppSettings, value: any) => {
     const updated = { ...settings, [key]: value };
     setSettings(updated);
     if (window.riftAPI) {
