@@ -6,9 +6,17 @@ node_modules/
 # Production & Build outputs
 dist/
 release/
-installer_output/
+!installer_output/
+!installer_output/**
+!RiftCore_Rust_Portable/
+!RiftCore_Rust_Portable/**
+RiftCore_Rust_Portable/RiftCore.exe.WebView2/
+
 *.exe
+!installer_output/*.exe
+!RiftCore_Rust_Portable/*.exe
 *.dll
+!RiftCore_Rust_Portable/*.dll
 
 # Rust build artifacts
 riftcore-native/target/
@@ -29,7 +37,6 @@ riftcore.log
 capture_screen.ps1
 screenshot.png
 clean_c_and_set_env.ps1
-RiftCore_Rust_Portable/
 
 # OS metadata
 .DS_Store

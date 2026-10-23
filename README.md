@@ -66,19 +66,23 @@ Tired of bloated League companion apps (Overwolf, Blitz, Porofessor) consuming *
 
 ---
 
-## 📦 Installation
+## 📦 Downloads & Installation
+
+### Direct Downloads
+| Package | Type | Download Link | Size |
+| :--- | :--- | :--- | :--- |
+| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.0.0.exe**](./installer_output/RiftCore-Setup-1.0.0.exe?raw=true) | ~4.7 MB |
+| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.0.0.zip**](./installer_output/RiftCore-Portable-1.0.0.zip?raw=true) | ~6.7 MB |
+| **Portable Folder** | Extracted Directory | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Ready to Run |
 
 ### Option A: Windows Installer (Recommended)
-Download the latest `RiftCore-Setup-1.0.0.exe` from the Releases section:
-1. Run `RiftCore-Setup-1.0.0.exe`.
-2. Choose your preferred install location (or default).
-3. Click **Install** — Start Menu and Desktop shortcuts will be created automatically.
+1. Download [**RiftCore-Setup-1.0.0.exe**](./installer_output/RiftCore-Setup-1.0.0.exe?raw=true).
+2. Run the setup and choose your installation directory.
+3. Desktop and Start Menu shortcuts with the custom RiftCore emblem will be created automatically.
 
 ### Option B: Standalone Portable `.exe`
-If you prefer not to install anything:
-1. Download `RiftCore_Rust_Portable.zip`.
-2. Extract anywhere (e.g. `F:\RiftCore\`).
-3. Double-click `RiftCore.exe`.
+1. Download [**RiftCore-Portable-1.0.0.zip**](./installer_output/RiftCore-Portable-1.0.0.zip?raw=true) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
+2. Double-click `RiftCore.exe` (or `Launch_RiftCore.bat`) to launch instantly with zero installation required.
 
 ---
 

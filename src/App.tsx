@@ -98,8 +98,20 @@ export const App: React.FC = () => {
       setGameflowPhase(phase);
       if (phase === 'ChampSelect') {
         setActiveTab('champ-select');
+        setReadyCheckData(null);
+      } else if (phase === 'ReadyCheck') {
+        soundService.playQueuePop();
+        if (settings.autoAccept && window.riftAPI?.acceptMatch) {
+          console.log('[RiftCore] ReadyCheck phase detected! Auto-accepting match...');
+          setTimeout(() => {
+            window.riftAPI?.acceptMatch().then(() => {
+              soundService.playAutoAccept();
+            });
+          }, 600);
+        }
       } else if (phase === 'InProgress' || phase === 'GameStart') {
         setActiveTab('live-overlay');
+        setReadyCheckData(null);
         // Auto-enable Always-on-Top so overlay floats over borderless League
         window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
           if (r) setIsPinned(r.isPinned);
@@ -117,6 +129,14 @@ export const App: React.FC = () => {
       setReadyCheckData(rcData);
       if (rcData && rcData.state === 'InProgress' && rcData.playerResponse === 'None') {
         soundService.playQueuePop();
+        if (settings.autoAccept && window.riftAPI?.acceptMatch) {
+          console.log('[RiftCore] ReadyCheck state in progress! Auto-accepting match...');
+          setTimeout(() => {
+            window.riftAPI?.acceptMatch().then(() => {
+              soundService.playAutoAccept();
+            });
+          }, 500);
+        }
       }
     });
 

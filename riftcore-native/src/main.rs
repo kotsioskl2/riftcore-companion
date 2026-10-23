@@ -117,6 +117,12 @@ fn is_already_running() -> bool {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--renderer-process-limit=1 --enable-low-end-device-mode --disable-features=msWebOOUI,msPdfOOUI,Translate,msEdgeSidebarV2,msHub,msEdgeRewards --disable-gpu-shader-disk-cache --disable-background-networking --disable-component-update --disk-cache-size=10485760 --media-cache-size=10485760"
+    );
+
     if is_already_running() {
         // Enforce single window instance
         return Ok(());
@@ -175,8 +181,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "windows")]
     let builder = builder
-        .with_browser_accelerator_keys(true)
-        .with_devtools(true);
+        .with_browser_accelerator_keys(false)
+        .with_devtools(false);
 
     let builder = builder
         .with_initialization_script(r#"
@@ -428,7 +434,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if let Some(c) = creds {
                                 let url = format!("https://127.0.0.1:{}/lol-matchmaking/v1/ready-check/accept", c.port);
                                 let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", c.token)));
-                                let _ = client.post(&url).header("Authorization", auth).send().await;
+                                let _ = client
+                                    .post(&url)
+                                    .header("Authorization", auth)
+                                    .header("Content-Type", "application/json")
+                                    .body("{}")
+                                    .send()
+                                    .await;
                             }
                             let script = format!("window.__riftIpcReply({}, null, {{ success: true }});", req_id);
                             let _ = proxy_worker.send_event(AppUserEvent::EvalScript(script));
