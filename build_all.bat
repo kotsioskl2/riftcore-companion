@@ -32,10 +32,10 @@ echo.
 echo [3/4] Assembling Portable Release Package...
 cd /d "F:\league app"
 if not exist "RiftCore_Rust_Portable" mkdir "RiftCore_Rust_Portable"
+if exist "RiftCore_Rust_Portable\dist" rd /s /q "RiftCore_Rust_Portable\dist"
 copy /Y "riftcore-native\target\release\riftcore-native.exe" "RiftCore_Rust_Portable\RiftCore.exe" >nul
 copy /Y "riftcore-native\target\release\WebView2Loader.dll" "RiftCore_Rust_Portable\WebView2Loader.dll" >nul
 copy /Y "riftcore-native\icon.ico" "RiftCore_Rust_Portable\icon.ico" >nul
-xcopy /E /I /Y "dist" "RiftCore_Rust_Portable\dist" >nul
 
 echo.
 echo [4/5] Generating Windows Installer (NSIS)...

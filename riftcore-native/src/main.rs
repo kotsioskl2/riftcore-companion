@@ -17,6 +17,24 @@ use wry::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use base64::prelude::*;
+use rust_embed::RustEmbed;
+
+#[derive(RustEmbed)]
+#[folder = "../dist/"]
+struct EmbeddedAssets;
+
+#[cfg(target_os = "windows")]
+fn ensure_webview2_loader() {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let target_dll = exe_dir.join("WebView2Loader.dll");
+    if !target_dll.exists() {
+        const LOADER_BYTES: &[u8] = include_bytes!("../WebView2Loader.dll");
+        let _ = std::fs::write(&target_dll, LOADER_BYTES);
+    }
+}
 
 #[cfg(target_os = "windows")]
 use tao::platform::windows::WindowExtWindows;
@@ -220,6 +238,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = SetCurrentProcessExplicitAppUserModelID(app_id.as_ptr());
     }
 
+    #[cfg(target_os = "windows")]
+    ensure_webview2_loader();
+
     // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
@@ -343,49 +364,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 decoded.trim_start_matches(|c| c == '/' || c == '\\')
             };
 
-            let file_path = dist_dir_protocol.join(clean_path);
+            // 1. First priority: Load directly from embedded assets in RAM (Zero loose files required!)
+            if let Some(file) = EmbeddedAssets::get(clean_path) {
+                let mime = mime_guess::from_path(clean_path)
+                    .first_or_octet_stream()
+                    .as_ref()
+                    .to_string();
 
-            match std::fs::read(&file_path) {
-                Ok(content) => {
-                    let mime = if clean_path.ends_with(".html") {
-                        "text/html; charset=utf-8"
-                    } else if clean_path.ends_with(".js") {
-                        "application/javascript; charset=utf-8"
-                    } else if clean_path.ends_with(".css") {
-                        "text/css; charset=utf-8"
-                    } else if clean_path.ends_with(".svg") {
-                        "image/svg+xml"
-                    } else if clean_path.ends_with(".png") {
-                        "image/png"
-                    } else if clean_path.ends_with(".json") {
-                        "application/json"
-                    } else if clean_path.ends_with(".ico") {
-                        "image/x-icon"
-                    } else if clean_path.ends_with(".woff2") {
-                        "font/woff2"
-                    } else if clean_path.ends_with(".woff") {
-                        "font/woff"
-                    } else {
-                        "application/octet-stream"
-                    };
-
-                    Response::builder()
-                        .header(CONTENT_TYPE, mime)
-                        .header("Access-Control-Allow-Origin", "*")
-                        .body(Cow::Owned(content))
-                        .unwrap()
-                }
-                Err(e) => {
-                    if clean_path != "favicon.ico" {
-                        eprintln!("Failed reading asset {:?}: {}", file_path, e);
-                    }
-                    Response::builder()
-                        .header(CONTENT_TYPE, "image/x-icon")
-                        .status(404)
-                        .body(Cow::Owned(Vec::new()))
-                        .unwrap()
-                }
+                return Response::builder()
+                    .header(CONTENT_TYPE, mime)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Cow::Owned(file.data.into_owned()))
+                    .unwrap();
             }
+
+            // 2. Fallback: Check adjacent disk dist folder (allows hot dev tweaks if folder exists)
+            let file_path = dist_dir_protocol.join(clean_path);
+            if let Ok(content) = std::fs::read(&file_path) {
+                let mime = mime_guess::from_path(clean_path)
+                    .first_or_octet_stream()
+                    .as_ref()
+                    .to_string();
+
+                return Response::builder()
+                    .header(CONTENT_TYPE, mime)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Cow::Owned(content))
+                    .unwrap();
+            }
+
+            // 3. Fallback to embedded index.html for SPA client-side routing
+            if let Some(index_file) = EmbeddedAssets::get("index.html") {
+                return Response::builder()
+                    .header(CONTENT_TYPE, "text/html; charset=utf-8")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Cow::Owned(index_file.data.into_owned()))
+                    .unwrap();
+            }
+
+            // 4. 404 Not Found
+            Response::builder()
+                .status(404)
+                .body(Cow::Owned(Vec::new()))
+                .unwrap()
         })
         .with_ipc_handler(move |req: wry::http::Request<String>| {
             let msg = req.body();

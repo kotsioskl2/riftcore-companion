@@ -53,9 +53,6 @@ Section "MainSection" SEC01
   File "..\RiftCore_Rust_Portable\RiftCore.exe"
   File "..\RiftCore_Rust_Portable\WebView2Loader.dll"
 
-  SetOutPath "$INSTDIR\dist"
-  File /r "..\RiftCore_Rust_Portable\dist\*.*"
-
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
