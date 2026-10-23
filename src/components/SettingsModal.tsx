@@ -796,6 +796,70 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </code>
           </div>
         </div>
+
+        {/* Ko-fi QR Code & Mobile Fast-Scan Option */}
+        <div
+          style={{
+            marginTop: '16px',
+            padding: '12px 14px',
+            borderRadius: '10px',
+            background: 'rgba(0, 0, 0, 0.45)',
+            border: '1px solid rgba(0, 200, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '14px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <img
+              src="./kofi_qr.png"
+              alt="Ko-fi QR Code"
+              style={{
+                width: '68px',
+                height: '68px',
+                borderRadius: '8px',
+                background: '#fff',
+                padding: '4px',
+                boxShadow: '0 0 16px rgba(0, 200, 255, 0.25)',
+              }}
+            />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Scan with Camera to Tip</span>
+                <span style={{ fontSize: '9px', background: 'rgba(0, 200, 255, 0.15)', color: 'var(--blue-primary)', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                  APPLE PAY / G-PAY
+                </span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', lineHeight: '1.4' }}>
+                Point your phone camera at the QR code to tip in 3 seconds directly on mobile.
+              </div>
+            </div>
+          </div>
+
+          <a
+            href={KOFI_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              background: 'rgba(0, 200, 255, 0.12)',
+              border: '1px solid var(--border-blue)',
+              color: 'var(--blue-primary)',
+              fontSize: '11px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>Open in Browser</span>
+            <ExternalLink size={12} />
+          </a>
+        </div>
       </div>
 
       {/* Riot Games Compliance & Legal Jibber Jabber */}

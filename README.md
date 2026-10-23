@@ -158,11 +158,19 @@ riftcore-companion/
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/X6I629C814)
 
-*Pay with **Apple Pay**, **Google Pay**, or **Credit/Debit Card** — Zero account required!*
+<br/>
+
+<a href="https://ko-fi.com/X6I629C814">
+  <img src="./kofi_qr.png" alt="Scan with Camera to Tip on Ko-fi" width="130" style="border-radius: 10px; box-shadow: 0 0 15px rgba(0, 200, 255, 0.3);" />
+</a>
+
+<br/>
+
+*Scan with your phone camera or click above to pay with **Apple Pay**, **Google Pay**, or **Card** (Zero account required!)*
 
 </div>
 
-### ⚡ Quick Donation Options:
+### ⚡ Direct Links:
 | ☕ [**Support on Ko-fi (Apple Pay / G-Pay / Card)**](https://ko-fi.com/X6I629C814) | ⚡ [**Tip via Revolut**](https://revolut.me/kkleovoulou) |
 | :---: | :---: |
 
