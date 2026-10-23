@@ -159,6 +159,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Riot Games Compliance & Legal Jibber Jabber */}
+      <div
+        style={{
+          padding: '14px 18px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          borderRadius: '8px',
+          fontSize: '11px',
+          color: '#64748b',
+          lineHeight: '1.5',
+        }}
+      >
+        <div style={{ fontWeight: 700, color: '#94a3b8', marginBottom: '4px' }}>
+          ⚖️ Riot Games Developer Policy & Legal Jibber Jabber
+        </div>
+        RiftCore Companion isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+      </div>
     </div>
   );
 };

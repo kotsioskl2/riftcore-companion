@@ -163,9 +163,12 @@ Feel free to check the [issues page](https://github.com/kotsioskl2/riftcore-comp
 
 ---
 
-## 📜 License
+## 📜 License & Riot Games Legal Notice
 
 Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
+
+> **⚖️ Riot Games "Legal Jibber Jabber":**
+> RiftCore Companion isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 
 ---
 

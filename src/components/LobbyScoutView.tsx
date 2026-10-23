@@ -92,8 +92,8 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 17,
       kda: '1.9:1',
       badges: [
-        { label: 'COLD STREAK (L3)', type: 'cold' },
-        { label: 'DIES EARLY', type: 'warning' },
+        { label: 'ROAM ORIENTED', type: 'carry' },
+        { label: 'BURST FOCUS', type: 'otp' },
       ],
       isMe: false,
     },
@@ -158,7 +158,7 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       winRate: 48.0,
       games: 25,
       kda: '2.1:1',
-      badges: [{ label: 'INCONSISTENT', type: 'cold' }],
+      badges: [{ label: 'SCALING CARRY', type: 'carry' }],
       isMe: false,
     },
     {
@@ -185,8 +185,8 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 12,
       kda: '1.8:1',
       badges: [
-        { label: 'FIRST TIME / UNPRACTICED', type: 'cold' },
-        { label: 'TARGET IN FIGHTS', type: 'warning' },
+        { label: 'LATE GAME HYPERCARRY', type: 'carry' },
+        { label: 'HIGH DAMAGE CEILING', type: 'otp' },
       ],
       isMe: false,
     },
@@ -311,8 +311,8 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
               <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#94a3b8' }}>
                 AI Match Assessment
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: isSafeToPlay ? 'var(--blue-primary)' : 'var(--red-primary)' }}>
-                {isSafeToPlay ? '🟢 SAFE TO PLAY — Strong Carries' : '⚠️ CONSIDER DODGING — Multiple Autofills'}
+              <div style={{ fontSize: '14px', fontWeight: 800, color: isSafeToPlay ? 'var(--blue-primary)' : 'var(--blue-primary)' }}>
+                {isSafeToPlay ? '🟢 BALANCED DRAFT — Strong Carries & Scaling' : '⚖️ SCALING FOCUS — Prioritize Safe Farm & Objectives'}
               </div>
             </div>
             <div style={{ borderLeft: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '12px' }}>
