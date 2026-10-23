@@ -38,12 +38,30 @@ interface ArenaDuo {
   description: string;
 }
 
-export const GameModesHubView: React.FC = () => {
+interface GameModesHubViewProps {
+  initialMode?: ModeTab;
+  liveGameMode?: string;
+}
+
+export const GameModesHubView: React.FC<GameModesHubViewProps> = ({ initialMode, liveGameMode }) => {
   const currentChamps = patchService.getChampions() || CHAMPIONS_LIST;
-  const [selectedMode, setSelectedMode] = useState<ModeTab>('arena');
+  const [selectedMode, setSelectedMode] = useState<ModeTab>(initialMode || 'arena');
   const [search, setSearch] = useState('');
   const [selectedChampId, setSelectedChampId] = useState<number>(222);
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success'>('idle');
+
+  // Auto-sync tab whenever initialMode or liveGameMode updates
+  React.useEffect(() => {
+    if (initialMode) {
+      setSelectedMode(initialMode);
+    } else if (liveGameMode) {
+      const lm = liveGameMode.toUpperCase();
+      if (lm.includes('ARAM')) setSelectedMode('aram');
+      else if (lm.includes('CHERRY') || lm.includes('ARENA')) setSelectedMode('arena');
+      else if (lm.includes('URF')) setSelectedMode('urf');
+      else if (lm.includes('ONEFORALL') || lm.includes('OFA')) setSelectedMode('oneforall');
+    }
+  }, [initialMode, liveGameMode]);
 
   // ARENA DATA
   const arenaAugments: ArenaAugment[] = [

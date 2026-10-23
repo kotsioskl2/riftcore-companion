@@ -209,7 +209,7 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
       )}
 
       {/* Primary & Secondary Dual Columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 0.85fr)', gap: '16px' }}>
         {/* PRIMARY STYLE */}
         <div
           style={{
@@ -511,8 +511,22 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
                           {shardInfo.icon && (
                             <img src={shardInfo.icon} alt={shardInfo.name} style={{ width: '14px', height: '14px' }} />
                           )}
-                          <span style={{ fontSize: '9px', fontWeight: 700, color: isSelected ? '#fff' : '#94a3b8' }}>
-                            {shardInfo.name.split('(')[1]?.replace(')', '') || shardInfo.name.slice(0, 10)}
+                          <span style={{ fontSize: '9px', fontWeight: 700, color: isSelected ? '#fff' : '#94a3b8', whiteSpace: 'nowrap' }}>
+                            {shardInfo.name.includes('+9 AD/AP')
+                              ? '+9 AD/AP'
+                              : shardInfo.name.includes('+10% AS')
+                              ? '+10% AS'
+                              : shardInfo.name.includes('+8 AH')
+                              ? '+8 AH'
+                              : shardInfo.name.includes('+2% MS')
+                              ? '+2% MS'
+                              : shardInfo.name.includes('+10-180 HP')
+                              ? '+10-180 HP'
+                              : shardInfo.name.includes('+65 HP')
+                              ? '+65 HP'
+                              : shardInfo.name.includes('Tenacity')
+                              ? 'Tenacity'
+                              : shardInfo.name.split('(')[1]?.replace(')', '') || shardInfo.name.slice(0, 8)}
                           </span>
                         </button>
                       );

@@ -161,7 +161,7 @@ export const STAT_SHARDS: Record<number, { id: number; name: string; icon: strin
   5007: { id: 5007, name: 'Ability Haste (+8 AH)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsCDRScalingIcon.png' },
   5010: { id: 5010, name: 'Move Speed (+2% MS)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsMovementSpeedIcon.png' },
   5001: { id: 5001, name: 'Scaling Health (+10-180 HP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthScalingIcon.png' },
-  5011: { id: 5011, name: 'Tenacity & Slow Resist', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsTenacityIcon.png' },
+  5011: { id: 5011, name: 'Tenacity (+Tenacity)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsTenacityIcon.png' },
   5013: { id: 5013, name: 'Flat Health (+65 HP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthPlusIcon.png' }
 };
 

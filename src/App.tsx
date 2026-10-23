@@ -338,7 +338,10 @@ export const App: React.FC = () => {
           )}
 
           {(activeTab === 'game-modes' || activeTab === 'aram') && (
-            <GameModesHubView />
+            <GameModesHubView
+              initialMode={activeTab === 'aram' ? 'aram' : undefined}
+              liveGameMode={liveData?.gameData?.gameMode}
+            />
           )}
 
           {activeTab === 'champions' && (

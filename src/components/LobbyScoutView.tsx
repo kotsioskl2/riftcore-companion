@@ -271,6 +271,21 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                   Evaluates teammate history, champion mastery, winrates, and composition balance in real time
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: session ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.15)',
+                      color: session ? '#22c55e' : '#f59e0b',
+                      border: session ? '1px solid #22c55e' : '1px solid rgba(234, 179, 8, 0.4)',
+                    }}
+                  >
+                    {session ? '● LIVE LOBBY CONNECTED' : 'ℹ️ PREVIEW MODE — Connect LoL Client & Enter Lobby for Live Team Intel'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -316,14 +331,14 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
             paddingTop: '16px',
             borderTop: '1px solid var(--border-subtle)',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
             gap: '16px',
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-              <span style={{ color: '#94a3b8' }}>Damage Profile</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: '#fff', fontSize: '11px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '6px' }}>
+              <span style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>Damage Profile</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: '#fff', fontSize: '11px', whiteSpace: 'nowrap' }}>
                 <span style={{ color: '#00c8ff' }}>{adPercent}% AD</span> / <span style={{ color: '#ff2a5f' }}>{apPercent}% AP</span>
               </span>
             </div>
@@ -338,9 +353,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
           </div>
 
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-              <span style={{ color: '#94a3b8' }}>Crowd Control (CC) Rating</span>
-              <span style={{ fontWeight: 700, color: '#00c8ff' }}>Grade: A (Heavy Lockdown)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '6px', gap: '6px' }}>
+              <span style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>Crowd Control (CC)</span>
+              <span style={{ fontWeight: 700, color: '#00c8ff', fontSize: '11px', whiteSpace: 'nowrap' }}>Grade: A (Heavy Lockdown)</span>
             </div>
             <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{ width: '82%', height: '100%', background: 'var(--blue-primary)', boxShadow: '0 0 8px var(--blue-primary)' }} />
@@ -351,9 +366,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
           </div>
 
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-              <span style={{ color: '#94a3b8' }}>Team Scaling Power</span>
-              <span style={{ fontWeight: 700, color: '#c084fc' }}>Mid-to-Late Game Peak</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '6px' }}>
+              <span style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>Team Scaling Power</span>
+              <span style={{ fontWeight: 700, color: '#c084fc', fontSize: '11px', whiteSpace: 'nowrap' }}>Mid-to-Late Game</span>
             </div>
             <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{ width: '75%', height: '100%', background: '#c084fc' }} />

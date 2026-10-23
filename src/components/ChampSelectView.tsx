@@ -513,9 +513,9 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
       )}
 
       {/* Main Grid: Runes on Left, Items & Spells & Matchups on Right */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(320px, 0.8fr)', gap: '20px', alignItems: 'start' }}>
         {/* LEFT COLUMN: INTERACTIVE RUNE CUSTOMIZER */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
           <div className="glass-card" style={{ padding: '20px' }}>
             <div className="card-header" style={{ marginBottom: '16px' }}>
               <div className="card-title">
@@ -621,7 +621,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({ session, onSel
         </div>
 
         {/* RIGHT COLUMN: SPELLS, ITEMS, MATCHUPS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
           {/* Summoner Spells Card */}
           <div className="glass-card" style={{ padding: '16px 20px' }}>
             <div className="card-header" style={{ marginBottom: '12px' }}>
