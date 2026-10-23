@@ -150,6 +150,16 @@ riftcore-companion/
 
 ---
 
+## ☕ Support & Fuel Development
+
+> *"Building and hosting apps takes time and caffeine. If you want to help fuel the next project:"*
+> 
+> 💻 **[revolut.me/kkleovoulou](https://revolut.me/kkleovoulou)**
+
+[![Donate with Revolut](https://img.shields.io/badge/Fuel_with_Revolut-revolut.me%2Fkkleovoulou-0075FF?style=for-the-badge&logo=revolut&logoColor=white)](https://revolut.me/kkleovoulou)
+
+---
+
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!

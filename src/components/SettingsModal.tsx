@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle, Minimize2, Keyboard } from 'lucide-react';
+import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle, Minimize2, Keyboard, Coffee, Heart, Copy, Check } from 'lucide-react';
 import { AppSettings } from '../types';
 import { soundService } from '../services/soundService';
 import { riotApiService, RIOT_REGIONS } from '../services/riotApiService';
@@ -23,6 +23,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [hintReset, setHintReset] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopySupportLink = () => {
+    navigator.clipboard.writeText('https://revolut.me/kkleovoulou');
+    setCopiedLink(true);
+    soundService.playRuneImport();
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
 
   const handleVerifyAndSave = async () => {
     setIsVerifying(true);
@@ -447,6 +455,104 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>{verificationResult.message}</span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Fuel RiftCore Development & Creator Support */}
+      <div
+        className="glass-card"
+        style={{
+          padding: '20px 22px',
+          background: 'linear-gradient(135deg, rgba(0, 200, 255, 0.06) 0%, rgba(255, 42, 95, 0.05) 50%, rgba(6, 9, 15, 0.9) 100%)',
+          border: '1px solid rgba(0, 200, 255, 0.3)',
+          borderRadius: '10px',
+          boxShadow: '0 0 24px rgba(0, 200, 255, 0.12)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: 'rgba(0, 200, 255, 0.15)',
+                border: '1px solid var(--border-blue)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--blue-primary)',
+              }}
+            >
+              <Coffee size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Fuel RiftCore Development</span>
+                <Heart size={14} color="var(--red-primary)" fill="var(--red-primary)" />
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Zero ads. 100% free and open-source forever.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={handleCopySupportLink}
+              style={{
+                padding: '7px 12px',
+                borderRadius: '6px',
+                background: copiedLink ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: copiedLink ? '1px solid #22c55e' : '1px solid var(--border-subtle)',
+                color: copiedLink ? '#22c55e' : '#cbd5e1',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+              }}
+              title="Copy Revolut support URL to clipboard"
+            >
+              {copiedLink ? <Check size={13} /> : <Copy size={13} />}
+              <span>{copiedLink ? 'Link Copied!' : 'Copy Link'}</span>
+            </button>
+
+            <a
+              href="https://revolut.me/kkleovoulou"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '6px',
+                background: 'linear-gradient(135deg, #00c8ff 0%, #0077ff 100%)',
+                color: '#000',
+                fontWeight: 800,
+                fontSize: '11px',
+                textDecoration: 'none',
+                boxShadow: '0 0 16px rgba(0, 200, 255, 0.35)',
+              }}
+            >
+              <span>💻 revolut.me/kkleovoulou</span>
+              <ExternalLink size={12} />
+            </a>
+          </div>
+        </div>
+
+        <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#cbd5e1', fontStyle: 'italic', lineHeight: '1.5' }}>
+          &ldquo;Building and hosting apps takes time and caffeine. If you want to help fuel the next project:&rdquo;
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748b' }}>
+          <span>Direct Link:</span>
+          <code style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 8px', borderRadius: '4px', color: 'var(--blue-primary)', fontFamily: 'var(--font-mono)' }}>
+            revolut.me/kkleovoulou
+          </code>
         </div>
       </div>
 

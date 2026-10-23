@@ -1,4 +1,4 @@
-import { Zap, Crosshair, Crown, User, Settings, Volume2, CheckCircle2, Users, Swords, Layers, Snowflake, Trophy } from 'lucide-react';
+import { Zap, Crosshair, Crown, User, Settings, Volume2, CheckCircle2, Users, Swords, Layers, Snowflake, Trophy, Coffee } from 'lucide-react';
 import { AppSettings } from '../types';
 
 interface SidebarProps {
@@ -103,6 +103,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="toggle-knob" />
           </div>
         </div>
+
+        {/* Creator Support & Caffeine Fuel Link */}
+        <a
+          href="https://revolut.me/kkleovoulou"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            marginTop: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '7px 10px',
+            borderRadius: '6px',
+            background: 'linear-gradient(135deg, rgba(0, 200, 255, 0.12) 0%, rgba(255, 42, 95, 0.12) 100%)',
+            border: '1px solid rgba(0, 200, 255, 0.25)',
+            color: '#cbd5e1',
+            fontSize: '11px',
+            fontWeight: 700,
+            textDecoration: 'none',
+            transition: 'all 0.2s ease',
+          }}
+          title="Building and hosting apps takes time and caffeine. Fuel the next project!"
+        >
+          <Coffee size={13} color="var(--blue-primary)" />
+          <span>Fuel RiftCore ☕</span>
+        </a>
       </div>
     </aside>
   );
