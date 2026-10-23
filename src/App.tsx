@@ -58,7 +58,17 @@ export const App: React.FC = () => {
     window.riftAPI.checkClientStatus().then((res) => {
       setIsConnected(res.connected);
       if (res.riotClient !== undefined) setIsRiotClientReady(res.riotClient);
-      if (res.gameflowPhase) setGameflowPhase(res.gameflowPhase);
+      if (res.gameflowPhase) {
+        setGameflowPhase(res.gameflowPhase);
+        if (res.gameflowPhase === 'ChampSelect') {
+          setActiveTab('champ-select');
+        } else if (res.gameflowPhase === 'InProgress' || res.gameflowPhase === 'GameStart') {
+          setActiveTab('live-overlay');
+          window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+            if (r) setIsPinned(r.isPinned);
+          });
+        }
+      }
       if (res.connected) fetchInitialData();
     });
 
@@ -88,8 +98,12 @@ export const App: React.FC = () => {
       setGameflowPhase(phase);
       if (phase === 'ChampSelect') {
         setActiveTab('champ-select');
-      } else if (phase === 'InProgress') {
+      } else if (phase === 'InProgress' || phase === 'GameStart') {
         setActiveTab('live-overlay');
+        // Auto-enable Always-on-Top so overlay floats over borderless League
+        window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+          if (r) setIsPinned(r.isPinned);
+        });
       }
     });
 
@@ -106,9 +120,20 @@ export const App: React.FC = () => {
       }
     });
 
-    // 7. Listen to Live Game Update
+    // 7. Listen to Live Game Update (Direct 2999 poller)
     const unsubLive = window.riftAPI.onLiveGameUpdate((gData) => {
       setLiveData(gData);
+      if (gData && gData.gameData) {
+        setActiveTab((prev) => {
+          if (prev !== 'live-overlay') {
+            window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+              if (r) setIsPinned(r.isPinned);
+            });
+            return 'live-overlay';
+          }
+          return prev;
+        });
+      }
     });
 
     return () => {
@@ -273,7 +298,13 @@ export const App: React.FC = () => {
           )}
 
           {activeTab === 'live-overlay' && (
-            <LiveGameOverlay liveData={liveData} />
+            <LiveGameOverlay
+              liveData={liveData}
+              isCompactMode={isCompactMode}
+              isPinned={isPinned}
+              onToggleCompact={handleToggleCompact}
+              onTogglePin={handleTogglePin}
+            />
           )}
 
           {activeTab === 'champion-pool' && (

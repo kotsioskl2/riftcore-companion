@@ -141,8 +141,20 @@ export function initRustBridge() {
       return sendRustIpc('get-live-client-data');
     },
 
-    windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact') => {
+    windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact' | 'set-pin-on' | 'set-pin-off') => {
       return sendRustIpc('window-control', { subAction: action });
+    },
+
+    setAlwaysOnTop: (alwaysOnTop: boolean) => {
+      return sendRustIpc('set-always-on-top', { alwaysOnTop });
+    },
+
+    setCompactHud: (compact: boolean) => {
+      return sendRustIpc('set-compact-hud', { compact });
+    },
+
+    focusWindow: () => {
+      return sendRustIpc('focus-window');
     },
 
     getSettings: async () => {

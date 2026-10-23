@@ -205,7 +205,10 @@ declare global {
       importSpells: (spell1Id: number, spell2Id: number) => Promise<any>;
       acceptMatch: () => Promise<any>;
       getLiveClientData: () => Promise<LiveGameData | null>;
-      windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact') => Promise<any>;
+      windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact' | 'set-pin-on' | 'set-pin-off') => Promise<any>;
+      setAlwaysOnTop?: (alwaysOnTop: boolean) => Promise<{ isPinned: boolean }>;
+      setCompactHud?: (compact: boolean) => Promise<{ isCompactMode: boolean; isPinned: boolean }>;
+      focusWindow?: () => Promise<{ success: boolean }>;
       getSettings: () => Promise<AppSettings>;
       saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
       checkClientStatus: () => Promise<{ connected: boolean; gameflowPhase: GameflowPhase; riotClient?: boolean }>;

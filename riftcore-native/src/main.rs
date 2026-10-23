@@ -263,17 +263,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let mut st = state_clone.lock().unwrap();
                                 st.is_pinned = !st.is_pinned;
                                 window_clone.set_always_on_top(st.is_pinned);
+                                if st.is_pinned {
+                                    window_clone.set_focus();
+                                }
                                 let is_pinned = st.is_pinned;
                                 let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: {} }});", req_id, is_pinned);
+                                let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                            }
+                            "set-pin-on" => {
+                                let mut st = state_clone.lock().unwrap();
+                                st.is_pinned = true;
+                                window_clone.set_always_on_top(true);
+                                window_clone.set_focus();
+                                let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: true }});", req_id);
+                                let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                            }
+                            "set-pin-off" => {
+                                let mut st = state_clone.lock().unwrap();
+                                st.is_pinned = false;
+                                window_clone.set_always_on_top(false);
+                                let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: false }});", req_id);
                                 let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
                             }
                             "toggle-compact" => {
                                 let mut st = state_clone.lock().unwrap();
                                 st.is_compact = !st.is_compact;
                                 if st.is_compact {
-                                    window_clone.set_inner_size(LogicalSize::new(420.0, 720.0));
+                                    window_clone.set_inner_size(LogicalSize::new(360.0, 720.0));
                                     window_clone.set_always_on_top(true);
                                     st.is_pinned = true;
+                                    window_clone.set_focus();
                                 } else {
                                     window_clone.set_inner_size(LogicalSize::new(1240.0, 820.0));
                                 }
@@ -287,6 +306,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             _ => {}
                         }
+                    }
+                    "set-always-on-top" => {
+                        let on_top = json.get("alwaysOnTop").and_then(|v| v.as_bool()).unwrap_or(true);
+                        let mut st = state_clone.lock().unwrap();
+                        st.is_pinned = on_top;
+                        window_clone.set_always_on_top(on_top);
+                        if on_top {
+                            window_clone.set_focus();
+                        }
+                        let reply_script = format!("window.__riftIpcReply({}, null, {{ isPinned: {} }});", req_id, on_top);
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                    }
+                    "set-compact-hud" => {
+                        let compact = json.get("compact").and_then(|v| v.as_bool()).unwrap_or(true);
+                        let mut st = state_clone.lock().unwrap();
+                        st.is_compact = compact;
+                        if compact {
+                            window_clone.set_inner_size(LogicalSize::new(360.0, 720.0));
+                            window_clone.set_always_on_top(true);
+                            st.is_pinned = true;
+                            window_clone.set_focus();
+                        } else {
+                            window_clone.set_inner_size(LogicalSize::new(1240.0, 820.0));
+                        }
+                        let is_compact = st.is_compact;
+                        let is_pinned = st.is_pinned;
+                        let reply_script = format!(
+                            "window.__riftIpcReply({}, null, {{ isCompactMode: {}, isPinned: {} }});",
+                            req_id, is_compact, is_pinned
+                        );
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                    }
+                    "focus-window" => {
+                        window_clone.set_focus();
+                        let reply_script = format!("window.__riftIpcReply({}, null, {{ success: true }});", req_id);
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
                     }
                     "check-client-status" => {
                         let st = state_clone.lock().unwrap();
@@ -527,11 +582,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
-                // 4. If InProgress, query Live Client Data on port 2999
-                if last_phase == "InProgress" {
-                    let live_url = "https://127.0.0.1:2999/liveclientdata/allgamedata";
-                    if let Ok(res) = bg_http.get(live_url).send().await {
-                        if let Ok(live_json) = res.text().await {
+                // 4. Live Client Data on port 2999 (Direct League of Legends in-game telemetry)
+                // Polled with a 600ms timeout for all game modes (Summoner's Rift, ARAM, Arena, URF, etc.)
+                let live_url = "https://127.0.0.1:2999/liveclientdata/allgamedata";
+                if let Ok(res) = bg_http.get(live_url).timeout(std::time::Duration::from_millis(600)).send().await {
+                    if let Ok(live_json) = res.text().await {
+                        if live_json.contains("gameData") {
+                            if last_phase != "InProgress" {
+                                last_phase = "InProgress".to_string();
+                                let mut st = bg_state.lock().unwrap();
+                                st.gameflow_phase = "InProgress".to_string();
+                                let script = "window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
+                                let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
+                            }
+
                             let script = format!(
                                 "window.dispatchEvent(new CustomEvent('rift-live-data', {{ detail: {} }}));",
                                 live_json
