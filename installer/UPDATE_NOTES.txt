@@ -1,29 +1,33 @@
-======================================================================
-                  RIFTCORE COMPANION - UPDATE v1.1.0
-======================================================================
+--------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v1.1.1
+--------------------------------------------------
 
-Hey! Welcome to v1.1.0. Here is what you need to know:
+Hey! Welcome to v1.1.1. Here is what you need to know:
 
-- Full Screen In-Game HUD:
-  Works natively over League of Legends in Full Screen mode!
-  Zero mouse lag, clicks pass straight into the game.
+* Full Screen In-Game HUD:
+  Works natively over League of Legends in Full
+  Screen mode with zero mouse lag and click-through.
   Hit Alt + G in-game anytime to show or hide it.
 
-- Tab Section Gold Difference:
-  Shows real-time team gold lead/deficit and lane matchup
-  difference right at the top center scoreboard.
+* Standby Overlay Guard:
+  Automatically remains idle in Standby when you're
+  not in a match, keeping your desktop clean.
 
-- Objective & Camp Timers:
-  Separate floating timers on the map for Dragon, Baron,
-  Voidgrubs, Blue Buff, and Red Buff.
+* Tab Section Gold Difference:
+  Shows real-time team gold lead/deficit and lane
+  matchup difference right at the top scoreboard.
 
-- Small CS Score Tracker:
-  Discreet CS score and CS/min pill beside your game clock
-  with live matchup comparison.
+* Objective & Camp Timers:
+  Clean floating dock above the minimap for Dragon,
+  Baron, Voidgrubs, Blue Buff, and Red Buff.
 
-- Skill Level-Up Indicator:
-  Arrow directly above your ability bar showing your optimal
-  skill upgrade for the next level.
+* Small CS Score Tracker:
+  Discreet CS score and CS/min pill beside your game
+  clock with live matchup comparison.
 
-Enjoy the climb! Simple, lightweight, and 100% Vanguard-safe.
-======================================================================
+* Skill Level-Up Indicator:
+  Arrow directly above your ability bar showing your
+  optimal skill upgrade for the next level.
+
+Enjoy the climb! Simple, lightweight, and Vanguard-safe.
+--------------------------------------------------
