@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle, Minimize2, Keyboard, Coffee, Heart, Copy, Check, Type } from 'lucide-react';
-import { AppSettings } from '../types';
+import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle, Minimize2, Keyboard, Coffee, Heart, Copy, Check, Type, ArrowDownToLine, Loader2, Download } from 'lucide-react';
+import { AppSettings, AppUpdateInfo } from '../types';
 import { soundService } from '../services/soundService';
 import { riotApiService, RIOT_REGIONS } from '../services/riotApiService';
 
@@ -9,6 +9,8 @@ interface SettingsModalProps {
   onUpdateSetting: (key: keyof AppSettings, value: any) => void;
   isConnected: boolean;
   onReconnect: () => void;
+  appUpdate?: AppUpdateInfo | null;
+  onCheckForUpdate?: () => Promise<any>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -16,6 +18,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateSetting,
   isConnected,
   onReconnect,
+  appUpdate,
+  onCheckForUpdate,
 }) => {
   const [apiKey, setApiKey] = useState(settings.riotApiKey || '');
   const [selectedRegion, setSelectedRegion] = useState(settings.riotRegion || 'eun1');
@@ -27,6 +31,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [donationPlatform, setDonationPlatform] = useState<'kofi' | 'revolut'>('kofi');
   const [selectedDonationAmount, setSelectedDonationAmount] = useState<number | 'custom'>(5);
   const [customDonationAmount, setCustomDonationAmount] = useState<string>('15');
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateCheckMsg, setUpdateCheckMsg] = useState<string | null>(null);
+  const [isUpdatingFromSettings, setIsUpdatingFromSettings] = useState(false);
+
+  const handleCheckUpdateClick = async () => {
+    if (!onCheckForUpdate) return;
+    setIsCheckingUpdate(true);
+    setUpdateCheckMsg(null);
+    try {
+      const res = await onCheckForUpdate();
+      if (res && res.hasUpdate) {
+        setUpdateCheckMsg(`Update available: v${res.latestVersion}!`);
+      } else {
+        setUpdateCheckMsg(`You are on the latest version! (v${res?.currentVersion || '1.1.1'})`);
+      }
+    } catch {
+      setUpdateCheckMsg('Could not reach GitHub Releases.');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleApplyUpdateClick = async (url: string) => {
+    if (!window.riftAPI?.downloadAppUpdate) return;
+    setIsUpdatingFromSettings(true);
+    try {
+      await window.riftAPI.downloadAppUpdate(url);
+    } catch (e: any) {
+      setUpdateCheckMsg(e?.message || 'Update failed');
+      setIsUpdatingFromSettings(false);
+    }
+  };
 
   const KOFI_URL = 'https://ko-fi.com/X6I629C814';
   const REVOLUT_BASE = 'https://revolut.me/kkleovoulou';
@@ -1146,6 +1182,105 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <span>Open in Browser</span>
             <ExternalLink size={12} />
           </a>
+        </div>
+      </div>
+
+      {/* Software Updates & Releases */}
+      <div className="glass-card">
+        <div className="card-header">
+          <div className="card-title">
+            <Sparkles size={17} color="var(--emerald-primary)" />
+            <span>Software Updates & Releases</span>
+          </div>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--blue-primary)',
+              background: 'rgba(0, 210, 255, 0.1)',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              border: '1px solid rgba(0, 210, 255, 0.25)',
+            }}
+          >
+            v{appUpdate?.currentVersion || '1.1.1'}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#fff' }}>
+                GitHub Release Scanner
+              </div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                Scans <code style={{ color: 'var(--blue-primary)', background: 'rgba(0, 210, 255, 0.08)', padding: '2px 5px', borderRadius: '4px' }}>kotsioskl2/riftcore-companion</code> for new releases.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {updateCheckMsg && (
+                <span style={{ fontSize: '12px', color: appUpdate?.hasUpdate ? 'var(--emerald-primary)' : '#94a3b8' }}>
+                  {updateCheckMsg}
+                </span>
+              )}
+              <button
+                className="btn-secondary"
+                onClick={handleCheckUpdateClick}
+                disabled={isCheckingUpdate || isUpdatingFromSettings}
+                style={{ padding: '7px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+              >
+                {isCheckingUpdate ? <Loader2 size={13} className="spin" /> : <RotateCw size={13} />}
+                <span>{isCheckingUpdate ? 'Checking...' : 'Check for Updates'}</span>
+              </button>
+            </div>
+          </div>
+
+          {appUpdate?.hasUpdate && (
+            <div
+              style={{
+                marginTop: '4px',
+                padding: '12px 14px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#6ee7b7' }}>
+                  🚀 Version {appUpdate.latestVersion} is ready to install!
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                  {appUpdate.assetSize > 0 && `${(appUpdate.assetSize / (1024 * 1024)).toFixed(1)} MB · `}
+                  One-click internal download & upgrade (automatically replaces and restarts).
+                </div>
+              </div>
+
+              <button
+                className="btn-primary"
+                onClick={() => handleApplyUpdateClick(appUpdate.downloadUrl)}
+                disabled={isUpdatingFromSettings || !appUpdate.downloadUrl}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  padding: '7px 16px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                {isUpdatingFromSettings ? <Loader2 size={14} className="spin" /> : <ArrowDownToLine size={14} />}
+                <span>{isUpdatingFromSettings ? 'Downloading...' : 'Update & Restart Now'}</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -26,6 +26,8 @@ import { soundService } from './services/soundService';
 import { CloseConfirmationModal } from './components/CloseConfirmationModal';
 import { UpdateNotesModal } from './components/UpdateNotesModal';
 import { QuickTourModal } from './components/QuickTourModal';
+import { AppUpdateBanner } from './components/AppUpdateBanner';
+import { AppUpdateInfo } from './types';
 import { Check, Flame, ShieldAlert, Sparkles, Zap } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -38,6 +40,7 @@ export const App: React.FC = () => {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showUpdateNotes, setShowUpdateNotes] = useState(false);
   const [showQuickTour, setShowQuickTour] = useState(false);
+  const [appUpdate, setAppUpdate] = useState<AppUpdateInfo | null>(null);
 
   // League Data
   const [summoner, setSummoner] = useState<SummonerProfile | null>(null);
@@ -126,6 +129,20 @@ export const App: React.FC = () => {
         }
       }
     } catch {}
+
+    // Check for App Updates via GitHub Releases
+    if (window.riftAPI?.checkForAppUpdate) {
+      window.riftAPI.checkForAppUpdate()
+        .then((info) => {
+          if (info && info.hasUpdate) {
+            console.log('[RiftCore] New update available on GitHub:', info);
+            setAppUpdate(info);
+          }
+        })
+        .catch((e) => {
+          console.warn('[RiftCore] Initial update check error:', e);
+        });
+    }
 
     // 3. Listen to LCU Status
     const unsubLCU = window.riftAPI.onLCUStatusChange((status: any) => {
@@ -301,6 +318,20 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleCheckForUpdate = useCallback(async () => {
+    if (!window.riftAPI?.checkForAppUpdate) return null;
+    try {
+      const info = await window.riftAPI.checkForAppUpdate();
+      if (info) {
+        setAppUpdate(info.hasUpdate ? info : null);
+      }
+      return info;
+    } catch (e) {
+      console.warn('[RiftCore] Check for update failed:', e);
+      return null;
+    }
+  }, []);
+
   const handleUpdateSetting = async (key: keyof AppSettings, value: any) => {
     const updated = { ...settings, [key]: value };
     setSettings(updated);
@@ -437,6 +468,12 @@ export const App: React.FC = () => {
         onCloseClick={handleTitleBarClose}
         onOpenUpdateNotes={() => setShowUpdateNotes(true)}
         onOpenQuickTour={() => setShowQuickTour(true)}
+      />
+
+      {/* In-App Auto-Update Banner */}
+      <AppUpdateBanner
+        updateInfo={appUpdate}
+        onDismiss={() => setAppUpdate(null)}
       />
 
       {/* Quick Tour Modal */}
@@ -598,6 +635,8 @@ export const App: React.FC = () => {
               onUpdateSetting={handleUpdateSetting}
               isConnected={isConnected}
               onReconnect={fetchInitialData}
+              appUpdate={appUpdate}
+              onCheckForUpdate={handleCheckForUpdate}
             />
           )}
         </main>

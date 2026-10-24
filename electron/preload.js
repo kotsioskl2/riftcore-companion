@@ -117,5 +117,19 @@ contextBridge.exposeInMainWorld('riftAPI', {
 
   riotApiRequest: (url, key) => {
     return ipcRenderer.invoke('riot-api-request', { url, key });
+  },
+
+  checkForAppUpdate: () => {
+    return ipcRenderer.invoke('check-app-update');
+  },
+
+  downloadAppUpdate: (downloadUrl) => {
+    return ipcRenderer.invoke('download-app-update', { downloadUrl });
+  },
+
+  onUpdateProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('rift-update-progress', handler);
+    return () => ipcRenderer.removeListener('rift-update-progress', handler);
   }
 });

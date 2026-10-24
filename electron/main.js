@@ -722,6 +722,84 @@ ipcMain.handle('set-league-borderless', async () => {
   }
 });
 
+// Auto-Update IPC Handlers
+ipcMain.handle('check-app-update', async () => {
+  try {
+    const currentVersion = app.getVersion();
+    const response = await fetch('https://api.github.com/repos/kotsioskl2/riftcore-companion/releases/latest', {
+      headers: {
+        'User-Agent': 'RiftCore-Updater',
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+    if (!response.ok) {
+      return { hasUpdate: false, currentVersion, latestVersion: currentVersion, downloadUrl: '', assetSize: 0, releaseNotes: '' };
+    }
+    const release = await response.json();
+    const tag = (release.tag_name || '').replace(/^v/, '');
+    const hasUpdate = Boolean(tag && tag !== currentVersion);
+    let downloadUrl = '';
+    let assetSize = 0;
+    if (Array.isArray(release.assets)) {
+      for (const asset of release.assets) {
+        const name = asset.name || '';
+        if (name.endsWith('.exe') && (name.includes('Setup') || name.includes('setup') || name.includes('RiftCore'))) {
+          downloadUrl = asset.browser_download_url;
+          assetSize = asset.size || 0;
+          break;
+        }
+      }
+      if (!downloadUrl) {
+        for (const asset of release.assets) {
+          if ((asset.name || '').endsWith('.exe')) {
+            downloadUrl = asset.browser_download_url;
+            assetSize = asset.size || 0;
+            break;
+          }
+        }
+      }
+    }
+    return {
+      hasUpdate,
+      currentVersion,
+      latestVersion: tag,
+      downloadUrl,
+      assetSize,
+      releaseNotes: release.body || ''
+    };
+  } catch (e) {
+    return { hasUpdate: false, currentVersion: app.getVersion(), latestVersion: app.getVersion(), downloadUrl: '', assetSize: 0, releaseNotes: '' };
+  }
+});
+
+ipcMain.handle('download-app-update', async (_event, { downloadUrl }) => {
+  if (!downloadUrl) throw new Error('No download URL provided');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('rift-update-progress', { stage: 'downloading', percent: 0 });
+  }
+
+  const tempDir = app.getPath('temp');
+  const installerPath = path.join(tempDir, 'RiftCore-Setup-latest.exe');
+
+  const res = await fetch(downloadUrl);
+  if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
+  const buffer = await res.arrayBuffer();
+  fs.writeFileSync(installerPath, Buffer.from(buffer));
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('rift-update-progress', { stage: 'installing', percent: 100 });
+  }
+
+  const { spawn } = require('child_process');
+  spawn(installerPath, [], { detached: true, stdio: 'ignore' }).unref();
+
+  setTimeout(() => {
+    app.quit();
+  }, 500);
+
+  return { success: true };
+});
+
 function toggleOverlayAction() {
   if (!mainWindow) return;
 

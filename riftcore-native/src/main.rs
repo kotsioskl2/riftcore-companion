@@ -1651,7 +1651,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .await
                             {
                                 Ok(res) if res.status().is_success() => {
-                                    let total_size = res.content_length().unwrap_or(0);
+                                    let _total_size = res.content_length().unwrap_or(0);
                                     let bytes = match res.bytes().await {
                                         Ok(b) => b,
                                         Err(e) => {
