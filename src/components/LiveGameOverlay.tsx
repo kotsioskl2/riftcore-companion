@@ -27,7 +27,10 @@ import {
   ExternalLink,
   AlertTriangle,
   HelpCircle,
-  Eye
+  Eye,
+  Monitor,
+  Keyboard,
+  ShieldCheck,
 } from 'lucide-react';
 import { LiveGameData, AppSettings } from '../types';
 import { soundService } from '../services/soundService';
@@ -719,11 +722,11 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
-                  Fullscreen HUD Engine:
+                  Fullscreen HUD Engine
                 </span>
                 <span
                   style={{
-                    fontSize: '11px',
+                    fontSize: '10.5px',
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '4px',
@@ -732,23 +735,24 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                     border: `1px solid ${isPinned ? 'rgba(0, 200, 255, 0.3)' : 'rgba(0, 255, 170, 0.3)'}`,
                   }}
                 >
-                  {isPinned ? '🟢 FULLSCREEN ACTIVE (ALWAYS ON TOP)' : '⚡ NATIVE FULLSCREEN READY'}
+                  {isPinned ? '🟢 OVERLAY PINNED' : '⚡ NATIVE FULLSCREEN READY'}
                 </span>
                 <span
                   style={{
                     fontSize: '10px',
                     fontWeight: 700,
                     padding: '2px 6px',
-                    borderRadius: '3px',
-                    background: 'rgba(255, 255, 255, 0.08)',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
                     color: '#94a3b8',
                   }}
                 >
-                  In-Game Hotkey: <kbd style={{ color: '#00c8ff' }}>Ctrl + Space</kbd> or <kbd style={{ color: '#00c8ff' }}>Alt + ~</kbd>
+                  Hotkey: <kbd style={{ color: '#00c8ff' }}>Ctrl + Space</kbd>
                 </span>
               </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                Optimized for <strong>Native Fullscreen Mode</strong> with seamless floating HUD, live cooldowns, and instant hotkey toggling.
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                Hardware DWM transparent overlay • 100% Riot Vanguard safe (port 2999)
               </div>
             </div>
           </div>
@@ -828,14 +832,16 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               style={{
                 padding: '6px 10px',
                 borderRadius: '6px',
-                border: '1px solid var(--border-subtle)',
-                background: 'rgba(255, 255, 255, 0.04)',
-                color: '#94a3b8',
+                border: showFullscreenGuide ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                background: showFullscreenGuide ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                color: showFullscreenGuide ? 'var(--blue-primary)' : '#94a3b8',
                 fontSize: '11px',
+                fontWeight: 700,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '5px',
+                transition: 'all 0.15s ease',
               }}
             >
               <HelpCircle size={13} />
@@ -844,36 +850,123 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
           </div>
         </div>
 
-        {/* Expandable Fullscreen HUD Guide */}
+        {/* Expandable Fullscreen HUD Guide (Sleek 4-Card Feature Grid) */}
         {showFullscreenGuide && (
           <div
             style={{
-              marginTop: '12px',
-              paddingTop: '12px',
+              marginTop: '14px',
+              paddingTop: '14px',
               borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-              fontSize: '11px',
-              color: '#cbd5e1',
-              lineHeight: '1.6',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '10px',
             }}
           >
-            <strong style={{ color: '#00c8ff' }}>RiftCore Native Fullscreen Engine:</strong>
-            <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
-              <li>
-                <strong>True Fullscreen Supported:</strong> RiftCore renders directly over League of Legends in <strong>Native Fullscreen</strong> (WindowMode=0) using hardware-composited transparent overlays.
-              </li>
-              <li>
-                <strong>Instant In-Game Hotkeys:</strong> Press <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Ctrl + Space</kbd>, <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Alt + ~</kbd>, <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Alt + X</kbd>, or <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>F10</kbd> at any time in-game to toggle the tactical overlay on/off without minimizing or tabbing out.
-              </li>
-              <li>
-                <strong>Mini HUD Mode:</strong> Click <strong>🗖 Mini HUD Mode</strong> (or Alt+G) to transform RiftCore into a sleek, transparent floating HUD displaying CS benchmarks, gold lead, and live neutral objective timers directly over your match.
-              </li>
-              <li>
-                <strong>Zero Stutter & Zero Jitter:</strong> Optimized DWM hardware composition prevents screen tearing and ensures zero frame drops or input lag in fullscreen.
-              </li>
-              <li>
-                <strong>100% Riot Vanguard Compliant:</strong> Uses non-intrusive Windows DWM overlay composition and official local Live Client Data API (port 2999) with zero DLL injection or memory modification.
-              </li>
-            </ul>
+            {/* Card 1: Native Fullscreen */}
+            <div
+              style={{
+                background: 'rgba(0, 210, 255, 0.04)',
+                border: '1px solid rgba(0, 210, 255, 0.22)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Monitor size={14} color="#00d2ff" />
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Native Fullscreen</span>
+                </div>
+                <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(0, 210, 255, 0.15)', color: '#00d2ff' }}>
+                  Zero Lag
+                </span>
+              </div>
+              <div style={{ fontSize: '10.5px', color: '#94a3b8', lineHeight: 1.35 }}>
+                Direct transparent overlay over <strong style={{ color: '#cbd5e1' }}>WindowMode=0</strong> with zero frame drops.
+              </div>
+            </div>
+
+            {/* Card 2: Hotkeys */}
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Keyboard size={14} color="#facc15" />
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>In-Game Hotkeys</span>
+                </div>
+                <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(250, 204, 21, 0.15)', color: '#facc15' }}>
+                  Instant Toggle
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: '3px', color: '#00d2ff', fontSize: '9.5px', fontFamily: 'monospace' }}>Ctrl+Space</kbd>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: '3px', color: '#00d2ff', fontSize: '9.5px', fontFamily: 'monospace' }}>Alt+~</kbd>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: '3px', color: '#00d2ff', fontSize: '9.5px', fontFamily: 'monospace' }}>Alt+X</kbd>
+              </div>
+            </div>
+
+            {/* Card 3: Mini HUD */}
+            <div
+              style={{
+                background: 'rgba(16, 185, 129, 0.04)',
+                border: '1px solid rgba(16, 185, 129, 0.22)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Maximize2 size={14} color="#10b981" />
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Mini HUD Mode</span>
+                </div>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(16,185,129,0.3)', padding: '1px 5px', borderRadius: '3px', color: '#10b981', fontSize: '9.5px', fontFamily: 'monospace' }}>
+                  Alt + G
+                </kbd>
+              </div>
+              <div style={{ fontSize: '10.5px', color: '#94a3b8', lineHeight: 1.35 }}>
+                Floats transparent CS pace, gold lead, and objective timers over your game.
+              </div>
+            </div>
+
+            {/* Card 4: Vanguard Safe */}
+            <div
+              style={{
+                background: 'rgba(168, 85, 247, 0.04)',
+                border: '1px solid rgba(168, 85, 247, 0.22)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ShieldCheck size={14} color="#c084fc" />
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Vanguard Safe</span>
+                </div>
+                <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
+                  100% Compliant
+                </span>
+              </div>
+              <div style={{ fontSize: '10.5px', color: '#94a3b8', lineHeight: 1.35 }}>
+                Official local Live Client Data API (port 2999). Zero DLL injection or memory hooks.
+              </div>
+            </div>
           </div>
         )}
       </div>
