@@ -769,7 +769,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               </button>
             )}
 
-            {onToggleCompact && (
+            {isLive && onToggleCompact ? (
               <button
                 onClick={onToggleCompact}
                 style={{
@@ -786,11 +786,30 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                   gap: '6px',
                   boxShadow: '0 0 12px rgba(0, 210, 255, 0.25)',
                 }}
-                title="Pop up the floating tactical in-game overlay directly on top of League of Legends (Alt+G)"
+                title="Toggle floating tactical HUD directly on top of League (Alt+G)"
               >
                 {isCompactMode ? <Maximize2 size={13} /> : <Zap size={13} color="var(--blue-primary)" />}
-                <span>{isCompactMode ? 'Expand Desktop View' : '✨ Floating In-Game Overlay (Alt+G)'}</span>
+                <span>{isCompactMode ? 'Expand Desktop View' : '✨ Toggle In-Game HUD (Alt+G)'}</span>
               </button>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  background: 'rgba(0, 210, 255, 0.08)',
+                  border: '1px solid rgba(0, 210, 255, 0.22)',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: 'var(--blue-primary)',
+                }}
+                title="Tactical HUD automatically anchors over League of Legends when your match starts (Alt+G)"
+              >
+                <Zap size={12} color="var(--blue-primary)" />
+                <span>HUD Anchors In-Game (Alt+G)</span>
+              </div>
             )}
 
             <button

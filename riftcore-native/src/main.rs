@@ -945,9 +945,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             "toggle-compact" => {
                                 let mut st = state_clone.lock().unwrap();
-                                st.is_compact = !st.is_compact;
                                 #[cfg(target_os = "windows")]
                                 let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+
+                                #[cfg(target_os = "windows")]
+                                let is_in_game = unsafe {
+                                    let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
+                                    let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
+                                    !league_hwnd.is_null() || st.gameflow_phase == "InProgress"
+                                };
+                                #[cfg(not(target_os = "windows"))]
+                                let is_in_game = st.gameflow_phase == "InProgress";
+
+                                if !st.is_compact && !is_in_game {
+                                    let reply_script = format!(
+                                        "window.__riftIpcReply({}, null, {{ isCompactMode: false, isPinned: false, notInGame: true }});",
+                                        req_id
+                                    );
+                                    let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                                    return;
+                                }
+
+                                st.is_compact = !st.is_compact;
                                 if st.is_compact {
                                     st.is_pinned = true;
                                     #[cfg(target_os = "windows")]
@@ -1621,11 +1640,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: false }));");
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: false } }));");
                 } else {
-                    // Switch to fullscreen in-game overlay
-                    window.set_visible(true);
-                    window.set_minimized(false);
-                    st.is_compact = true;
-                    st.is_pinned = true;
+                    #[cfg(target_os = "windows")]
+                    let is_in_game = unsafe {
+                        let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
+                        let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
+                        !league_hwnd.is_null() || st.gameflow_phase == "InProgress"
+                    };
+                    #[cfg(not(target_os = "windows"))]
+                    let is_in_game = st.gameflow_phase == "InProgress";
+
+                    if !is_in_game {
+                        window.set_visible(true);
+                        window.set_minimized(false);
+                        #[cfg(target_os = "windows")]
+                        unsafe {
+                            SetForegroundWindow(hwnd);
+                        }
+                    } else {
+                        // Switch to fullscreen in-game overlay
+                        window.set_visible(true);
+                        window.set_minimized(false);
+                        st.is_compact = true;
+                        st.is_pinned = true;
 
                     #[cfg(target_os = "windows")]
                     unsafe {
@@ -1647,6 +1683,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true }));");
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: true } }));");
+                    }
                 }
             }
             Event::UserEvent(AppUserEvent::ApplyTopmost(on_top)) => {

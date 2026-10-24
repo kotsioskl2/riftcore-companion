@@ -52,6 +52,13 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const [hudCardSearch, setHudCardSearch] = useState<string>('');
   const [hudCardTierFilter, setHudCardTierFilter] = useState<CardTier | 'ALL'>('ALL');
 
+  // Auto-expand to full desktop app if outside an active match and not in preview mode
+  useEffect(() => {
+    if (!showInGameHud && !isPreviewMode) {
+      onExpand();
+    }
+  }, [showInGameHud, isPreviewMode, onExpand]);
+
   // Keyboard shortcut listener: ESC returns to full app
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -457,140 +464,62 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
       {/* MODE 0: TRUE IN-GAME INTEGRATED HUD */}
       {hudMode === 'integrated' && (
         <>
-          {!showInGameHud ? (
-            /* Standby Card (Active when NOT in an active League match) */
-            <div
-              style={{
-                position: 'fixed',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(2, 6, 14, 0.78)',
-                backdropFilter: 'blur(12px)',
-                pointerEvents: 'auto',
-                userSelect: 'none',
-                zIndex: 99999,
-              }}
-            >
+          {/* Live / Preview Fullscreen HUD Layer */}
+          <div
+            style={{
+              position: 'relative',
+              width: '100vw',
+              height: '100vh',
+              background: 'transparent',
+              pointerEvents: 'none',
+              userSelect: 'none',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Top Indicator in Preview Mode */}
+            {isPreviewMode && (
               <div
-                className="glass-card"
                 style={{
-                  width: '420px',
-                  padding: '24px 26px',
-                  border: '1px solid rgba(0, 210, 255, 0.35)',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.3)',
-                  borderRadius: 'var(--radius-lg)',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.85), 0 0 35px rgba(0,210,255,0.18)',
+                  position: 'absolute',
+                  top: '52px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  pointerEvents: 'auto',
+                  zIndex: 99999,
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                  textAlign: 'center',
                   alignItems: 'center',
+                  gap: '10px',
+                  padding: '5px 14px',
+                  borderRadius: '20px',
+                  background: 'rgba(5, 10, 20, 0.92)',
+                  border: '1px solid var(--blue-primary)',
+                  boxShadow: '0 4px 20px rgba(0, 210, 255, 0.3)',
                 }}
               >
-                <div
+                <Eye size={13} color="var(--blue-primary)" />
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>
+                  HUD Layout Preview (Transparent Over League)
+                </span>
+                <button
+                  onClick={() => {
+                    setIsPreviewMode(false);
+                    onExpand();
+                  }}
                   style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '14px',
-                    background: 'rgba(0, 210, 255, 0.12)',
-                    border: '1px solid rgba(0, 210, 255, 0.35)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 0 20px rgba(0, 210, 255, 0.25)',
+                    padding: '3px 9px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 42, 95, 0.2)',
+                    border: '1px solid var(--red-primary)',
+                    color: '#fff',
+                    fontSize: '10.5px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
                   }}
                 >
-                  <Zap size={22} color="var(--blue-primary)" />
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '16px', fontWeight: 800, color: '#fff' }}>
-                      RiftCore In-Game Overlay
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '9.5px',
-                        fontWeight: 800,
-                        padding: '2px 7px',
-                        borderRadius: '4px',
-                        background: 'rgba(234, 179, 8, 0.15)',
-                        border: '1px solid rgba(234, 179, 8, 0.4)',
-                        color: '#facc15',
-                        letterSpacing: '0.4px',
-                      }}
-                    >
-                      STANDBY
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', lineHeight: '1.45' }}>
-                    Tactical HUD (Gold Lead, CS Tracker, Objective Timers & Skill Level-Up Indicator) will automatically anchor over League when your match starts.
-                  </div>
-                </div>
-
-                {/* Quick Action Buttons */}
-                <div style={{ display: 'flex', gap: '10px', width: '100%', marginTop: '4px' }}>
-                  <button
-                    onClick={onExpand}
-                    className="btn-primary"
-                    style={{
-                      flex: 1,
-                      padding: '10px 14px',
-                      fontSize: '12.5px',
-                      fontWeight: 800,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <Maximize2 size={14} />
-                    <span>Return to Full App</span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsPreviewMode(true)}
-                    style={{
-                      padding: '10px 14px',
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      color: '#cbd5e1',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      cursor: 'pointer',
-                    }}
-                    title="Preview In-Game HUD Layout"
-                  >
-                    <Eye size={14} />
-                    <span>Preview HUD</span>
-                  </button>
-                </div>
-
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  In-Game Hotkey: <strong style={{ color: '#00c8ff' }}>Alt + G</strong> anytime
-                </div>
+                  Exit Preview
+                </button>
               </div>
-            </div>
-          ) : (
-            /* Live / Preview Fullscreen HUD Layer */
-            <div
-              style={{
-                position: 'relative',
-                width: '100vw',
-                height: '100vh',
-                background: 'transparent',
-                pointerEvents: 'none',
-                userSelect: 'none',
-                overflow: 'hidden',
-              }}
-            >
+            )}
               {/* 1. GOLD DIFFERENCE IN TAB SECTION (Top Center Scoreboard) */}
               <div
                 style={{
@@ -986,7 +915,6 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 />
               </div>
             </div>
-          )}
         </>
       )}
 

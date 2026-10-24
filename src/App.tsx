@@ -379,8 +379,18 @@ export const App: React.FC = () => {
     }
   }, [isCompactMode]);
 
-  // When in Compact In-Game Overlay Mode: Render Pure Floating Tactical HUD Widget
-  if (isCompactMode) {
+  const isMatchLive = gameflowPhase === 'InProgress' || gameflowPhase === 'GameStart' || Boolean(liveData?.gameData);
+
+  // Auto-revert compact mode if outside an active League match (never trap the user in standby)
+  useEffect(() => {
+    if (isCompactMode && !isMatchLive) {
+      setIsCompactMode(false);
+      window.riftAPI?.setCompactHud?.(false);
+    }
+  }, [isCompactMode, isMatchLive]);
+
+  // When in Compact In-Game Overlay Mode AND a match is actively live: Render Pure Floating Tactical HUD Widget
+  if (isCompactMode && isMatchLive) {
     return (
       <div className="app-container compact-mode" style={{ background: 'transparent' }}>
         <RiftFloatingOverlay
