@@ -1662,10 +1662,10 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     alignItems: 'center',
                     gap: '4px',
                   }}
-                  title="Push Item Set into LoL in-game shop (Press P in game)"
+                  title="Sync recommended build into League in-game shop (Press P in game)"
                 >
                   {shopExportStatus === 'success' ? <Check size={10} /> : <Zap size={10} />}
-                  <span>{shopExportStatus === 'success' ? 'Synced' : 'Push Shop'}</span>
+                  <span>{shopExportStatus === 'success' ? 'Synced' : 'Sync Shop'}</span>
                 </button>
               </div>
 

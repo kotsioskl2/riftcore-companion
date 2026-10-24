@@ -154,12 +154,12 @@ export const AramHubView: React.FC = () => {
               {importStatus === 'success' ? (
                 <>
                   <Check size={16} />
-                  <span>ARAM Runes Pushed!</span>
+                  <span>ARAM Runes Applied!</span>
                 </>
               ) : (
                 <>
                   <Zap size={16} />
-                  <span>Push ARAM Runes</span>
+                  <span>Apply ARAM Runes</span>
                 </>
               )}
             </button>

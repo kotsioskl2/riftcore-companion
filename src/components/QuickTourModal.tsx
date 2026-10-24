@@ -192,7 +192,7 @@ export const QuickTourModal: React.FC<QuickTourModalProps> = ({ isOpen, onClose 
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#10b981' }}>
-                Page Injected
+                Runes Applied
               </div>
               <div style={{ fontSize: '9px', color: '#94a3b8' }}>
                 Conqueror + Flash/Ignite
@@ -213,7 +213,7 @@ export const QuickTourModal: React.FC<QuickTourModalProps> = ({ isOpen, onClose 
           description: 'Click any keystone or switch between Meta, Burst, and Anti-Tank presets.',
         },
       ],
-      proTip: 'Enable "Auto-Import" at the top right to have runes injected automatically on lock-in!',
+      proTip: 'Enable "Auto-Import" at the top right to have runes applied automatically on lock-in!',
     },
     {
       title: 'LoL In-Game Shop Builds (Press "P")',
@@ -289,7 +289,7 @@ export const QuickTourModal: React.FC<QuickTourModalProps> = ({ isOpen, onClose 
           description: 'Items appear natively inside the League shop under the "RiftCore" build category.',
         },
       ],
-      proTip: 'Whenever you change champions or builds, click "Push to LoL Shop" to update instantly!',
+      proTip: 'Whenever you change champions or builds, click "Sync to Shop" to update instantly!',
     },
     {
       title: 'Minimap Objective Pit Timers',

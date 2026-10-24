@@ -355,12 +355,12 @@ export const GameModesHubView: React.FC<GameModesHubViewProps> = ({ initialMode,
                   {importStatus === 'success' ? (
                     <>
                       <Check size={14} />
-                      <span>ARAM Runes Pushed!</span>
+                      <span>ARAM Runes Applied!</span>
                     </>
                   ) : (
                     <>
                       <Zap size={14} />
-                      <span>Push ARAM Runes</span>
+                      <span>Apply ARAM Runes</span>
                     </>
                   )}
                 </button>

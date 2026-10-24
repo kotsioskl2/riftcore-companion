@@ -553,7 +553,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 transition: 'all 0.18s ease',
                 boxShadow: autoImport ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none',
               }}
-              title="Automatically inject optimal runes when you lock in a champion"
+              title="Automatically apply optimal runes when you lock in a champion"
             >
               <div
                 style={{
@@ -568,7 +568,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               <span>Auto-Sync: {autoImport ? 'ON' : 'OFF'}</span>
             </button>
 
-            {/* Push Runes */}
+            {/* Apply Runes */}
             <button
               id="btn-import-runes"
               className="btn-primary"
@@ -581,17 +581,17 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               ) : importStatus === 'success' ? (
                 <>
                   <Check size={14} color="#fff" />
-                  <span>Runes Injected! (100ms)</span>
+                  <span>Runes Applied!</span>
                 </>
               ) : (
                 <>
                   <Zap size={14} />
-                  <span>Push Runes</span>
+                  <span>Apply Runes</span>
                 </>
               )}
             </button>
 
-            {/* Push Spells */}
+            {/* Apply Spells */}
             <button
               id="btn-import-spells"
               className="btn-secondary"
@@ -602,7 +602,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               ) : (
                 <Sparkles size={13} color="var(--blue-primary)" />
               )}
-              <span>Push Spells</span>
+              <span>Apply Spells</span>
             </button>
 
             {/* Export In-Game Shop Item Set */}
@@ -979,7 +979,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                   gap: '6px',
                   transition: 'all 0.2s',
                 }}
-                title="Inject complete build directly into League of Legends in-game shop menu (Press 'P' in game)"
+                title="Sync recommended build directly into League of Legends in-game shop (Press 'P' in game)"
               >
                 {itemSetStatus === 'exporting' ? (
                   <RotateCcw className="spin" size={12} />
@@ -988,7 +988,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 ) : (
                   <ShoppingBag size={12} />
                 )}
-                <span>{itemSetStatus === 'success' ? 'Shop Updated' : 'Push to LoL Shop'}</span>
+                <span>{itemSetStatus === 'success' ? 'Shop Updated' : 'Sync to Shop'}</span>
               </button>
             </div>
 

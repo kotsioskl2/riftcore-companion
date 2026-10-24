@@ -147,7 +147,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Auto Export In-Game Item Sets
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-                Automatically injects personalized item builds directly into your League in-game shop (Press 'P' in game).
+                Automatically syncs recommended item builds directly into your League in-game shop (Press 'P' in game).
               </div>
             </div>
             <div
@@ -165,7 +165,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Hextech Audio Cues
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-                Play crystal chimes on Queue Pop, Rune Injection, and Enemy Spell Cooldown resets.
+                Play subtle audio chimes on Match Found, Runes Applied, and Cooldown resets.
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -586,24 +586,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
           <button className="btn-secondary" onClick={onReconnect}>
             <RotateCw size={13} />
-            <span>Scan League Process</span>
+            <span>Check Connection</span>
           </button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: '#94a3b8' }}>League Client LCU Status:</span>
+            <span style={{ color: '#94a3b8' }}>League Client:</span>
             <strong style={{ color: isConnected ? '#25d366' : '#ff4655' }}>
-              {isConnected ? 'Connected (Authenticated via Lockfile)' : 'Disconnected (Launch League Client)'}
+              {isConnected ? 'Connected & Ready' : 'Offline (Open League to Connect)'}
             </strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: '#94a3b8' }}>Live Client Data Port (2999):</span>
-            <strong style={{ color: '#f0e6d2' }}>Active during in-game matches</strong>
+            <span style={{ color: '#94a3b8' }}>In-Game Match Tracker:</span>
+            <strong style={{ color: '#f0e6d2' }}>Active during live matches</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: '#94a3b8' }}>Overlay Memory Footprint:</span>
-            <strong style={{ color: '#0ac8b9' }}>~65 MB (Ultra Lightweight)</strong>
+            <span style={{ color: '#94a3b8' }}>System Impact:</span>
+            <strong style={{ color: '#0ac8b9' }}>Ultra Lightweight (~65 MB RAM)</strong>
           </div>
         </div>
       </div>
@@ -626,7 +626,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               border: `1px solid ${settings.riotApiKey ? '#22c55e' : 'transparent'}`,
             }}
           >
-            {settings.riotApiKey ? '● KEY REGISTERED' : 'OPTIONAL CLOUD TELEMETRY'}
+            {settings.riotApiKey ? '● KEY CONNECTED' : 'OPTIONAL CLOUD STATS'}
           </span>
         </div>
 

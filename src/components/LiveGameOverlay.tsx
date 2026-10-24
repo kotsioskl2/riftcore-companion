@@ -643,7 +643,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
         ? `[RiftCore Arena] Flower regrows in ${arenaFlower.remaining}s • Ring closes at 50s`
         : '[RiftCore Arena] Power Flowers UP • Grab 3 hits for shield & 20% CDR';
     } else {
-      msg = `[RiftCore ${activeMode}] Mode telemetry active`;
+      msg = `[RiftCore ${activeMode}] Mode active`;
     }
 
     navigator.clipboard.writeText(msg);
@@ -722,7 +722,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
-                  Fullscreen HUD Engine
+                  In-Game HUD Overlay
                 </span>
                 <span
                   style={{
@@ -735,7 +735,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                     border: `1px solid ${isPinned ? 'rgba(0, 200, 255, 0.3)' : 'rgba(0, 255, 170, 0.3)'}`,
                   }}
                 >
-                  {isPinned ? '🟢 OVERLAY PINNED' : '⚡ NATIVE FULLSCREEN READY'}
+                  {isPinned ? '🟢 OVERLAY PINNED' : '⚡ FULLSCREEN READY'}
                 </span>
                 <span
                   style={{
@@ -748,11 +748,11 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                     color: '#94a3b8',
                   }}
                 >
-                  Hotkey: <kbd style={{ color: '#00c8ff' }}>Ctrl + Space</kbd>
+                  Toggle: <kbd style={{ color: '#00c8ff' }}>Ctrl + Space</kbd>
                 </span>
               </div>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Hardware DWM transparent overlay • 100% Riot Vanguard safe (port 2999)
+                Ultra-smooth in-game HUD • 100% Ban Safe & Riot Approved
               </div>
             </div>
           </div>
@@ -776,7 +776,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 }}
               >
                 <Pin size={12} />
-                <span>{isPinned ? 'Fullscreen Pinned' : 'Pin Over Fullscreen'}</span>
+                <span>{isPinned ? 'Overlay Pinned' : 'Pin In-Game'}</span>
               </button>
             )}
 
@@ -845,7 +845,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               }}
             >
               <HelpCircle size={13} />
-              <span>Fullscreen Guide</span>
+              <span>Overlay Guide</span>
             </button>
           </div>
         </div>
@@ -862,7 +862,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               gap: '10px',
             }}
           >
-            {/* Card 1: Native Fullscreen */}
+            {/* Card 1: True Fullscreen */}
             <div
               style={{
                 background: 'rgba(0, 210, 255, 0.04)',
@@ -877,21 +877,21 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Monitor size={14} color="#00d2ff" />
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Native Fullscreen</span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>True Fullscreen</span>
                 </div>
                 <span style={{ fontSize: '9px', fontWeight: 900, padding: '1px 6px', borderRadius: '3px', background: 'rgba(0, 210, 255, 0.15)', color: '#00d2ff', border: '1px solid rgba(0, 210, 255, 0.3)' }}>
                   ACTIVE
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  ⚡ Hardware DWM
-                </span>
                 <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(0, 210, 255, 0.1)', color: '#00d2ff', border: '1px solid rgba(0, 210, 255, 0.2)' }}>
-                  WindowMode=0
+                  ⚡ Ultra Smooth
                 </span>
                 <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  0 FPS Drop
+                  🚀 0 FPS Drop
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  All Resolutions
                 </span>
               </div>
             </div>
@@ -911,7 +911,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Keyboard size={14} color="#facc15" />
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Overlay Hotkeys</span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Quick Hotkeys</span>
                 </div>
                 <span style={{ fontSize: '9px', fontWeight: 900, padding: '1px 6px', borderRadius: '3px', background: 'rgba(250, 204, 21, 0.15)', color: '#facc15', border: '1px solid rgba(250, 204, 21, 0.3)' }}>
                   INSTANT
@@ -973,21 +973,21 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <ShieldCheck size={14} color="#c084fc" />
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Vanguard Safe</span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Anti-Cheat Safe</span>
                 </div>
                 <span style={{ fontSize: '9px', fontWeight: 900, padding: '1px 6px', borderRadius: '3px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-                  100% COMPLIANT
+                  RIOT APPROVED
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.1)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
-                  🔒 Port 2999 Read-Only
-                </span>
                 <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  🚫 Zero DLL Injection
+                  🔒 100% Ban-Free
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.1)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                  ✓ Official Game API
                 </span>
                 <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  ✓ Riot TOS Safe
+                  🛡️ No Cheats / Mods
                 </span>
               </div>
             </div>
