@@ -158,26 +158,27 @@ export const GameModesHubView: React.FC<GameModesHubViewProps> = ({ initialMode,
     setImportStatus('importing');
     try {
       if (window.riftAPI) {
+        const safeChampName = (champ.name || 'Champion').replace(/[^a-zA-Z0-9 ]/g, '').trim();
         if (modeName === 'ARAM') {
           await window.riftAPI.importRunes({
-            name: `❄️ ARAM: ${champ.name}`,
+            name: `RiftCore ARAM ${safeChampName}`,
             primaryStyleId: 8100, // Domination
             subStyleId: 8000, // Precision
-            selectedPerkIds: [8128, 8143, 8138, 8106, 8009, 8299, 5008, 5008, 5001],
+            selectedPerkIds: [8128, 8143, 8140, 8106, 8009, 8299, 5008, 5008, 5001],
           });
         } else if (modeName === 'ARENA') {
           await window.riftAPI.importRunes({
-            name: `🏟️ Arena: ${champ.name}`,
+            name: `RiftCore Arena ${safeChampName}`,
             primaryStyleId: 8000,
             subStyleId: 8400,
             selectedPerkIds: [8010, 9111, 9104, 8299, 8473, 8451, 5008, 5008, 5001],
           });
         } else {
           await window.riftAPI.importRunes({
-            name: `⚡ URF: ${champ.name}`,
+            name: `RiftCore URF ${safeChampName}`,
             primaryStyleId: 8100,
             subStyleId: 8200,
-            selectedPerkIds: [8128, 8143, 8138, 8105, 8226, 8210, 5008, 5008, 5001],
+            selectedPerkIds: [8128, 8143, 8140, 8105, 8226, 8210, 5008, 5008, 5001],
           });
         }
         soundService.playRuneImport();

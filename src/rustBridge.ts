@@ -145,8 +145,8 @@ export function initRustBridge() {
       return sendRustIpc('import-spells', { spell1Id, spell2Id });
     },
 
-    exportItemSet: (itemSet: any) => {
-      return sendRustIpc('export-item-set', { itemSet });
+    exportItemSet: (itemSet: any, championKey?: string) => {
+      return sendRustIpc('export-item-set', { itemSet, championKey });
     },
 
     acceptMatch: () => {

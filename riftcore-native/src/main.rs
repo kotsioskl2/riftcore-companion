@@ -43,6 +43,7 @@ use tao::platform::windows::WindowExtWindows;
 struct LcuCredentials {
     port: String,
     token: String,
+    install_dir: Option<PathBuf>,
 }
 
 #[derive(Default)]
@@ -77,7 +78,8 @@ fn detect_league_client() -> Option<LcuCredentials> {
                 let port = parts[2].to_string();
                 let token = parts[3].to_string();
                 if !port.is_empty() && !token.is_empty() {
-                    return Some(LcuCredentials { port, token });
+                    let parent_dir = Path::new(path).parent().map(|p| p.to_path_buf());
+                    return Some(LcuCredentials { port, token, install_dir: parent_dir });
                 }
             }
         }
@@ -96,13 +98,13 @@ fn detect_league_client() -> Option<LcuCredentials> {
         if !exe_path.is_empty() {
             if let Some(parent) = Path::new(&exe_path).parent() {
                 let lockfile = parent.join("lockfile");
-                if let Ok(content) = std::fs::read_to_string(lockfile) {
+                if let Ok(content) = std::fs::read_to_string(&lockfile) {
                     let parts: Vec<&str> = content.trim().split(':').collect();
                     if parts.len() >= 5 {
                         let port = parts[2].to_string();
                         let token = parts[3].to_string();
                         if !port.is_empty() && !token.is_empty() {
-                            return Some(LcuCredentials { port, token });
+                            return Some(LcuCredentials { port, token, install_dir: Some(parent.to_path_buf()) });
                         }
                     }
                 }
@@ -1259,17 +1261,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if let Some(c) = creds {
                                 let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", c.token)));
                                 let pages_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
-                                let mut editable_pid = None;
+                                let mut target_pid = None;
+                                let mut fallback_del_pid = None;
+                                let mut total_pages = 0;
 
                                 if let Ok(res) = client.get(&pages_url).header("Authorization", &auth).send().await {
                                     if let Ok(pages) = res.json::<Vec<serde_json::Value>>().await {
+                                        total_pages = pages.len();
                                         for p in &pages {
-                                            let is_deletable = p.get("isDeletable").and_then(|v| v.as_bool()).unwrap_or(false);
-                                            let is_editable = p.get("isEditable").and_then(|v| v.as_bool()).unwrap_or(false);
-                                            if is_deletable || is_editable {
-                                                if let Some(pid) = p.get("id").and_then(|v| v.as_i64()) {
-                                                    editable_pid = Some(pid);
+                                            let is_del = p.get("isDeletable").and_then(|v| v.as_bool()).unwrap_or(false);
+                                            let is_edit = p.get("isEditable").and_then(|v| v.as_bool()).unwrap_or(false);
+                                            let name = p.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                                            if let Some(pid) = p.get("id").and_then(|v| v.as_i64()) {
+                                                if (is_del || is_edit) && (name.contains("Rift") || name.contains("RiftCore")) {
+                                                    target_pid = Some(pid);
                                                     break;
+                                                }
+                                                if is_del {
+                                                    fallback_del_pid = Some(pid);
                                                 }
                                             }
                                         }
@@ -1278,15 +1287,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                 if let Some(mut pd) = page_data {
                                     if let Some(obj) = pd.as_object_mut() {
+                                        let raw_name = obj.get("name").and_then(|v| v.as_str()).unwrap_or("RiftCore Build");
+                                        let clean_name: String = raw_name.chars().filter(|ch| ch.is_ascii_alphanumeric() || *ch == ' ').collect();
+                                        let clean_name = if clean_name.trim().is_empty() { "RiftCore Build".to_string() } else { clean_name.trim().to_string() };
+                                        obj.insert("name".to_string(), serde_json::Value::String(clean_name));
                                         obj.insert("current".to_string(), serde_json::Value::Bool(true));
-                                        obj.insert("isActive".to_string(), serde_json::Value::Bool(true));
+                                        obj.remove("isActive");
                                     }
 
                                     let mut applied = false;
-                                    let mut final_pid = editable_pid;
+                                    let mut final_pid = target_pid;
 
-                                    // 1. Try updating existing page directly via PUT
-                                    if let Some(pid) = editable_pid {
+                                    // 1. If an existing RiftCore page is found, update it directly via PUT
+                                    if let Some(pid) = target_pid {
                                         let put_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
                                         if let Some(obj) = pd.as_object_mut() {
                                             obj.insert("id".to_string(), serde_json::Value::Number(serde_json::Number::from(pid)));
@@ -1298,12 +1311,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         }
                                     }
 
-                                    // 2. If no editable page exists or PUT failed, create via POST
+                                    // 2. If no RiftCore page or PUT failed
                                     if !applied {
                                         if let Some(obj) = pd.as_object_mut() {
                                             obj.remove("id");
                                         }
                                         let create_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
+
+                                        // If page limit reached (5 or more pages), delete fallback deletable page first
+                                        if total_pages >= 5 {
+                                            if let Some(del_id) = fallback_del_pid {
+                                                let p_del = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, del_id);
+                                                let _ = client.delete(&p_del).header("Authorization", &auth).send().await;
+                                            }
+                                        }
+
                                         let post_res = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
                                         if let Ok(res) = post_res {
                                             if res.status().is_success() {
@@ -1313,9 +1335,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                         final_pid = Some(nid);
                                                     }
                                                 }
-                                            } else if let Some(pid) = editable_pid {
-                                                // Page limit hit: delete editable page and retry POST
-                                                let p_del = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
+                                            } else if let Some(del_id) = fallback_del_pid {
+                                                // Retry with delete
+                                                let p_del = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, del_id);
                                                 let _ = client.delete(&p_del).header("Authorization", &auth).send().await;
                                                 let retry = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
                                                 if let Ok(r) = retry {
@@ -1368,21 +1390,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     "export-item-set" => {
                         let item_set = json.get("itemSet").cloned();
+                        let champion_key_opt = json.get("championKey").and_then(|v| v.as_str()).map(|s| s.to_string());
                         let creds = state_clone.lock().unwrap().credentials.clone();
                         let client = http_clone.clone();
                         let proxy_worker = proxy_ipc.clone();
 
                         tokio::spawn(async move {
-                            if let (Some(c), Some(new_set)) = (creds, item_set) {
+                            if let (Some(c), Some(mut new_set)) = (creds, item_set) {
                                 let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", c.token)));
 
-                                // 1. Get current summonerId
+                                // Clean up non-ASCII emojis from title and blocks for League engine compatibility
+                                if let Some(obj) = new_set.as_object_mut() {
+                                    if let Some(title_val) = obj.get("title").and_then(|v| v.as_str()) {
+                                        let clean_title: String = title_val.chars().filter(|ch| ch.is_ascii()).collect();
+                                        let clean_title = clean_title.trim().to_string();
+                                        obj.insert("title".to_string(), serde_json::Value::String(clean_title));
+                                    }
+                                    obj.insert("associatedMaps".to_string(), serde_json::Value::Array(Vec::new()));
+                                    obj.insert("map".to_string(), serde_json::Value::String("any".to_string()));
+                                    obj.insert("mode".to_string(), serde_json::Value::String("any".to_string()));
+                                }
+
+                                // 1. Direct Disk Persistence to League Config directory
+                                let mut candidate_dirs: Vec<PathBuf> = Vec::new();
+                                if let Some(ref idir) = c.install_dir {
+                                    candidate_dirs.push(idir.clone());
+                                }
+                                candidate_dirs.push(PathBuf::from(r"E:\Riot Games\League of Legends"));
+                                candidate_dirs.push(PathBuf::from(r"C:\Riot Games\League of Legends"));
+                                candidate_dirs.push(PathBuf::from(r"D:\Riot Games\League of Legends"));
+                                candidate_dirs.push(PathBuf::from(r"F:\Riot Games\League of Legends (PBE)"));
+
+                                for dir in &candidate_dirs {
+                                    if dir.exists() {
+                                        let config_dir = dir.join("Config");
+                                        if config_dir.exists() {
+                                            if let Some(ref ckey) = champion_key_opt {
+                                                let champ_rec_dir = config_dir.join("Champions").join(ckey).join("Recommended");
+                                                let _ = std::fs::create_dir_all(&champ_rec_dir);
+                                                let champ_file = champ_rec_dir.join("RiftCore.json");
+                                                let _ = std::fs::write(&champ_file, serde_json::to_string_pretty(&new_set).unwrap_or_default());
+                                            }
+                                            let global_rec_dir = config_dir.join("Global").join("Recommended");
+                                            let _ = std::fs::create_dir_all(&global_rec_dir);
+                                            let global_file = if let Some(ref ckey) = champion_key_opt {
+                                                global_rec_dir.join(format!("RiftCore_{}.json", ckey))
+                                            } else {
+                                                global_rec_dir.join("RiftCore.json")
+                                            };
+                                            let _ = std::fs::write(&global_file, serde_json::to_string_pretty(&new_set).unwrap_or_default());
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // 2. LCU API Synchronization
                                 let summ_url = format!("https://127.0.0.1:{}/lol-summoner/v1/current-summoner", c.port);
                                 if let Ok(s_res) = client.get(&summ_url).header("Authorization", &auth).send().await {
                                     if let Ok(summ_json) = s_res.json::<serde_json::Value>().await {
-                                        if let Some(summoner_id) = summ_json.get("summonerId").and_then(|v| v.as_i64()) {
-                                            // 2. Fetch existing sets
-                                            let sets_url = format!("https://127.0.0.1:{}/lol-item-sets/v1/item-sets/{}/sets", c.port, summoner_id);
+                                        let account_id = summ_json.get("accountId").and_then(|v| v.as_i64());
+                                        let summoner_id = summ_json.get("summonerId").and_then(|v| v.as_i64());
+                                        let target_id = account_id.or(summoner_id);
+
+                                        if let Some(id) = target_id {
+                                            let sets_url = format!("https://127.0.0.1:{}/lol-item-sets/v1/item-sets/{}/sets", c.port, id);
                                             let mut sets_obj = match client.get(&sets_url).header("Authorization", &auth).send().await {
                                                 Ok(r) => r.json::<serde_json::Value>().await.unwrap_or_else(|_| serde_json::json!({ "itemSets": [] })),
                                                 Err(_) => serde_json::json!({ "itemSets": [] }),
@@ -1395,18 +1466,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     .and_then(|v| v.as_i64());
 
                                                 arr.retain(|s| {
-                                                    let is_rift = s.get("title").and_then(|t| t.as_str()).map(|t| t.starts_with("⚡ RiftCore:")).unwrap_or(false);
+                                                    let is_rift = s.get("title").and_then(|t| t.as_str()).map(|t| t.contains("RiftCore")).unwrap_or(false);
                                                     let match_champ = s.get("associatedChampions")
                                                         .and_then(|ac| ac.as_array())
                                                         .and_then(|a| a.first())
                                                         .and_then(|v| v.as_i64()) == target_champ;
                                                     !(is_rift && match_champ)
                                                 });
-                                                arr.push(new_set);
+                                                arr.push(new_set.clone());
                                             }
 
-                                            // 3. Save back
+                                            // Put back to LCU with account_id and fallback to summoner_id
                                             let _ = client.put(&sets_url).header("Authorization", &auth).json(&sets_obj).send().await;
+                                            if let (Some(sid), true) = (summoner_id, account_id.is_some()) {
+                                                let s_url = format!("https://127.0.0.1:{}/lol-item-sets/v1/item-sets/{}/sets", c.port, sid);
+                                                let _ = client.put(&s_url).header("Authorization", &auth).json(&sets_obj).send().await;
+                                            }
                                         }
                                     }
                                 }

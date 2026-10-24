@@ -33,10 +33,12 @@ export const CHAMPION_PROFILES: Record<string, ChampionProfile> = {
   Akali: { archetype: 'AP_ASSASSIN', defaultRole: 'MID', skillPriority: 'Q > E > W', tip: 'Drop Twilight Shroud (W) to break target focus and trigger passive Kama rings.' },
   Akshan: { archetype: 'CRIT_MARKSMAN', defaultRole: 'MID', skillPriority: 'Q > E > W', tip: 'Use Heroic Swing (E) around corners for continuous auto-targeting fire.' },
   Alistar: { archetype: 'ENGAGE_SUPPORT', defaultRole: 'SUPPORT', skillPriority: 'Q > W > E', tip: 'Buffer Pulverize (Q) during Headbutt (W) flight for the signature W-Q combo.' },
+  Ambessa: { archetype: 'DIVER_FIGHTER', defaultRole: 'TOP', skillPriority: 'Q > E > W', tip: 'Use Drakehound\'s Step passive after casting abilities to reposition and maintain relentless pressure.' },
   Amumu: { archetype: 'TANK', defaultRole: 'JUNGLE', skillPriority: 'E > Q > W', tip: 'Keep Despair (W) toggled on while clearing camps and save second Bandage Toss (Q) for flashes.' },
   Anivia: { archetype: 'BATTLE_MAGE', defaultRole: 'MID', skillPriority: 'E > Q > W', tip: 'Frostbite (E) deals double damage only if the target is chilled by Q or fully formed R.' },
   Annie: { archetype: 'BURST_MAGE', defaultRole: 'MID', skillPriority: 'Q > W > E', tip: 'Hold Pyromania stun at 3 stacks, then cast E right before Q lands to surprise stun.' },
   Aphelios: { archetype: 'CRIT_MARKSMAN', defaultRole: 'ADC', skillPriority: 'Q > W > E', tip: 'Severum into Crescendum generates maximum chakram stacks for dueling.' },
+  Aurora: { archetype: 'BATTLE_MAGE', defaultRole: 'MID', skillPriority: 'Q > E > W', tip: 'Travel between realms with Across the Veil (W) and trap enemies inside Between Worlds (R).' },
   Ashe: { archetype: 'CRIT_MARKSMAN', defaultRole: 'ADC', skillPriority: 'W > Q > E', tip: 'Cast Hawkshot (E) across the enemy jungle to track ganks and objective setups.' },
   AurelionSol: { archetype: 'BATTLE_MAGE', defaultRole: 'MID', skillPriority: 'Q > E > W', tip: 'Collect Stardust stacks with Singularity (E) to expand the radius of your ultimate.' },
   Azir: { archetype: 'BATTLE_MAGE', defaultRole: 'MID', skillPriority: 'W > Q > E', tip: 'Place soldiers behind the enemy caster wave to control lane push and trade safely.' },
@@ -175,6 +177,7 @@ export const CHAMPION_PROFILES: Record<string, ChampionProfile> = {
   Velkoz: { archetype: 'BURST_MAGE', defaultRole: 'MID', skillPriority: 'Q > W > E', tip: 'Organic Deconstruction triggers true damage; channel Life Form Disintegration Ray (R).' },
   Vex: { archetype: 'BURST_MAGE', defaultRole: 'MID', skillPriority: 'Q > E > W', tip: 'Doom passive fears enemies whenever they dash nearby; shadow reset on R takedown.' },
   Vi: { archetype: 'DIVER_FIGHTER', defaultRole: 'JUNGLE', skillPriority: 'Q > E > W', tip: 'Cease and Desist (R) is unstoppable; use it to lock down slippery enemy carries.' },
+  Viego: { archetype: 'SKIRMISHER', defaultRole: 'JUNGLE', skillPriority: 'Q > E > W', tip: 'Possess fallen enemy champions to gain temporary invulnerability, heal, and cast Heartbreaker (R).' },
   Viktor: { archetype: 'BATTLE_MAGE', defaultRole: 'MID', skillPriority: 'E > Q > W', tip: 'Upgrade Death Ray (E) first with Hex Core fragments for secondary laser aftershock.' },
   Vladimir: { archetype: 'BATTLE_MAGE', defaultRole: 'MID', skillPriority: 'Q > E > W', tip: 'Crimson Rush (empowered Q) deals double damage and heals for missing health.' },
   Volibear: { archetype: 'JUGGERNAUT', defaultRole: 'TOP', skillPriority: 'W > Q > E', tip: 'Stormbringer (R) disables enemy turrets for up to 4 seconds during tower dives.' },
@@ -326,12 +329,30 @@ export function generateSkillOrder(priority: string): string[] {
 
 // Generate an authentic champion build based on identity, archetype, and matchups
 export function buildChampionProfile(championId: number, championName: string, championKey: string): ChampionBuild {
-  const profile = CHAMPION_PROFILES[championKey] || CHAMPION_PROFILES[championName] || {
-    archetype: 'DIVER_FIGHTER' as ChampionArchetype,
-    defaultRole: 'TOP' as const,
-    skillPriority: 'Q > E > W',
-    tip: 'Focus on your core item power spikes and track key enemy cooldowns.',
+  const cleanKey = championKey ? championKey.replace(/[^a-zA-Z0-9]/g, '') : '';
+  const cleanName = championName ? championName.replace(/[^a-zA-Z0-9]/g, '') : '';
+
+  const aliasMap: Record<string, string> = {
+    MonkeyKing: 'Wukong',
+    NunuWillump: 'Nunu',
+    RenataGlasc: 'Renata',
   };
+
+  const resolvedKey = aliasMap[championKey] || aliasMap[cleanKey] || championKey;
+  const resolvedName = aliasMap[championName] || aliasMap[cleanName] || championName;
+
+  const profile =
+    CHAMPION_PROFILES[resolvedKey] ||
+    CHAMPION_PROFILES[resolvedName] ||
+    CHAMPION_PROFILES[cleanKey] ||
+    CHAMPION_PROFILES[cleanName] ||
+    CHAMPION_PROFILES[championKey] ||
+    CHAMPION_PROFILES[championName] || {
+      archetype: 'DIVER_FIGHTER' as ChampionArchetype,
+      defaultRole: 'TOP' as const,
+      skillPriority: 'Q > E > W',
+      tip: 'Focus on your core item power spikes and track key enemy cooldowns.',
+    };
 
   const role = profile.defaultRole;
   const skillPriority = profile.skillPriority;
@@ -363,7 +384,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Domination';
       subStyleId = 8200;
       subStyleName = 'Sorcery';
-      selectedPerkIds = [8112, 8139, 8138, 8106, 8226, 8210, 5008, 5008, 5001];
+      selectedPerkIds = [8112, 8139, 8140, 8106, 8226, 8210, 5008, 5008, 5001];
       keystoneId = 8112;
       keystoneName = 'Electrocute';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png';
@@ -395,7 +416,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Domination';
       subStyleId = 8000;
       subStyleName = 'Precision';
-      selectedPerkIds = [8112, 8143, 8138, 8105, 9111, 8014, 5008, 5008, 5001];
+      selectedPerkIds = [8112, 8143, 8140, 8105, 9111, 8014, 5008, 5008, 5001];
       keystoneId = 8112;
       keystoneName = 'Electrocute';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png';
@@ -411,7 +432,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Domination';
       subStyleId = 8200;
       subStyleName = 'Sorcery';
-      selectedPerkIds = [8112, 8143, 8138, 8106, 8210, 8237, 5008, 5008, 5001];
+      selectedPerkIds = [8112, 8143, 8140, 8106, 8210, 8237, 5008, 5008, 5001];
       keystoneId = 8112;
       keystoneName = 'Electrocute';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png';
@@ -539,7 +560,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Sorcery';
       subStyleId = 8100;
       subStyleName = 'Domination';
-      selectedPerkIds = [8229, 8226, 8210, 8237, 8138, 8106, 5008, 5008, 5001];
+      selectedPerkIds = [8229, 8226, 8210, 8237, 8140, 8106, 5008, 5008, 5001];
       keystoneId = 8229;
       keystoneName = 'Arcane Comet';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/ArcaneComet/ArcaneComet.png';
@@ -619,7 +640,7 @@ export function buildChampionProfile(championId: number, championName: string, c
           keystoneId: 8128,
           keystoneName: 'Dark Harvest',
           keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/DarkHarvest/DarkHarvest.png',
-          selectedPerkIds: [8128, 8143, 8138, 8135, 9111, 8299, 5008, 5008, 5001],
+          selectedPerkIds: [8128, 8143, 8140, 8135, 9111, 8299, 5008, 5008, 5001],
         }
       : primaryStyleId === 8100
       ? {
@@ -630,7 +651,7 @@ export function buildChampionProfile(championId: number, championName: string, c
           keystoneId: 8230,
           keystoneName: 'Phase Rush',
           keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/PhaseRush/PhaseRush.png',
-          selectedPerkIds: [8230, 8226, 8210, 8236, 8138, 8106, 5008, 5008, 5001],
+          selectedPerkIds: [8230, 8226, 8210, 8236, 8140, 8106, 5008, 5008, 5001],
         }
       : primaryStyleId === 8200
       ? {

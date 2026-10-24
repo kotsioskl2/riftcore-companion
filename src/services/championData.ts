@@ -1786,7 +1786,7 @@ export const CHAMPION_BUILDS: Record<number, ChampionBuild> = {
       primaryStyleName: 'Domination',
       subStyleId: 8000,
       subStyleName: 'Precision',
-      selectedPerkIds: [8128, 8143, 8138, 8135, 9111, 8299, 5008, 5008, 5001],
+      selectedPerkIds: [8128, 8143, 8140, 8135, 9111, 8299, 5008, 5008, 5001],
       keystoneId: 8128,
       keystoneName: 'Dark Harvest',
       keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/DarkHarvest/DarkHarvest.png'
@@ -1908,7 +1908,7 @@ export const CHAMPION_BUILDS: Record<number, ChampionBuild> = {
       primaryStyleName: 'Domination',
       subStyleId: 8200,
       subStyleName: 'Sorcery',
-      selectedPerkIds: [8112, 8139, 8138, 8106, 8226, 8210, 5008, 5008, 5001],
+      selectedPerkIds: [8112, 8139, 8140, 8106, 8226, 8210, 5008, 5008, 5001],
       keystoneId: 8112,
       keystoneName: 'Electrocute',
       keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png'
@@ -1984,7 +1984,7 @@ export const CHAMPION_BUILDS: Record<number, ChampionBuild> = {
       primaryStyleName: 'Domination',
       subStyleId: 8000,
       subStyleName: 'Precision',
-      selectedPerkIds: [8112, 8143, 8138, 8105, 9111, 8014, 5008, 5008, 5001],
+      selectedPerkIds: [8112, 8143, 8140, 8105, 9111, 8014, 5008, 5008, 5001],
       keystoneId: 8112,
       keystoneName: 'Electrocute',
       keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png'

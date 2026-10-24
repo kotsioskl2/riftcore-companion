@@ -237,7 +237,7 @@ declare global {
       lcuRequest: (endpoint: string, method?: string, body?: any) => Promise<any>;
       importRunes: (pageData: any) => Promise<any>;
       importSpells: (spell1Id: number, spell2Id: number) => Promise<any>;
-      exportItemSet?: (itemSet: any) => Promise<any>;
+      exportItemSet?: (itemSet: any, championKey?: string) => Promise<any>;
       acceptMatch: () => Promise<any>;
       getLiveClientData: () => Promise<LiveGameData | null>;
       windowControl: (action: 'minimize' | 'maximize' | 'close' | 'toggle-pin' | 'toggle-compact' | 'set-pin-on' | 'set-pin-off' | 'minimize-to-tray' | 'exit-app') => Promise<any>;

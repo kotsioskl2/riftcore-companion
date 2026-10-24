@@ -358,30 +358,46 @@ ipcMain.handle('import-runes', async (_event, pageData) => {
   if (!lcuCredentials) throw new Error('League Client not running');
 
   const pages = await requestLCU('/lol-perks/v1/pages');
-  let targetPage = pages.find(p => p.isEditable && p.isDeletable);
-
+  let targetPage = pages.find(p => p.name && (p.name.includes('Rift') || p.name.includes('RiftCore')));
+  if (!targetPage) {
+    targetPage = pages.find(p => p.isDeletable);
+  }
   if (!targetPage) {
     targetPage = pages.find(p => p.isEditable);
   }
 
+  const rawName = pageData.name || 'RiftCore Build';
+  const cleanName = rawName.replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'RiftCore Build';
+
   const payload = {
-    name: pageData.name || '⚡ RiftCore Build',
+    name: cleanName,
     primaryStyleId: pageData.primaryStyleId,
     subStyleId: pageData.subStyleId,
     selectedPerkIds: pageData.selectedPerkIds,
     current: true,
-    isActive: true
   };
 
   if (targetPage) {
     try {
-      await requestLCU(`/lol-perks/v1/pages/${targetPage.id}`, 'DELETE');
-      return await requestLCU('/lol-perks/v1/pages', 'POST', payload);
+      const updated = await requestLCU(`/lol-perks/v1/pages/${targetPage.id}`, 'PUT', { ...payload, id: targetPage.id });
+      try { await requestLCU('/lol-perks/v1/currentpage', 'PUT', targetPage.id); } catch {}
+      return updated;
     } catch {
-      return await requestLCU(`/lol-perks/v1/pages/${targetPage.id}`, 'PUT', payload);
+      if (targetPage.isDeletable) {
+        try { await requestLCU(`/lol-perks/v1/pages/${targetPage.id}`, 'DELETE'); } catch {}
+      }
+      const created = await requestLCU('/lol-perks/v1/pages', 'POST', payload);
+      if (created && created.id) {
+        try { await requestLCU('/lol-perks/v1/currentpage', 'PUT', created.id); } catch {}
+      }
+      return created;
     }
   } else {
-    return await requestLCU('/lol-perks/v1/pages', 'POST', payload);
+    const created = await requestLCU('/lol-perks/v1/pages', 'POST', payload);
+    if (created && created.id) {
+      try { await requestLCU('/lol-perks/v1/currentpage', 'PUT', created.id); } catch {}
+    }
+    return created;
   }
 });
 
@@ -393,24 +409,68 @@ ipcMain.handle('import-spells', async (_event, { spell1Id, spell2Id }) => {
   });
 });
 
-ipcMain.handle('export-item-set', async (_event, itemSetPayload) => {
+ipcMain.handle('export-item-set', async (_event, itemSetPayload, championKey) => {
   if (!lcuCredentials) throw new Error('League Client not running');
 
+  // Sanitize non-ASCII emojis from title
+  if (itemSetPayload && itemSetPayload.title) {
+    itemSetPayload.title = itemSetPayload.title.replace(/[^\x00-\x7F]/g, '').trim();
+    itemSetPayload.associatedMaps = [];
+    itemSetPayload.map = 'any';
+    itemSetPayload.mode = 'any';
+  }
+
+  // 1. Direct Disk Persistence if League path known
+  const candidateDirs = [
+    'E:\\Riot Games\\League of Legends',
+    'C:\\Riot Games\\League of Legends',
+    'D:\\Riot Games\\League of Legends',
+    'F:\\Riot Games\\League of Legends (PBE)'
+  ];
+  for (const dir of candidateDirs) {
+    try {
+      if (fs.existsSync(dir)) {
+        const configDir = path.join(dir, 'Config');
+        if (fs.existsSync(configDir)) {
+          if (championKey) {
+            const champDir = path.join(configDir, 'Champions', championKey, 'Recommended');
+            fs.mkdirSync(champDir, { recursive: true });
+            fs.writeFileSync(path.join(champDir, 'RiftCore.json'), JSON.stringify(itemSetPayload, null, 2), 'utf-8');
+          }
+          const globalDir = path.join(configDir, 'Global', 'Recommended');
+          fs.mkdirSync(globalDir, { recursive: true });
+          const gFile = championKey ? `RiftCore_${championKey}.json` : 'RiftCore.json';
+          fs.writeFileSync(path.join(globalDir, gFile), JSON.stringify(itemSetPayload, null, 2), 'utf-8');
+          break;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. LCU API Synchronization
   const summoner = await requestLCU('/lol-summoner/v1/current-summoner');
-  if (!summoner || !summoner.summonerId) throw new Error('Summoner not found');
-  const summonerId = summoner.summonerId;
+  if (!summoner) throw new Error('Summoner not found');
+  const accountId = summoner.accountId || summoner.summonerId;
+  const summonerId = summoner.summonerId || summoner.accountId;
 
   let setsData = { itemSets: [], timestamp: Date.now() };
   try {
-    const existing = await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`);
+    const existing = await requestLCU(`/lol-item-sets/v1/item-sets/${accountId}/sets`);
     if (existing && Array.isArray(existing.itemSets)) {
       setsData = existing;
     }
-  } catch {}
+  } catch {
+    try {
+      const existing2 = await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`);
+      if (existing2 && Array.isArray(existing2.itemSets)) {
+        setsData = existing2;
+      }
+    } catch {}
+  }
 
   const champId = itemSetPayload.associatedChampions?.[0];
   setsData.itemSets = setsData.itemSets.filter(s => {
-    if (s.title && s.title.startsWith('⚡ RiftCore:')) {
+    if (s.title && s.title.includes('RiftCore')) {
       if (champId && Array.isArray(s.associatedChampions) && s.associatedChampions.includes(champId)) {
         return false;
       }
@@ -419,7 +479,11 @@ ipcMain.handle('export-item-set', async (_event, itemSetPayload) => {
   });
 
   setsData.itemSets.push(itemSetPayload);
-  return await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`, 'PUT', setsData);
+  try {
+    return await requestLCU(`/lol-item-sets/v1/item-sets/${accountId}/sets`, 'PUT', setsData);
+  } catch {
+    return await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`, 'PUT', setsData);
+  }
 });
 
 ipcMain.handle('accept-match', async () => {

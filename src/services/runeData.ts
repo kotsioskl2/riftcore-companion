@@ -61,7 +61,7 @@ export const RUNE_TREES: Record<number, RuneTree> = {
       [
         { id: 8136, name: 'Zombie Ward', desc: 'Clearing enemy wards spawns friendly Zombie Wards.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/ZombieWard/ZombieWard.png' },
         { id: 8120, name: 'Ghost Poro', desc: 'Wards expire into Ghost Poros granting adaptive force.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/GhostPoro/GhostPoro.png' },
-        { id: 8138, name: 'Eyeball Collection', desc: 'Collect eyeballs on champion takedowns for AD/AP.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/EyeballCollection/EyeballCollection.png' }
+        { id: 8140, name: 'Grisly Mementos', desc: 'Collect trophies on champion takedowns for adaptive force.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/EyeballCollection/EyeballCollection.png' }
       ],
       [
         { id: 8135, name: 'Treasure Hunter', desc: 'Gain gold on unique champion takedowns.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/TreasureHunter/TreasureHunter.png' },

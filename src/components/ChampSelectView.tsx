@@ -157,9 +157,10 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
 
       if (autoImport && window.riftAPI?.importRunes) {
         setImportStatus('importing');
+        const safeChampName = (targetChamp.name || 'Champion').replace(/[^a-zA-Z0-9 ]/g, '').trim();
         window.riftAPI
           .importRunes({
-            name: `⚡ Rift: ${targetChamp.name}`,
+            name: `RiftCore ${safeChampName}`,
             primaryStyleId: runesToUse.primaryStyleId,
             subStyleId: runesToUse.subStyleId,
             selectedPerkIds: runesToUse.selectedPerkIds,
@@ -194,7 +195,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
     if (preset === 'burst') {
       pStyle = 8100; // Domination
       sStyle = 8200; // Sorcery
-      perks = [8112, 8143, 8138, 8106, 8226, 8210, 5008, 5008, 5001];
+      perks = [8112, 8143, 8140, 8106, 8226, 8210, 5008, 5008, 5001];
     } else if (preset === 'sustain') {
       pStyle = 8400; // Resolve
       sStyle = 8000; // Precision
@@ -233,8 +234,9 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
     setImportStatus('importing');
     try {
       if (window.riftAPI) {
+        const safeChampName = (champ.name || 'Champion').replace(/[^a-zA-Z0-9 ]/g, '').trim();
         await window.riftAPI.importRunes({
-          name: `⚡ Rift: ${champ.name}`,
+          name: `RiftCore ${safeChampName}`,
           primaryStyleId,
           subStyleId,
           selectedPerkIds,

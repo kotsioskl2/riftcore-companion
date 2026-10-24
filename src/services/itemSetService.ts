@@ -28,7 +28,7 @@ export class ItemSetService {
 
     // 1. Starting Items
     blocks.push({
-      type: '⚡ Starting Items & Potions',
+      type: 'Starting Items & Potions',
       items: build.startingItems.map((it) => ({ id: String(it.id), count: it.id === 2003 ? 2 : 1 })),
     });
 
@@ -60,13 +60,13 @@ export class ItemSetService {
     }
 
     blocks.push({
-      type: '👟 Early Buys & Completed Boots',
+      type: 'Early Buys & Boots',
       items: earlyItems,
     });
 
     // 3. Core Item Path (In Optimal Order)
     blocks.push({
-      type: '⚔️ Core Mythic & Legendary Build',
+      type: 'Core Build',
       items: build.coreItems.map((it) => ({ id: String(it.id), count: 1 })),
     });
 
@@ -89,7 +89,7 @@ export class ItemSetService {
     }
 
     blocks.push({
-      type: '🛡️ Situational Counters (Anti-Heal / Defense)',
+      type: 'Situational Counters',
       items: situational.slice(0, 6),
     });
 
@@ -107,19 +107,21 @@ export class ItemSetService {
     }
 
     blocks.push({
-      type: '🧪 Consumables & Elixirs',
+      type: 'Consumables & Elixirs',
       items: elixirs,
     });
 
+    const safeChampName = (build.championName || 'Champion').replace(/[^a-zA-Z0-9 '.]/g, '');
+
     return {
-      title: `⚡ RiftCore: ${build.championName} Meta`,
+      title: `RiftCore: ${safeChampName} Meta`,
       type: 'custom',
       map: 'any',
       mode: 'any',
       priority: true,
       sortrank: 1,
       associatedChampions: [build.championId],
-      associatedMaps: [11, 12], // Summoner's Rift & Howling Abyss
+      associatedMaps: [], // Empty array = active on all maps
       blocks,
     };
   }
@@ -131,7 +133,8 @@ export class ItemSetService {
     // 1. If running under RiftCore Native or Electron with dedicated export API
     if (window.riftAPI?.exportItemSet) {
       try {
-        await window.riftAPI.exportItemSet(itemSet);
+        const champKey = build.key || build.championName.replace(/[^a-zA-Z0-9]/g, '');
+        await window.riftAPI.exportItemSet(itemSet, champKey);
         return {
           success: true,
           message: `✓ In-Game Shop Item Set created for ${build.championName}! Press 'P' in game to open shop.`,
@@ -144,27 +147,35 @@ export class ItemSetService {
     // 2. Direct LCU API Fallback via window.riftAPI.lcuRequest
     if (window.riftAPI?.lcuRequest) {
       try {
-        // Fetch current summoner to get summonerId
+        // Fetch current summoner to get accountId and summonerId
         const summoner = await window.riftAPI.lcuRequest('/lol-summoner/v1/current-summoner');
-        if (!summoner || !summoner.summonerId) {
+        if (!summoner) {
           throw new Error('League Client not logged in or summoner unavailable.');
         }
 
-        const summonerId = summoner.summonerId;
+        const accountId = summoner.accountId || summoner.summonerId;
+        const summonerId = summoner.summonerId || summoner.accountId;
 
         // Fetch existing sets
-        let existingData: { itemSets: any[]; timestamp?: number } = { itemSets: [], timestamp: Date.now() };
+        let existingData: { itemSets: any[]; timestamp?: number; accountId?: number } = { itemSets: [], timestamp: Date.now() };
         try {
-          const res = await window.riftAPI.lcuRequest(`/lol-item-sets/v1/item-sets/${summonerId}/sets`);
+          const res = await window.riftAPI.lcuRequest(`/lol-item-sets/v1/item-sets/${accountId}/sets`);
           if (res && Array.isArray(res.itemSets)) {
             existingData = res;
           }
-        } catch {}
+        } catch {
+          try {
+            const res2 = await window.riftAPI.lcuRequest(`/lol-item-sets/v1/item-sets/${summonerId}/sets`);
+            if (res2 && Array.isArray(res2.itemSets)) {
+              existingData = res2;
+            }
+          } catch {}
+        }
 
         // Remove old RiftCore item set for this champion
         const targetChampId = build.championId;
         existingData.itemSets = existingData.itemSets.filter((s: any) => {
-          const isRiftTitle = typeof s.title === 'string' && s.title.startsWith('⚡ RiftCore:');
+          const isRiftTitle = typeof s.title === 'string' && s.title.includes('RiftCore');
           const hasThisChamp = Array.isArray(s.associatedChampions) && s.associatedChampions.includes(targetChampId);
           return !(isRiftTitle && hasThisChamp);
         });
@@ -173,7 +184,11 @@ export class ItemSetService {
         existingData.itemSets.push(itemSet);
 
         // Put back to LCU
-        await window.riftAPI.lcuRequest(`/lol-item-sets/v1/item-sets/${summonerId}/sets`, 'PUT', existingData);
+        try {
+          await window.riftAPI.lcuRequest(`/lol-item-sets/v1/item-sets/${accountId}/sets`, 'PUT', existingData);
+        } catch {
+          await window.riftAPI.lcuRequest(`/lol-item-sets/v1/item-sets/${summonerId}/sets`, 'PUT', existingData);
+        }
 
         return {
           success: true,

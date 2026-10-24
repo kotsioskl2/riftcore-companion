@@ -48,12 +48,12 @@ export const AramHubView: React.FC = () => {
   const handleImportAramRunes = async () => {
     setImportStatus('importing');
     try {
-      if (window.riftAPI) {
+        const safeChampName = (champ.name || 'Champion').replace(/[^a-zA-Z0-9 ]/g, '').trim();
         await window.riftAPI.importRunes({
-          name: `❄️ ARAM: ${champ.name}`,
+          name: `RiftCore ARAM ${safeChampName}`,
           primaryStyleId: 8100, // Domination
           subStyleId: 8000, // Precision
-          selectedPerkIds: [8128, 8143, 8138, 8106, 8009, 8299, 5008, 5008, 5001], // Dark Harvest, Sudden Impact, Eyeball, Ultimate Hunter, PoM, Last Stand
+          selectedPerkIds: [8128, 8143, 8140, 8106, 8009, 8299, 5008, 5008, 5001], // Dark Harvest, Sudden Impact, Grisly Mementos, Ultimate Hunter, PoM, Last Stand
         });
         soundService.playRuneImport();
         setImportStatus('success');
