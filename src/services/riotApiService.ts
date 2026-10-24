@@ -130,8 +130,13 @@ class RiotApiService {
     platform: string = 'eun1'
   ): Promise<(RiotAccount & { cluster: string }) | null> {
     const primaryCluster = this.getClusterForPlatform(platform);
-    const encName = encodeURIComponent(gameName.trim());
-    const encTag = encodeURIComponent(tagLine.trim());
+    const cleanName = gameName ? gameName.trim() : '';
+    const cleanTag = tagLine && tagLine.trim() ? tagLine.trim() : platform.toUpperCase();
+
+    if (!cleanName) return null;
+
+    const encName = encodeURIComponent(cleanName);
+    const encTag = encodeURIComponent(cleanTag);
 
     const clustersToTry = [
       primaryCluster,

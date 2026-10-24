@@ -171,7 +171,8 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
       // 1. Fetch Riot Account (Smart multi-cluster lookup across europe, americas, asia, sea)
       const accountData = await riotApiService.getAccountByRiotId(gameName, tagLine, apiKey, selectedRegion);
       if (!accountData || !accountData.puuid) {
-        setCloudError(`Could not find Riot ID "${gameName}#${tagLine}". Please verify spelling and tag.`);
+        setCloudError('Summoner not found');
+        setIsCloudScout(false);
         setCloudLoading(false);
         return;
       }
@@ -187,13 +188,17 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
         setSelectedRegion(effectivePlatform);
       }
 
-      setCloudAccount(accountData);
-
       // 2. Fetch Summoner Profile (Level, ProfileIcon)
       const summonerRes = await riotApiService.getSummonerByPuuid(accountData.puuid, apiKey, effectivePlatform);
-      if (summonerRes) {
-        setCloudProfile(summonerRes);
+      if (!summonerRes) {
+        setCloudError('Summoner not found');
+        setIsCloudScout(false);
+        setCloudLoading(false);
+        return;
       }
+
+      setCloudAccount(accountData);
+      setCloudProfile(summonerRes);
 
       // 3. Fetch Ranked Entries (Emerald, Diamond, Gold, etc.)
       const rankedRes = await riotApiService.getRankedEntries(accountData.puuid, apiKey, effectivePlatform);
@@ -254,8 +259,9 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
       }
 
       setIsCloudScout(true);
-    } catch (err: any) {
-      setCloudError(err.message || 'Error connecting to Riot Games Web API.');
+    } catch {
+      setCloudError('Summoner not found');
+      setIsCloudScout(false);
     } finally {
       setCloudLoading(false);
     }
@@ -463,19 +469,20 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
         {cloudError && (
           <div
             style={{
-              marginTop: '10px',
+              marginTop: '12px',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              background: 'rgba(255, 42, 95, 0.1)',
-              border: '1px solid var(--border-red)',
-              fontSize: '11px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: 'rgba(255, 42, 95, 0.12)',
+              border: '1px solid rgba(255, 42, 95, 0.4)',
+              fontSize: '12px',
+              fontWeight: 700,
               color: 'var(--red-primary)',
             }}
           >
-            <AlertCircle size={14} />
+            <AlertCircle size={16} />
             <span>{cloudError}</span>
           </div>
         )}
