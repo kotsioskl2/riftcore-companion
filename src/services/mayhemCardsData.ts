@@ -338,13 +338,103 @@ export const MAYHEM_CARDS: MayhemCard[] = [
   },
 ];
 
+const STORAGE_KEY_CARDS = 'riftcore_synced_mayhem_cards';
+
+// Active in-memory card registry initialized with curated meta cards and merged with cached dynamic cards
+let activeCards: MayhemCard[] = [...MAYHEM_CARDS];
+
+try {
+  const cached = localStorage.getItem(STORAGE_KEY_CARDS);
+  if (cached) {
+    const parsed = JSON.parse(cached);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const existingIds = new Set(MAYHEM_CARDS.map((c) => c.id));
+      const extra = parsed.filter((c: MayhemCard) => !existingIds.has(c.id));
+      activeCards = [...MAYHEM_CARDS, ...extra];
+    }
+  }
+} catch {}
+
+// Dynamic CDN Sync: Fetches latest patch augment additions directly from CommunityDragon / Riot CDN
+export async function syncMayhemCardsFromCDN(): Promise<number> {
+  try {
+    const res = await fetch(
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/cherry-augments.json',
+      { cache: 'no-cache' }
+    );
+    if (!res.ok) return 0;
+    const rawList = await res.json();
+    if (!Array.isArray(rawList)) return 0;
+
+    const existingNames = new Set(activeCards.map((c) => c.name.toLowerCase()));
+    const newCards: MayhemCard[] = [];
+
+    const rarityMap: Record<string, CardTier> = {
+      kPrismatic: 'Prismatic',
+      kGold: 'Gold',
+      kSilver: 'Silver',
+    };
+
+    for (const item of rawList) {
+      const name = item.nameTRA || item.simpleNameTRA;
+      if (!name || existingNames.has(name.toLowerCase())) continue;
+
+      const tier: CardTier = rarityMap[item.rarity] || 'Gold';
+      const color = tier === 'Prismatic' ? '#c084fc' : tier === 'Gold' ? '#fbbf24' : '#94a3b8';
+      const rank: CardRank = tier === 'Prismatic' ? 'S+' : tier === 'Gold' ? 'S' : 'A';
+      const isAram = item.augmentNameId?.startsWith('ARAM_');
+      const mode: CardMode = isAram ? 'ARAM' : 'Both';
+
+      const card: MayhemCard = {
+        id: `cdragon-${item.id}`,
+        name: name,
+        tier,
+        rank,
+        mode,
+        archetype: isAram ? 'ARAM Mayhem Augment' : 'Arena & Mayhem Augment',
+        description: `Live patch augment card (${name}).`,
+        tip: 'Adapt your pick according to your team composition, item spikes, and synergy requirements.',
+        color,
+        tag: tier === 'Prismatic' ? 'Damage' : 'Survivability',
+      };
+
+      existingNames.add(name.toLowerCase());
+      newCards.push(card);
+    }
+
+    if (newCards.length > 0) {
+      activeCards = [...activeCards, ...newCards];
+      try {
+        localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(activeCards.filter((c) => c.id.startsWith('cdragon-'))));
+      } catch {}
+      console.log(`[MayhemCards] Dynamically synced ${newCards.length} new augment cards from CDN! Total: ${activeCards.length}`);
+      return newCards.length;
+    }
+    return 0;
+  } catch (err) {
+    console.warn('[MayhemCards] Background CDN sync skipped:', err);
+    return 0;
+  }
+}
+
+// Background auto-sync on startup
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    syncMayhemCardsFromCDN().catch(() => {});
+  }, 2500);
+}
+
+export function getActiveMayhemCards(): MayhemCard[] {
+  return activeCards;
+}
+
 export function searchMayhemCards(
   query: string,
   tierFilter?: CardTier | 'ALL',
   modeFilter?: CardMode | 'ALL'
 ): MayhemCard[] {
   const q = query.trim().toLowerCase();
-  return MAYHEM_CARDS.filter((card) => {
+  return activeCards.filter((card) => {
     if (tierFilter && tierFilter !== 'ALL' && card.tier !== tierFilter) return false;
     if (modeFilter && modeFilter !== 'ALL' && card.mode !== 'Both' && card.mode !== modeFilter) return false;
     if (!q) return true;
@@ -357,3 +447,4 @@ export function searchMayhemCards(
     );
   });
 }
+
