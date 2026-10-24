@@ -491,7 +491,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Resolve';
       subStyleId = 8000;
       subStyleName = 'Precision';
-      selectedPerkIds = [8437, 8446, 8429, 8451, 9111, 9105, 5008, 5002, 5001];
+      selectedPerkIds = [8437, 8446, 8429, 8451, 9111, 9105, 5008, 5011, 5001];
       keystoneId = 8437;
       keystoneName = 'Grasp of the Undying';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Resolve/GraspOfTheUndying/GraspOfTheUndying.png';
@@ -523,7 +523,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Resolve';
       subStyleId = 8300;
       subStyleName = 'Inspiration';
-      selectedPerkIds = [8439, 8463, 8473, 8451, 8306, 8347, 5007, 5002, 5001];
+      selectedPerkIds = [8439, 8463, 8473, 8451, 8306, 8347, 5007, 5011, 5001];
       keystoneId = 8439;
       keystoneName = 'Aftershock';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Resolve/VeteranAftershock/VeteranAftershock.png';
@@ -610,16 +610,49 @@ export function buildChampionProfile(championId: number, championName: string, c
       keystoneName,
       keystoneIcon,
     },
-    secondaryRunes: {
-      primaryStyleId: subStyleId,
-      primaryStyleName: subStyleName,
-      subStyleId: primaryStyleId,
-      subStyleName: primaryStyleName,
-      selectedPerkIds: selectedPerkIds.slice(0, 6).reverse().concat([5008, 5008, 5001]),
-      keystoneId,
-      keystoneName,
-      keystoneIcon,
-    },
+    secondaryRunes: primaryStyleId === 8000
+      ? {
+          primaryStyleId: 8100,
+          primaryStyleName: 'Domination',
+          subStyleId: 8000,
+          subStyleName: 'Precision',
+          keystoneId: 8128,
+          keystoneName: 'Dark Harvest',
+          keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/DarkHarvest/DarkHarvest.png',
+          selectedPerkIds: [8128, 8143, 8138, 8135, 9111, 8299, 5008, 5008, 5001],
+        }
+      : primaryStyleId === 8100
+      ? {
+          primaryStyleId: 8200,
+          primaryStyleName: 'Sorcery',
+          subStyleId: 8100,
+          subStyleName: 'Domination',
+          keystoneId: 8230,
+          keystoneName: 'Phase Rush',
+          keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/PhaseRush/PhaseRush.png',
+          selectedPerkIds: [8230, 8226, 8210, 8236, 8138, 8106, 5008, 5008, 5001],
+        }
+      : primaryStyleId === 8200
+      ? {
+          primaryStyleId: 8300,
+          primaryStyleName: 'Inspiration',
+          subStyleId: 8200,
+          subStyleName: 'Sorcery',
+          keystoneId: 8369,
+          keystoneName: 'First Strike',
+          keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/FirstStrike/FirstStrike.png',
+          selectedPerkIds: [8369, 8304, 8345, 8347, 8226, 8210, 5008, 5008, 5001],
+        }
+      : {
+          primaryStyleId: 8000,
+          primaryStyleName: 'Precision',
+          subStyleId: 8400,
+          subStyleName: 'Resolve',
+          keystoneId: 8010,
+          keystoneName: 'Conqueror',
+          keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/Conqueror/Conqueror.png',
+          selectedPerkIds: [8010, 9111, 9105, 8299, 8446, 8451, 5008, 5008, 5001],
+        },
     spells,
     skillOrder,
     skillPriority,

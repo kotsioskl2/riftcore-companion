@@ -1237,8 +1237,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         tokio::spawn(async move {
                             if let Some(c) = creds {
                                 let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", c.token)));
-                                // Find and delete existing custom/editable rune pages
                                 let pages_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
+                                let mut editable_pid = None;
+
                                 if let Ok(res) = client.get(&pages_url).header("Authorization", &auth).send().await {
                                     if let Ok(pages) = res.json::<Vec<serde_json::Value>>().await {
                                         for p in &pages {
@@ -1246,8 +1247,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             let is_editable = p.get("isEditable").and_then(|v| v.as_bool()).unwrap_or(false);
                                             if is_deletable || is_editable {
                                                 if let Some(pid) = p.get("id").and_then(|v| v.as_i64()) {
-                                                    let p_del = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
-                                                    let _ = client.delete(&p_del).header("Authorization", &auth).send().await;
+                                                    editable_pid = Some(pid);
                                                     break;
                                                 }
                                             }
@@ -1255,14 +1255,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                 }
 
-                                // Create new page and make it current
                                 if let Some(mut pd) = page_data {
                                     if let Some(obj) = pd.as_object_mut() {
                                         obj.insert("current".to_string(), serde_json::Value::Bool(true));
                                         obj.insert("isActive".to_string(), serde_json::Value::Bool(true));
                                     }
-                                    let create_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
-                                    let _ = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
+
+                                    let mut applied = false;
+                                    // 1. Try updating existing page directly via PUT
+                                    if let Some(pid) = editable_pid {
+                                        let put_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
+                                        if let Ok(put_res) = client.put(&put_url).header("Authorization", &auth).json(&pd).send().await {
+                                            if put_res.status().is_success() {
+                                                applied = true;
+                                            }
+                                        }
+                                    }
+
+                                    // 2. If no editable page exists or PUT failed, create via POST
+                                    if !applied {
+                                        let create_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
+                                        let post_res = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
+                                        if let Ok(res) = post_res {
+                                            if !res.status().is_success() && editable_pid.is_some() {
+                                                // Page limit hit: delete editable page and retry POST
+                                                let pid = editable_pid.unwrap();
+                                                let p_del = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
+                                                let _ = client.delete(&p_del).header("Authorization", &auth).send().await;
+                                                let _ = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             let script = format!("window.__riftIpcReply({}, null, {{ success: true }});", req_id);
