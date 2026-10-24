@@ -256,10 +256,68 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
 
   // Objective Timers
   const [objectives, setObjectives] = useState([
-    { name: 'Dragon', icon: '🐲', total: 300, remaining: 42, color: 'var(--blue-primary)' },
+    { name: 'Dragon', icon: '🐲', total: 300, remaining: 0, color: 'var(--blue-primary)' },
     { name: 'Voidgrubs', icon: '👾', total: 360, remaining: 0, color: 'var(--red-primary)' },
-    { name: 'Baron', icon: '👑', total: 1200, remaining: Math.max(0, 1200 - gameTime), color: '#c084fc' },
+    { name: 'Baron', icon: '👑', total: 1200, remaining: 0, color: '#c084fc' },
   ]);
+
+  // Dynamic in-game objective & camp timers from live telemetry
+  useEffect(() => {
+    if (!isLive || !liveData?.gameData) return;
+    const gTime = Math.floor(liveData.gameData.gameTime);
+    const events = liveData.events?.Events || [];
+
+    // Dragon calculation
+    let nextDragonTime = 300;
+    const dragonKills = events.filter((e) => e.EventName === 'DragonKill');
+    if (dragonKills.length > 0) {
+      const lastKill = dragonKills[dragonKills.length - 1];
+      const cooldown = lastKill.DragonType === 'Elder' ? 360 : 300;
+      nextDragonTime = Math.floor(lastKill.EventTime) + cooldown;
+    }
+    const dragonRemaining = Math.max(0, nextDragonTime - gTime);
+
+    // Baron calculation
+    let nextBaronTime = 1200;
+    const baronKills = events.filter((e) => e.EventName === 'BaronKill');
+    if (baronKills.length > 0) {
+      const lastBaron = baronKills[baronKills.length - 1];
+      nextBaronTime = Math.floor(lastBaron.EventTime) + 360;
+    }
+    const baronRemaining = Math.max(0, nextBaronTime - gTime);
+
+    // Voidgrubs / Herald calculation
+    let grubsRemaining = 0;
+    if (gTime < 300) {
+      grubsRemaining = 300 - gTime;
+    } else if (gTime < 840) {
+      const hordeKills = events.filter((e) => e.EventName === 'HordeKill');
+      grubsRemaining = hordeKills.length >= 6 ? Math.max(0, 840 - gTime) : 0;
+    } else if (gTime < 1185) {
+      const heraldKills = events.filter((e) => e.EventName === 'HeraldKill');
+      grubsRemaining = heraldKills.length > 0 ? Math.max(0, 1200 - gTime) : 0;
+    } else {
+      grubsRemaining = Math.max(0, 1200 - gTime);
+    }
+
+    // Buffs (first spawn at 1:30 = 90s)
+    const blueRemaining = gTime < 90 ? 90 - gTime : 0;
+    const redRemaining = gTime < 90 ? 90 - gTime : 0;
+
+    setCampTimers([
+      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '90px', right: '85px' } },
+      { id: 'baron', name: 'Baron', icon: '👑', total: 1200, remaining: baronRemaining, color: '#c084fc', mapPos: { bottom: '185px', right: '180px' } },
+      { id: 'grubs', name: 'Grubs', icon: '👾', total: 360, remaining: grubsRemaining, color: '#f43f5e', mapPos: { bottom: '175px', right: '200px' } },
+      { id: 'blue', name: 'Blue Buff', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '125px', right: '170px' } },
+      { id: 'red', name: 'Red Buff', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '65px', right: '130px' } },
+    ]);
+
+    setObjectives([
+      { name: 'Dragon', icon: '🐲', total: 300, remaining: dragonRemaining, color: 'var(--blue-primary)' },
+      { name: 'Voidgrubs', icon: '👾', total: 360, remaining: grubsRemaining, color: 'var(--red-primary)' },
+      { name: 'Baron', icon: '👑', total: 1200, remaining: baronRemaining, color: '#c084fc' },
+    ]);
+  }, [liveData, isLive]);
 
   // Countdown ticker
   useEffect(() => {

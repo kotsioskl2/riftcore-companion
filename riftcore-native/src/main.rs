@@ -183,6 +183,7 @@ extern "system" {
     fn GetAsyncKeyState(vKey: i32) -> i16;
     fn FindWindowW(lpClassName: *const u16, lpWindowName: *const u16) -> *mut std::ffi::c_void;
     fn GetSystemMetrics(nIndex: i32) -> i32;
+    fn GetWindow(hWnd: *mut std::ffi::c_void, uCmd: u32) -> *mut std::ffi::c_void;
     fn DestroyWindow(hWnd: *mut std::ffi::c_void) -> i32;
 }
 
@@ -478,15 +479,14 @@ fn maintain_overlay_topmost(overlay_hwnd: *mut std::ffi::c_void) {
         let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
         let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
         if !league_hwnd.is_null() {
-            let fg = GetForegroundWindow();
-            // When League is running in Full Screen mode and active,
-            // ensure our transparent HUD window remains on top in the topmost Z-band
-            if fg == league_hwnd || fg == overlay_hwnd {
+            // Only update Z-order if the overlay has actually been covered by another window
+            let prev_wnd = GetWindow(overlay_hwnd, 3 /* GW_HWNDPREV */);
+            if !prev_wnd.is_null() {
                 SetWindowPos(
                     overlay_hwnd,
                     HWND_TOPMOST as *mut std::ffi::c_void,
                     0, 0, 0, 0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                 );
             }
         }
@@ -1178,12 +1178,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         tokio::spawn(async move {
                             if let Some(c) = creds {
                                 let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", c.token)));
-                                // Delete current page if one exists
-                                let del_url = format!("https://127.0.0.1:{}/lol-perks/v1/currentpage", c.port);
-                                let _ = client.delete(&del_url).header("Authorization", &auth).send().await;
+                                // Find and delete existing custom/editable rune pages
+                                let pages_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
+                                if let Ok(res) = client.get(&pages_url).header("Authorization", &auth).send().await {
+                                    if let Ok(pages) = res.json::<Vec<serde_json::Value>>().await {
+                                        for p in &pages {
+                                            let is_deletable = p.get("isDeletable").and_then(|v| v.as_bool()).unwrap_or(false);
+                                            let is_editable = p.get("isEditable").and_then(|v| v.as_bool()).unwrap_or(false);
+                                            if is_deletable || is_editable {
+                                                if let Some(pid) = p.get("id").and_then(|v| v.as_i64()) {
+                                                    let p_del = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
+                                                    let _ = client.delete(&p_del).header("Authorization", &auth).send().await;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
 
-                                // Create new page
-                                if let Some(pd) = page_data {
+                                // Create new page and make it current
+                                if let Some(mut pd) = page_data {
+                                    if let Some(obj) = pd.as_object_mut() {
+                                        obj.insert("current".to_string(), serde_json::Value::Bool(true));
+                                        obj.insert("isActive".to_string(), serde_json::Value::Bool(true));
+                                    }
                                     let create_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
                                     let _ = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
                                 }
@@ -1461,12 +1479,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                                 let script = "window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true })); window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
                                 let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
-                            }
-
-                            #[cfg(target_os = "windows")]
-                            {
-                                let hwnd = window_bg.hwnd() as *mut std::ffi::c_void;
-                                maintain_overlay_topmost(hwnd);
                             }
 
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&live_json) {

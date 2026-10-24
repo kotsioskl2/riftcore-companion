@@ -34,6 +34,40 @@ interface ChampSelectViewProps {
   onSelectChampion?: (championId: number) => void;
 }
 
+// Helper to extract active hovered or locked champion from League Client session
+export const extractLcuChampionId = (sess: ChampSelectSession | null): number => {
+  if (!sess) return 0;
+  const localCell = Number(sess.localPlayerCellId);
+
+  // 1. Check local player in myTeam FIRST (locked in, assigned in ARAM/Blind, or intent hovered)
+  if (Array.isArray(sess.myTeam)) {
+    const me = sess.myTeam.find((p) => Number(p.cellId) === localCell);
+    if (me) {
+      if (me.championId && Number(me.championId) > 0) return Number(me.championId);
+      if (me.championPickIntent && Number(me.championPickIntent) > 0) return Number(me.championPickIntent);
+    }
+  }
+
+  // 2. Check actions (active pick turn hover or completed picks)
+  if (Array.isArray(sess.actions)) {
+    for (const actionGroup of sess.actions) {
+      const group = Array.isArray(actionGroup) ? actionGroup : [actionGroup];
+      for (const action of group) {
+        if (Number(action?.actorCellId) === localCell && action?.type === 'pick') {
+          if (action?.isInProgress && action?.championId && Number(action.championId) > 0) {
+            return Number(action.championId);
+          }
+          if (action?.championId && Number(action.championId) > 0) {
+            return Number(action.championId);
+          }
+        }
+      }
+    }
+  }
+
+  return 0;
+};
+
 export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   session,
   selectedChampionId,
@@ -92,93 +126,56 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   const [itemSetMessage, setItemSetMessage] = useState<string>('');
   const [autoImport, setAutoImport] = useState(true);
 
-  // Helper to extract active hovered or locked champion from League Client session
-  const extractLcuChampionId = (sess: ChampSelectSession | null): number => {
-    if (!sess) return 0;
-    const localCell = Number(sess.localPlayerCellId);
-
-    // 1. Check in-progress pick actions FIRST (active hover or current pick turn)
-    if (Array.isArray(sess.actions)) {
-      for (const actionGroup of sess.actions) {
-        const group = Array.isArray(actionGroup) ? actionGroup : [actionGroup];
-        for (const action of group) {
-          if (Number(action?.actorCellId) === localCell && action?.type === 'pick') {
-            if (action?.isInProgress && action?.championId && action?.championId > 0) {
-              return action.championId;
-            }
-          }
-        }
-      }
-      // If none currently in progress, check any completed or queued pick action with championId
-      for (const actionGroup of sess.actions) {
-        const group = Array.isArray(actionGroup) ? actionGroup : [actionGroup];
-        for (const action of group) {
-          if (Number(action?.actorCellId) === localCell && action?.type === 'pick') {
-            if (action?.championId && action?.championId > 0) {
-              return action.championId;
-            }
-          }
-        }
-      }
-    }
-
-    // 2. Check local player in myTeam (locked in, assigned in ARAM/Blind, or intent hovered)
-    if (Array.isArray(sess.myTeam)) {
-      const me = sess.myTeam.find((p) => Number(p.cellId) === localCell);
-      if (me) {
-        if (me.championId && me.championId > 0) return me.championId;
-        if (me.championPickIntent && me.championPickIntent > 0) return me.championPickIntent;
-      }
-    }
-
-    return 0;
-  };
-
-  // Auto-sync ONLY when the LoL Client genuinely changes champion selection/hover
+  // Auto-sync whenever the LoL Client genuinely changes champion selection/hover
   useEffect(() => {
     if (!session) return;
     const lcuChampId = extractLcuChampionId(session);
-    if (lcuChampId <= 0) return;
-
-    if (isFirstMountRef.current) {
-      isFirstMountRef.current = false;
-      setLastSyncedLcuChampId(lcuChampId);
-      // Only set LCU champion on initial mount if user didn't explicitly request a specific champion
-      if (!selectedChampionId) {
-        setSelectedChampId(lcuChampId);
-        if (onSelectChampion) onSelectChampion(lcuChampId);
-      }
-      return;
-    }
-
-    if (lcuChampId !== lastSyncedLcuChampId) {
+    if (lcuChampId > 0 && lcuChampId !== selectedChampId) {
       setLastSyncedLcuChampId(lcuChampId);
       setSelectedChampId(lcuChampId);
       if (onSelectChampion) onSelectChampion(lcuChampId);
     }
-  }, [session, lastSyncedLcuChampId, selectedChampionId, onSelectChampion]);
+  }, [session, selectedChampId, onSelectChampion]);
 
-  // Sync when parent component passes a new selectedChampionId (e.g. from Tier List or Draft Simulator)
+  // Sync when parent component passes a new selectedChampionId
   useEffect(() => {
-    if (selectedChampionId && selectedChampionId > 0) {
+    if (selectedChampionId && selectedChampionId > 0 && selectedChampionId !== selectedChampId) {
       setSelectedChampId(selectedChampionId);
     }
-  }, [selectedChampionId]);
+  }, [selectedChampionId, selectedChampId]);
 
-  // Auto-import runes & in-game shop item sets to client if enabled
+  // Auto-import runes & in-game shop item sets to client whenever champion changes
   useEffect(() => {
-    if (autoImport && activeBuildData) {
-      if (window.riftAPI) {
-        window.riftAPI.importRunes({
-          name: `⚡ Rift: ${champ.name}`,
-          primaryStyleId: activeBuildData.primaryStyleId,
-          subStyleId: activeBuildData.subStyleId,
-          selectedPerkIds: activeBuildData.selectedPerkIds,
-        }).catch(() => {});
+    if (selectedChampId && selectedChampId > 0) {
+      const targetChamp = currentChampions.find((c) => Number(c.id) === Number(selectedChampId)) || currentChampions[0];
+      const targetBuild = getChampionBuild(targetChamp.id, targetChamp.name);
+      const runesToUse = customRunesByChamp[selectedChampId] || {
+        primaryStyleId: targetBuild.runes.primaryStyleId,
+        subStyleId: targetBuild.runes.subStyleId,
+        selectedPerkIds: targetBuild.runes.selectedPerkIds,
+      };
+
+      if (autoImport && window.riftAPI?.importRunes) {
+        setImportStatus('importing');
+        window.riftAPI
+          .importRunes({
+            name: `⚡ Rift: ${targetChamp.name}`,
+            primaryStyleId: runesToUse.primaryStyleId,
+            subStyleId: runesToUse.subStyleId,
+            selectedPerkIds: runesToUse.selectedPerkIds,
+          })
+          .then(() => {
+            setImportStatus('success');
+            setTimeout(() => setImportStatus('idle'), 2500);
+          })
+          .catch(() => {
+            setImportStatus('error');
+            setTimeout(() => setImportStatus('idle'), 2500);
+          });
       }
-      itemSetService.exportItemSetToClient(initialBuild).catch(() => {});
+      itemSetService.exportItemSetToClient(targetBuild).catch(() => {});
     }
-  }, [selectedChampId]);
+  }, [selectedChampId, autoImport]);
 
   // User chooses champion in RiftCore UI
   const handleSelectChampion = (champId: number) => {

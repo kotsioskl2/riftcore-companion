@@ -373,6 +373,94 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
     return () => clearInterval(timer);
   }, [isLive, isDemoMode, soundAlerts]);
 
+  // Live Game Objectives & Camps calculation from real in-game telemetry
+  useEffect(() => {
+    if (!isLive || !liveData?.gameData) return;
+    const gTime = Math.floor(liveData.gameData.gameTime);
+    const events = liveData.events?.Events || [];
+
+    // 1. Dragon calculation
+    // First dragon spawns at 5:00 (300s). Respawn is 300s (or 360s for Elder).
+    let nextDragonTime = 300;
+    const dragonKills = events.filter((e) => e.EventName === 'DragonKill');
+    if (dragonKills.length > 0) {
+      const lastKill = dragonKills[dragonKills.length - 1];
+      const cooldown = lastKill.DragonType === 'Elder' ? 360 : 300;
+      nextDragonTime = Math.floor(lastKill.EventTime) + cooldown;
+    }
+    const dragonRemaining = Math.max(0, nextDragonTime - gTime);
+
+    // 2. Voidgrubs / Rift Herald / Baron Nashor
+    let grubsHeraldName = 'Voidgrubs';
+    let grubsHeraldRemaining = 0;
+    let grubsHeraldTotal = 300;
+
+    if (gTime < 300) {
+      grubsHeraldName = 'Voidgrubs';
+      grubsHeraldRemaining = 300 - gTime;
+      grubsHeraldTotal = 300;
+    } else if (gTime < 840) {
+      grubsHeraldName = 'Voidgrubs';
+      const hordeKills = events.filter((e) => e.EventName === 'HordeKill');
+      if (hordeKills.length >= 6) {
+        grubsHeraldName = 'Rift Herald (14:00)';
+        grubsHeraldRemaining = Math.max(0, 840 - gTime);
+        grubsHeraldTotal = 840;
+      } else {
+        grubsHeraldRemaining = 0; // ALIVE
+      }
+    } else if (gTime < 1185) {
+      const heraldKills = events.filter((e) => e.EventName === 'HeraldKill');
+      if (heraldKills.length > 0) {
+        grubsHeraldName = 'Baron Nashor (20:00)';
+        grubsHeraldRemaining = Math.max(0, 1200 - gTime);
+        grubsHeraldTotal = 1200;
+      } else {
+        grubsHeraldName = 'Rift Herald';
+        grubsHeraldRemaining = 0; // ALIVE
+      }
+    } else {
+      grubsHeraldName = 'Baron Nashor';
+      grubsHeraldRemaining = Math.max(0, 1200 - gTime);
+      grubsHeraldTotal = 1200;
+    }
+
+    // Baron Nashor calculation
+    let nextBaronTime = 1200;
+    const baronKills = events.filter((e) => e.EventName === 'BaronKill');
+    if (baronKills.length > 0) {
+      const lastBaron = baronKills[baronKills.length - 1];
+      nextBaronTime = Math.floor(lastBaron.EventTime) + 360;
+    }
+    const baronRemaining = Math.max(0, nextBaronTime - gTime);
+
+    setSrObjectives([
+      { id: 'dragon', name: 'Elemental Dragon', respawnTime: dragonRemaining, total: 300, icon: '🐲', color: '#00c8ff' },
+      { id: 'grubs', name: grubsHeraldName, respawnTime: grubsHeraldRemaining, total: grubsHeraldTotal, icon: '👾', color: '#ff2a5f' },
+      { id: 'baron', name: 'Baron Nashor', respawnTime: baronRemaining, total: 360, icon: '👑', color: '#c084fc' },
+    ]);
+
+    // Live jungle camp first spawn countdowns (Red/Blue 90s, Scuttler 210s)
+    setSrJungleCamps((prev) =>
+      prev.map((camp) => {
+        if (camp.name.includes('Blue Buff') || camp.name.includes('Red Buff')) {
+          if (gTime < 90) {
+            return { ...camp, remaining: 90 - gTime, active: true };
+          } else if (camp.active && camp.remaining === 90 - gTime) {
+            return { ...camp, remaining: 0, active: false };
+          }
+        } else if (camp.name.includes('Scuttler')) {
+          if (gTime < 210) {
+            return { ...camp, remaining: 210 - gTime, active: true };
+          } else if (camp.active && camp.remaining === 210 - gTime) {
+            return { ...camp, remaining: 0, active: false };
+          }
+        }
+        return camp;
+      })
+    );
+  }, [liveData, isLive]);
+
   // Dynamically populate enemy summoner spells from live game data
   useEffect(() => {
     if (!liveData || !liveData.allPlayers || liveData.allPlayers.length === 0) return;

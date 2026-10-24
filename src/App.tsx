@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
-import { ChampSelectView } from './components/ChampSelectView';
+import { ChampSelectView, extractLcuChampionId } from './components/ChampSelectView';
 import { DraftSimulatorView } from './components/DraftSimulatorView';
 import { ChampionPoolBuilderView } from './components/ChampionPoolBuilderView';
 import { GameModesHubView } from './components/GameModesHubView';
@@ -160,6 +160,12 @@ export const App: React.FC = () => {
     // 5. Listen to Champ Select Session
     const unsubChamp = window.riftAPI.onChampSelectSession((session) => {
       setChampSelectSession(session);
+      if (session) {
+        const champId = extractLcuChampionId(session);
+        if (champId > 0) {
+          setActiveChampionId(champId);
+        }
+      }
     });
 
     // 6. Listen to Ready Check (Queue Pop)
@@ -249,6 +255,10 @@ export const App: React.FC = () => {
         const sess = await window.riftAPI.lcuRequest('/lol-champ-select/v1/session');
         if (isSubscribed && sess && !sess.errorCode) {
           setChampSelectSession(sess);
+          const champId = extractLcuChampionId(sess);
+          if (champId > 0) {
+            setActiveChampionId(champId);
+          }
         }
       } catch {}
     };
