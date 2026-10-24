@@ -48,6 +48,7 @@ export const AramHubView: React.FC = () => {
   const handleImportAramRunes = async () => {
     setImportStatus('importing');
     try {
+      if (window.riftAPI) {
         const safeChampName = (champ.name || 'Champion').replace(/[^a-zA-Z0-9 ]/g, '').trim();
         await window.riftAPI.importRunes({
           name: `RiftCore ARAM ${safeChampName}`,

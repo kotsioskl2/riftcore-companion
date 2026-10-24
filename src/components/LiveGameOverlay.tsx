@@ -26,7 +26,8 @@ import {
   Pin,
   ExternalLink,
   AlertTriangle,
-  HelpCircle
+  HelpCircle,
+  Eye
 } from 'lucide-react';
 import { LiveGameData, AppSettings } from '../types';
 import { soundService } from '../services/soundService';

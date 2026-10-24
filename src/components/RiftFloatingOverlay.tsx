@@ -204,7 +204,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
 
   // Opponent CS & delta
   const opponentCs = isLive
-    ? (laneOpponent?.scores?.creepScore ?? 0)
+    ? ((laneOpponent as any)?.scores?.creepScore ?? 0)
     : isDemoMode
     ? Math.max(0, Math.floor(currentCs - 14))
     : 0;
@@ -1409,7 +1409,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
 
               {/* Demo Mode Toggle */}
               <button
-                onClick={() => setIsDemoMode(!isDemoMode)}
+                onClick={() => setIsPreviewMode(!isPreviewMode)}
                 style={{
                   fontSize: '8.5px',
                   fontWeight: 800,
