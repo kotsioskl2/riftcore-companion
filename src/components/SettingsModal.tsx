@@ -192,6 +192,175 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
       </div>
 
+      {/* In-Game Overlay HUD Component Controls */}
+      <div className="glass-card">
+        <div className="card-header">
+          <div className="card-title">
+            <Monitor size={18} color="var(--blue-primary)" />
+            <span>In-Game Tactical HUD Overlays (Toggle Modules)</span>
+          </div>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--blue-primary)',
+              background: 'rgba(0, 210, 255, 0.1)',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              border: '1px solid rgba(0, 210, 255, 0.25)',
+            }}
+          >
+            Custom In-Game HUD
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* 1. Team Gold Lead & Scoreboard HUD */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🪙 Live Scoreboard & Team Gold Lead</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Displays real-time net team gold advantage and lane gold differential at the top center of your screen.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudGoldLead !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudGoldLead', settings.hudGoldLead === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* 2. CS Benchmark & Wave Pace Rating */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🌾 CS Benchmark & Wave Pace Rating</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Tracks CS/min against Challenger targets (8.4+ CS/min) with lane opponent creep score difference.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudCsBenchmark !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudCsBenchmark', settings.hudCsBenchmark === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* 3. Objective & Neutral Camp Timers */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🐉 Dragon, Baron & Camp Respawn Timers</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Live countdown timers for Elemental Dragon, Baron Nashor, Voidgrubs, and Red/Blue buff camps over your minimap.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudObjectiveTimers !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudObjectiveTimers', settings.hudObjectiveTimers === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* 4. Enemy Summoner Spell Cooldown Tracker */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>⚡ Enemy Summoner Spell Tracker</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Interactive click-to-track enemy Flash, Ghost, Teleport, and Ignite cooldowns with one-click chat sync.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudSpellTimers !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudSpellTimers', settings.hudSpellTimers === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* 5. Next Skill Upgrade Level-Up Indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏹 Next Skill Upgrade Ability Pointer</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Floating glowing arrow hovering directly above your Q/W/E/R ability bar pointing to your next level-up priority.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudSkillOrder !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudSkillOrder', settings.hudSkillOrder === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* 6. Core Item Goal & Base-Ready Alert */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🛒 Core Item Goal & Base Gold Alert</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Tracks remaining gold needed for your next core item and notifies you when you have enough gold to recall.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudItemGoal !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudItemGoal', settings.hudItemGoal === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* 7. Mayhem & Arena Augment Cards Overlay */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🃏 ARAM Mayhem & Arena Augment Drawer</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Provides in-game card tier recommendations (Prismatic, Gold, Silver) and optimal picks during selection rounds.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudMayhemCards !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudMayhemCards', settings.hudMayhemCards === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+
+          {/* 8. Jungle Leash & Pathing Predictor */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🧭 Jungle Leash & Pathing Predictor</span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Predicts level 1-4 clear pathing and alerts laners before high-risk gank windows at river scuttle respawns.
+              </div>
+            </div>
+            <div
+              className={`toggle-switch ${settings.hudJunglePathing !== false ? 'on' : ''}`}
+              onClick={() => onUpdateSetting('hudJunglePathing', settings.hudJunglePathing === false ? true : false)}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* App Typography & Tactical HUD Font Card */}
       <div className="glass-card">
         <div className="card-header">

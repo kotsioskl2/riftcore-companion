@@ -53,6 +53,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   closeToTray: true,
   riotApiKey: 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9',
   riotRegion: 'eun1',
+  hudGoldLead: true,
+  hudCsBenchmark: true,
+  hudObjectiveTimers: true,
+  hudSpellTimers: true,
+  hudSkillOrder: true,
+  hudItemGoal: true,
+  hudMayhemCards: true,
+  hudJunglePathing: true,
 };
 
 export function initRustBridge() {

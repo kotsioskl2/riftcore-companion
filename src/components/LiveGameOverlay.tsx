@@ -28,12 +28,13 @@ import {
   AlertTriangle,
   HelpCircle
 } from 'lucide-react';
-import { LiveGameData } from '../types';
+import { LiveGameData, AppSettings } from '../types';
 import { soundService } from '../services/soundService';
 import { MAYHEM_CARDS, searchMayhemCards, CardTier } from '../services/mayhemCardsData';
 
 interface LiveGameOverlayProps {
   liveData: LiveGameData | null;
+  settings?: AppSettings;
   isCompactMode?: boolean;
   isPinned?: boolean;
   onToggleCompact?: () => void;
@@ -71,6 +72,7 @@ interface AugmentItem {
 
 export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
   liveData,
+  settings,
   isCompactMode = false,
   isPinned = false,
   onToggleCompact,
@@ -683,7 +685,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
       {/* IN-GAME OVERLAY STATUS & FULLSCREEN ENGINE BANNER */}
       <div
@@ -692,10 +694,13 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
           padding: '12px 18px',
           border: isPinned ? '1px solid rgba(0, 200, 255, 0.4)' : '1px solid rgba(255, 170, 0, 0.4)',
           background: isPinned ? 'rgba(0, 200, 255, 0.05)' : 'rgba(255, 170, 0, 0.05)',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <div
               style={{
                 width: '32px',
@@ -705,11 +710,12 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
               {isPinned ? <Pin size={16} color="var(--blue-primary)" /> : <TrendingUp size={16} color="#00ffaa" />}
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
                   Fullscreen HUD Engine:
@@ -746,7 +752,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             {onTogglePin && (
               <button
                 onClick={onTogglePin}
@@ -792,24 +798,28 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 <span>{isCompactMode ? 'Expand Desktop View' : '✨ Toggle In-Game HUD (Alt+G)'}</span>
               </button>
             ) : (
-              <div
+              <button
+                onClick={handleToggleDemoMode}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '5px 12px',
+                  padding: '6px 13px',
                   borderRadius: '6px',
-                  background: 'rgba(0, 210, 255, 0.08)',
-                  border: '1px solid rgba(0, 210, 255, 0.22)',
+                  background: isDemoMode ? 'rgba(234, 179, 8, 0.15)' : 'rgba(0, 210, 255, 0.12)',
+                  border: isDemoMode ? '1px solid #facc15' : '1px solid var(--blue-primary)',
                   fontSize: '11px',
                   fontWeight: 800,
-                  color: 'var(--blue-primary)',
+                  color: isDemoMode ? '#facc15' : 'var(--blue-primary)',
+                  cursor: 'pointer',
+                  boxShadow: '0 0 12px rgba(0, 210, 255, 0.2)',
+                  transition: 'all 0.15s ease',
                 }}
-                title="Tactical HUD automatically anchors over League of Legends when your match starts (Alt+G)"
+                title="Tactical HUD automatically anchors over League when match starts. Click to test live simulation!"
               >
-                <Zap size={12} color="var(--blue-primary)" />
-                <span>HUD Anchors In-Game (Alt+G)</span>
-              </div>
+                {isDemoMode ? <RotateCcw size={12} color="#facc15" /> : <Eye size={12} color="var(--blue-primary)" />}
+                <span>{isDemoMode ? 'Stop Simulation' : '👁️ Preview HUD (Simulation)'}</span>
+              </button>
             )}
 
             <button
@@ -868,10 +878,10 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
       </div>
 
       {/* TOP CONTROLS & MODE SELECTOR */}
-      <div className="glass-card" style={{ padding: '14px 20px', border: '1px solid var(--border-blue)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+      <div className="glass-card" style={{ padding: '14px 20px', border: '1px solid var(--border-blue)', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', minWidth: 0, width: '100%' }}>
           {/* Mode Selector Tabs */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', minWidth: 0 }}>
             {(
               [
                 { mode: 'CLASSIC', label: "Summoner's Rift", icon: '⚔️' },
@@ -1010,405 +1020,416 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
       {activeMode === 'CLASSIC' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* CS Benchmark & Pace */}
-          <div className="glass-card" style={{ padding: '14px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <TrendingUp size={18} color="var(--blue-primary)" />
-                <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
-                  Live CS Performance & Farm Pace
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '13px', color: '#94a3b8' }}>
-                  CS: <strong style={{ color: '#fff' }}>{currentCs}</strong> ({csPerMin} CS/min)
-                </span>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    padding: '3px 10px',
-                    borderRadius: '4px',
-                    background: 'rgba(0, 200, 255, 0.1)',
-                    color: csRating.color,
-                    border: `1px solid ${csRating.color}`,
-                  }}
-                >
-                  {csRating.tier}
-                </span>
+          {settings?.hudCsBenchmark !== false && (
+            <div className="glass-card" style={{ padding: '14px 20px', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <TrendingUp size={18} color="var(--blue-primary)" />
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
+                    Live CS Performance & Farm Pace
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+                    CS: <strong style={{ color: '#fff' }}>{currentCs}</strong> ({csPerMin} CS/min)
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      padding: '3px 10px',
+                      borderRadius: '4px',
+                      background: 'rgba(0, 200, 255, 0.1)',
+                      color: csRating.color,
+                      border: `1px solid ${csRating.color}`,
+                    }}
+                  >
+                    {csRating.tier}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* EARLY JUNGLE LEASH & PATH PREDICTOR */}
-          <div
-            className="glass-card"
-            style={{
-              padding: '16px 20px',
-              border: '1px solid rgba(0, 200, 255, 0.3)',
-              background: 'linear-gradient(90deg, rgba(0, 200, 255, 0.05) 0%, rgba(11, 18, 30, 0.7) 100%)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Compass size={18} color="var(--blue-primary)" />
-                <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
-                  Early Game Jungle Leash & Route Predictor
-                </span>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(0, 200, 255, 0.15)',
-                    color: 'var(--blue-primary)',
-                    border: '1px solid var(--border-blue)',
-                  }}
-                >
-                  PRO SCOUT
-                </span>
-              </div>
-
-              {/* Leash Selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Observed Start:</span>
-                <button
-                  onClick={() => setJungleStart('bot')}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    background: jungleStart === 'bot' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
-                    color: jungleStart === 'bot' ? '#000' : '#cbd5e1',
-                    border: jungleStart === 'bot' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
-                  }}
-                >
-                  Bot Leash (90%)
-                </button>
-                <button
-                  onClick={() => setJungleStart('top')}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    background: jungleStart === 'top' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
-                    color: jungleStart === 'top' ? '#000' : '#cbd5e1',
-                    border: jungleStart === 'top' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
-                  }}
-                >
-                  Top Leash
-                </button>
-                <button
-                  onClick={() => setJungleStart('solo')}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    background: jungleStart === 'solo' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
-                    color: jungleStart === 'solo' ? '#000' : '#cbd5e1',
-                    border: jungleStart === 'solo' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
-                  }}
-                >
-                  Solo / Raptors
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-              {/* Predicted Path Step-by-Step */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Predicted Route (Level 1 to 4)
-                </div>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  {jungleStart === 'bot' ? (
-                    <>
-                      <span style={{ color: '#00c8ff' }}>Bot Buff (1:30)</span>
-                      <span>➔</span>
-                      <span>Gromp / Wolves</span>
-                      <span>➔</span>
-                      <span style={{ color: '#f59e0b' }}>Top Buff (2:45)</span>
-                      <span>➔</span>
-                      <span style={{ color: '#ff2a5f' }}>Top Scuttle (3:30)</span>
-                    </>
-                  ) : jungleStart === 'top' ? (
-                    <>
-                      <span style={{ color: '#00c8ff' }}>Top Buff (1:30)</span>
-                      <span>➔</span>
-                      <span>Wolves / Raptors</span>
-                      <span>➔</span>
-                      <span style={{ color: '#f59e0b' }}>Bot Buff (2:45)</span>
-                      <span>➔</span>
-                      <span style={{ color: '#ff2a5f' }}>Bot Scuttle (3:30)</span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ color: '#00c8ff' }}>Raptors / Wolves (1:30)</span>
-                      <span>➔</span>
-                      <span>Full Clear to Opposite Side</span>
-                      <span>➔</span>
-                      <span style={{ color: '#ff2a5f' }}>Scuttle Contest (3:30)</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Gank Warning & Scuttle Countdown */}
-              <div
-                style={{
-                  background: jungleStart === 'bot' ? 'rgba(255, 42, 95, 0.08)' : 'rgba(0, 200, 255, 0.08)',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: `1px solid ${jungleStart === 'bot' ? 'rgba(255, 42, 95, 0.3)' : 'rgba(0, 200, 255, 0.3)'}`,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: jungleStart === 'bot' ? 'var(--red-primary)' : 'var(--blue-primary)', textTransform: 'uppercase' }}>
-                    {jungleStart === 'bot' ? '⚠️ High Alert: Top & Mid Lanes' : '⚠️ High Alert: Bot & Mid Lanes'}
-                  </div>
-                  <div
-                    className="tabular-nums"
-                    style={{ fontSize: '12px', fontFamily: 'var(--font-timer)', fontWeight: 800, letterSpacing: '0.6px', color: '#facc15' }}
+          {settings?.hudJunglePathing !== false && (
+            <div
+              className="glass-card"
+              style={{
+                padding: '16px 20px',
+                border: '1px solid rgba(0, 200, 255, 0.3)',
+                background: 'linear-gradient(90deg, rgba(0, 200, 255, 0.05) 0%, rgba(11, 18, 30, 0.7) 100%)',
+                minWidth: 0,
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Compass size={18} color="var(--blue-primary)" />
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
+                    Early Game Jungle Leash & Route Predictor
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: 'rgba(0, 200, 255, 0.15)',
+                      color: 'var(--blue-primary)',
+                      border: '1px solid var(--border-blue)',
+                    }}
                   >
-                    {activeGameTime < 210 ? `Scuttle in ${formatTime(210 - activeGameTime)}` : 'Scuttles Active'}
+                    PRO SCOUT
+                  </span>
+                </div>
+
+                {/* Leash Selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Observed Start:</span>
+                  <button
+                    onClick={() => setJungleStart('bot')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      background: jungleStart === 'bot' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
+                      color: jungleStart === 'bot' ? '#000' : '#cbd5e1',
+                      border: jungleStart === 'bot' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    Bot Leash (90%)
+                  </button>
+                  <button
+                    onClick={() => setJungleStart('top')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      background: jungleStart === 'top' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
+                      color: jungleStart === 'top' ? '#000' : '#cbd5e1',
+                      border: jungleStart === 'top' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    Top Leash
+                  </button>
+                  <button
+                    onClick={() => setJungleStart('solo')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      background: jungleStart === 'solo' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.05)',
+                      color: jungleStart === 'solo' ? '#000' : '#cbd5e1',
+                      border: jungleStart === 'solo' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    Solo / Raptors
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+                {/* Predicted Path Step-by-Step */}
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Predicted Route (Level 1 to 4)
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    {jungleStart === 'bot' ? (
+                      <>
+                        <span style={{ color: '#00c8ff' }}>Bot Buff (1:30)</span>
+                        <span>➔</span>
+                        <span>Gromp / Wolves</span>
+                        <span>➔</span>
+                        <span style={{ color: '#f59e0b' }}>Top Buff (2:45)</span>
+                        <span>➔</span>
+                        <span style={{ color: '#ff2a5f' }}>Top Scuttle (3:30)</span>
+                      </>
+                    ) : jungleStart === 'top' ? (
+                      <>
+                        <span style={{ color: '#00c8ff' }}>Top Buff (1:30)</span>
+                        <span>➔</span>
+                        <span>Wolves / Raptors</span>
+                        <span>➔</span>
+                        <span style={{ color: '#f59e0b' }}>Bot Buff (2:45)</span>
+                        <span>➔</span>
+                        <span style={{ color: '#ff2a5f' }}>Bot Scuttle (3:30)</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ color: '#00c8ff' }}>Raptors / Wolves (1:30)</span>
+                        <span>➔</span>
+                        <span>Full Clear to Opposite Side</span>
+                        <span>➔</span>
+                        <span style={{ color: '#ff2a5f' }}>Scuttle Contest (3:30)</span>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
-                  {jungleStart === 'bot'
-                    ? 'Enemy jungler will reach Top River around 3:15–3:30. Top laners: ward river bush at 2:45 and play toward safe side!'
-                    : 'Enemy jungler will reach Bot River around 3:15–3:30. Bot laners: avoid overextending after 3:10 and watch for gank!'}
+
+                {/* Gank Warning & Scuttle Countdown */}
+                <div
+                  style={{
+                    background: jungleStart === 'bot' ? 'rgba(255, 42, 95, 0.08)' : 'rgba(0, 200, 255, 0.08)',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: `1px solid ${jungleStart === 'bot' ? 'rgba(255, 42, 95, 0.3)' : 'rgba(0, 200, 255, 0.3)'}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: jungleStart === 'bot' ? 'var(--red-primary)' : 'var(--blue-primary)', textTransform: 'uppercase' }}>
+                      {jungleStart === 'bot' ? '⚠️ High Alert: Top & Mid Lanes' : '⚠️ High Alert: Bot & Mid Lanes'}
+                    </div>
+                    <div
+                      className="tabular-nums"
+                      style={{ fontSize: '12px', fontFamily: 'var(--font-timer)', fontWeight: 800, letterSpacing: '0.6px', color: '#facc15' }}
+                    >
+                      {activeGameTime < 210 ? `Scuttle in ${formatTime(210 - activeGameTime)}` : 'Scuttles Active'}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
+                    {jungleStart === 'bot'
+                      ? 'Enemy jungler will reach Top River around 3:15–3:30. Top laners: ward river bush at 2:45 and play toward safe side!'
+                      : 'Enemy jungler will reach Bot River around 3:15–3:30. Bot laners: avoid overextending after 3:10 and watch for gank!'}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Epics & Camps */}
-          <div className="glass-card" style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Award size={16} color="var(--blue-primary)" />
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
-                  Objective Spawn Timers
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => setSrActiveTab('epics')}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    background: srActiveTab === 'epics' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.04)',
-                    color: srActiveTab === 'epics' ? '#000' : '#94a3b8',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  Epic Monsters
-                </button>
-                <button
-                  onClick={() => setSrActiveTab('jungle')}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    background: srActiveTab === 'jungle' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.04)',
-                    color: srActiveTab === 'jungle' ? '#000' : '#94a3b8',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  Jungle Camps
-                </button>
-              </div>
-            </div>
-
-            {srActiveTab === 'epics' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                {srObjectives.map((obj) => (
-                  <div
-                    key={obj.id}
+          {settings?.hudObjectiveTimers !== false && (
+            <div className="glass-card" style={{ padding: '16px', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Award size={16} color="var(--blue-primary)" />
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
+                    Objective Spawn Timers
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={() => setSrActiveTab('epics')}
                     style={{
-                      padding: '12px 14px',
-                      borderRadius: '8px',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: `1px solid ${obj.color}40`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '24px' }}>{obj.icon}</span>
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{obj.name}</div>
-                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>Respawn: {formatTime(obj.total)}</div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div
-                        className="tabular-nums"
-                        style={{
-                          fontSize: '17px',
-                          fontWeight: 800,
-                          fontFamily: 'var(--font-timer)',
-                          letterSpacing: '0.8px',
-                          color: obj.respawnTime > 0 ? obj.color : '#22c55e',
-                        }}
-                      >
-                        {obj.respawnTime > 0 ? formatTime(obj.respawnTime) : 'ALIVE'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
-                {srJungleCamps.map((camp, idx) => (
-                  <div
-                    key={camp.name}
-                    onClick={() => {
-                      setSrJungleCamps((prev) => {
-                        const copy = [...prev];
-                        copy[idx].active = !copy[idx].active;
-                        copy[idx].remaining = copy[idx].active ? copy[idx].respawnDuration : 0;
-                        return copy;
-                      });
-                    }}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      background: camp.active ? 'rgba(255, 42, 95, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                      border: camp.active ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 700,
                       cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{ fontSize: '12px', color: '#fff' }}>
-                      {camp.icon} {camp.name}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontFamily: 'var(--font-mono)',
-                        fontWeight: 800,
-                        color: camp.active ? 'var(--red-primary)' : '#22c55e',
-                      }}
-                    >
-                      {camp.active ? formatTime(camp.remaining) : 'READY'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Enemy Summoner Spells */}
-          <div className="glass-card" style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldAlert size={16} color="var(--red-primary)" />
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
-                  Enemy Summoner Spell Timers (Click to Start Countdown)
-                </span>
-              </div>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>
-                Formatted ready times for League team chat
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'].map((role) => {
-                const roleSpells = srEnemySpells
-                  .map((s, idx) => ({ ...s, index: idx }))
-                  .filter((s) => s.role === role);
-
-                return (
-                  <div
-                    key={role}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 14px',
-                      borderRadius: '6px',
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: srActiveTab === 'epics' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.04)',
+                      color: srActiveTab === 'epics' ? '#000' : '#94a3b8',
                       border: '1px solid var(--border-subtle)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '150px' }}>
-                      <span
-                        style={{
-                          fontSize: '10px',
-                          fontWeight: 800,
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          background: 'rgba(255, 42, 95, 0.1)',
-                          color: 'var(--red-primary)',
-                          border: '1px solid var(--border-red)',
-                        }}
-                      >
-                        {role}
-                      </span>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>
-                        {roleSpells[0]?.champion || 'Enemy'}
-                      </span>
-                    </div>
+                    Epic Monsters
+                  </button>
+                  <button
+                    onClick={() => setSrActiveTab('jungle')}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      background: srActiveTab === 'jungle' ? 'var(--blue-primary)' : 'rgba(255,255,255,0.04)',
+                      color: srActiveTab === 'jungle' ? '#000' : '#94a3b8',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    Jungle Camps
+                  </button>
+                </div>
+              </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {roleSpells.map((s) => (
-                        <button
-                          key={s.index}
-                          onClick={() => triggerSrSpell(s.index)}
+              {srActiveTab === 'epics' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                  {srObjectives.map((obj) => (
+                    <div
+                      key={obj.id}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: `1px solid ${obj.color}40`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '24px' }}>{obj.icon}</span>
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{obj.name}</div>
+                          <div style={{ fontSize: '10px', color: '#94a3b8' }}>Respawn: {formatTime(obj.total)}</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div
+                          className="tabular-nums"
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '5px 10px',
-                            borderRadius: '4px',
-                            background: s.timerActive ? 'rgba(255, 42, 95, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                            border: s.timerActive ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
-                            cursor: 'pointer',
-                            minWidth: '95px',
+                            fontSize: '17px',
+                            fontWeight: 800,
+                            fontFamily: 'var(--font-timer)',
+                            letterSpacing: '0.8px',
+                            color: obj.respawnTime > 0 ? obj.color : '#22c55e',
                           }}
                         >
-                          <img
-                            src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/Summoner${s.spellName === 'Ghost' ? 'Haste' : s.spellName === 'Ignite' ? 'Dot' : s.spellName === 'Cleanse' ? 'Boost' : s.spellName}.png`}
-                            alt={s.spellName}
-                            style={{ width: '18px', height: '18px', borderRadius: '3px' }}
-                            onError={(e) => { (e.target as any).style.display = 'none'; }}
-                          />
-                          <div style={{ textAlign: 'left' }}>
-                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#fff' }}>{s.spellName}</div>
-                            <div
-                              style={{
-                                fontSize: '10px',
-                                fontFamily: 'var(--font-mono)',
-                                color: s.timerActive ? 'var(--red-primary)' : '#22c55e',
-                                fontWeight: 700,
-                              }}
-                            >
-                              {s.timerActive ? formatTime(s.cooldownRemaining) : 'READY'}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                          {obj.respawnTime > 0 ? formatTime(obj.respawnTime) : 'ALIVE'}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+                  {srJungleCamps.map((camp, idx) => (
+                    <div
+                      key={camp.name}
+                      onClick={() => {
+                        setSrJungleCamps((prev) => {
+                          const copy = [...prev];
+                          copy[idx].active = !copy[idx].active;
+                          copy[idx].remaining = copy[idx].active ? copy[idx].respawnDuration : 0;
+                          return copy;
+                        });
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        background: camp.active ? 'rgba(255, 42, 95, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                        border: camp.active ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ fontSize: '12px', color: '#fff' }}>
+                        {camp.icon} {camp.name}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 800,
+                          color: camp.active ? 'var(--red-primary)' : '#22c55e',
+                        }}
+                      >
+                        {camp.active ? formatTime(camp.remaining) : 'READY'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* Enemy Summoner Spells */}
+          {settings?.hudSpellTimers !== false && (
+            <div className="glass-card" style={{ padding: '16px', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShieldAlert size={16} color="var(--red-primary)" />
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
+                    Enemy Summoner Spell Timers (Click to Start Countdown)
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  Formatted ready times for League team chat
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'].map((role) => {
+                  const roleSpells = srEnemySpells
+                    .map((s, idx) => ({ ...s, index: idx }))
+                    .filter((s) => s.role === role);
+
+                  return (
+                    <div
+                      key={role}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 14px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '85px' }}>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: 'rgba(255, 42, 95, 0.1)',
+                            color: 'var(--red-primary)',
+                            border: '1px solid var(--border-red)',
+                          }}
+                        >
+                          {role}
+                        </span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>
+                          {roleSpells[0]?.champion || 'Enemy'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {roleSpells.map((s) => (
+                          <button
+                            key={s.index}
+                            onClick={() => triggerSrSpell(s.index)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '5px 10px',
+                              borderRadius: '4px',
+                              background: s.timerActive ? 'rgba(255, 42, 95, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                              border: s.timerActive ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
+                              cursor: 'pointer',
+                              minWidth: '95px',
+                            }}
+                          >
+                            <img
+                              src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/Summoner${s.spellName === 'Ghost' ? 'Haste' : s.spellName === 'Ignite' ? 'Dot' : s.spellName === 'Cleanse' ? 'Boost' : s.spellName}.png`}
+                              alt={s.spellName}
+                              style={{ width: '18px', height: '18px', borderRadius: '3px' }}
+                              onError={(e) => { (e.target as any).style.display = 'none'; }}
+                            />
+                            <div style={{ textAlign: 'left' }}>
+                              <div style={{ fontSize: '10px', fontWeight: 700, color: '#fff' }}>{s.spellName}</div>
+                              <div
+                                style={{
+                                  fontSize: '10px',
+                                  fontFamily: 'var(--font-mono)',
+                                  color: s.timerActive ? 'var(--red-primary)' : '#22c55e',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {s.timerActive ? formatTime(s.cooldownRemaining) : 'READY'}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1609,117 +1630,119 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
           </div>
 
           {/* ARAM Mayhem Augment Cards & In-Round Selector */}
-          <div className="glass-card" style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={16} color="#c084fc" />
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
-                  ARAM Mayhem Cards & Instant Tier Advice
-                </span>
-                <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                  (Draft Rounds)
-                </span>
-              </div>
-
-              {/* Filters */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ display: 'flex', gap: '3px' }}>
-                  {(['ALL', 'Prismatic', 'Gold', 'Silver'] as const).map((tier) => (
-                    <button
-                      key={tier}
-                      onClick={() => setAramCardTierFilter(tier)}
-                      style={{
-                        fontSize: '9px',
-                        fontWeight: 800,
-                        padding: '2px 7px',
-                        borderRadius: '4px',
-                        background: aramCardTierFilter === tier ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.03)',
-                        border: aramCardTierFilter === tier ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid transparent',
-                        color: tier === 'Prismatic' ? '#c084fc' : tier === 'Gold' ? '#f59e0b' : tier === 'Silver' ? '#94a3b8' : '#fff',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {tier}
-                    </button>
-                  ))}
+          {settings?.hudMayhemCards !== false && (
+            <div className="glass-card" style={{ padding: '16px', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sparkles size={16} color="#c084fc" />
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
+                    ARAM Mayhem Cards & Instant Tier Advice
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                    (Draft Rounds)
+                  </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Search size={12} color="#94a3b8" />
-                  <input
-                    type="text"
-                    placeholder="Search Mayhem card..."
-                    value={aramCardSearch}
-                    onChange={(e) => setAramCardSearch(e.target.value)}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      background: 'rgba(0, 0, 0, 0.35)',
-                      border: '1px solid var(--border-subtle)',
-                      color: '#fff',
-                      fontSize: '11px',
-                      width: '140px',
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
-              {searchMayhemCards(aramCardSearch, aramCardTierFilter, 'ARAM').map((card) => (
-                <div
-                  key={card.id}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: `1px solid ${card.color}33`,
-                    borderLeft: `3px solid ${card.color}`,
-                    borderRadius: '6px',
-                    padding: '8px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '3px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{card.name}</span>
-                      <span
+                {/* Filters */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', gap: '3px' }}>
+                    {(['ALL', 'Prismatic', 'Gold', 'Silver'] as const).map((tier) => (
+                      <button
+                        key={tier}
+                        onClick={() => setAramCardTierFilter(tier)}
                         style={{
-                          fontSize: '8.5px',
+                          fontSize: '9px',
                           fontWeight: 800,
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: `${card.color}18`,
-                          color: card.color,
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          background: aramCardTierFilter === tier ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.03)',
+                          border: aramCardTierFilter === tier ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid transparent',
+                          color: tier === 'Prismatic' ? '#c084fc' : tier === 'Gold' ? '#f59e0b' : tier === 'Silver' ? '#94a3b8' : '#fff',
+                          cursor: 'pointer',
                         }}
                       >
-                        {card.tier}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '8.5px',
-                          fontWeight: 900,
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: card.rank === 'S+' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
-                          color: card.rank === 'S+' ? '#ef4444' : '#22c55e',
-                        }}
-                      >
-                        {card.rank} Tier
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '8.5px', color: '#64748b', fontWeight: 700 }}>{card.tag}</span>
+                        {tier}
+                      </button>
+                    ))}
                   </div>
-                  <div style={{ fontSize: '10.5px', color: '#cbd5e1', lineHeight: '1.35' }}>
-                    {card.description}
-                  </div>
-                  <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>
-                    <strong style={{ color: 'var(--blue-primary)' }}>Best For:</strong> {card.archetype}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Search size={12} color="#94a3b8" />
+                    <input
+                      type="text"
+                      placeholder="Search Mayhem card..."
+                      value={aramCardSearch}
+                      onChange={(e) => setAramCardSearch(e.target.value)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        background: 'rgba(0, 0, 0, 0.35)',
+                        border: '1px solid var(--border-subtle)',
+                        color: '#fff',
+                        fontSize: '11px',
+                        width: '140px',
+                      }}
+                    />
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                {searchMayhemCards(aramCardSearch, aramCardTierFilter, 'ARAM').map((card) => (
+                  <div
+                    key={card.id}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: `1px solid ${card.color}33`,
+                      borderLeft: `3px solid ${card.color}`,
+                      borderRadius: '6px',
+                      padding: '8px 10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '3px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{card.name}</span>
+                        <span
+                          style={{
+                            fontSize: '8.5px',
+                            fontWeight: 800,
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            background: `${card.color}18`,
+                            color: card.color,
+                          }}
+                        >
+                          {card.tier}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '8.5px',
+                            fontWeight: 900,
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            background: card.rank === 'S+' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                            color: card.rank === 'S+' ? '#ef4444' : '#22c55e',
+                          }}
+                        >
+                          {card.rank} Tier
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '8.5px', color: '#64748b', fontWeight: 700 }}>{card.tag}</span>
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: '#cbd5e1', lineHeight: '1.35' }}>
+                      {card.description}
+                    </div>
+                    <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>
+                      <strong style={{ color: 'var(--blue-primary)' }}>Best For:</strong> {card.archetype}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1806,106 +1829,108 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
           </div>
 
           {/* In-Round Augment Search & Tier List */}
-          <div className="glass-card" style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={16} color="var(--blue-primary)" />
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
-                  Arena Augment Companion & Instant Tier Advice
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Search size={13} color="#94a3b8" />
-                <input
-                  type="text"
-                  placeholder="Search augment name..."
-                  value={augmentSearch}
-                  onChange={(e) => setAugmentSearch(e.target.value)}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '4px',
-                    background: 'rgba(0,0,0,0.3)',
-                    border: '1px solid var(--border-subtle)',
-                    color: '#fff',
-                    fontSize: '11px',
-                    width: '160px',
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
-              {arenaAugments
-                .filter((aug) => aug.name.toLowerCase().includes(augmentSearch.toLowerCase()) || aug.role.toLowerCase().includes(augmentSearch.toLowerCase()))
-                .map((aug) => (
-                  <div
-                    key={aug.name}
+          {settings?.hudMayhemCards !== false && (
+            <div className="glass-card" style={{ padding: '16px', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sparkles size={16} color="var(--blue-primary)" />
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
+                    Arena Augment Companion & Instant Tier Advice
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Search size={13} color="#94a3b8" />
+                  <input
+                    type="text"
+                    placeholder="Search augment name..."
+                    value={augmentSearch}
+                    onChange={(e) => setAugmentSearch(e.target.value)}
                     style={{
-                      padding: '10px 14px',
-                      borderRadius: '6px',
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      background: 'rgba(0,0,0,0.3)',
                       border: '1px solid var(--border-subtle)',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: '12px',
+                      color: '#fff',
+                      fontSize: '11px',
+                      width: '160px',
                     }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>{aug.name}</span>
-                        <span
-                          style={{
-                            fontSize: '9px',
-                            fontWeight: 800,
-                            padding: '1px 6px',
-                            borderRadius: '3px',
-                            background:
-                              aug.tier === 'Prismatic'
-                                ? 'rgba(192, 132, 252, 0.2)'
-                                : aug.tier === 'Gold'
-                                ? 'rgba(250, 204, 21, 0.2)'
-                                : 'rgba(148, 163, 184, 0.2)',
-                            color:
-                              aug.tier === 'Prismatic'
-                                ? '#c084fc'
-                                : aug.tier === 'Gold'
-                                ? '#facc15'
-                                : '#94a3b8',
-                            border: `1px solid ${
-                              aug.tier === 'Prismatic'
-                                ? '#c084fc'
-                                : aug.tier === 'Gold'
-                                ? '#facc15'
-                                : '#94a3b8'
-                            }`,
-                          }}
-                        >
-                          {aug.tier}
-                        </span>
-                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>Best on: {aug.role}</span>
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '4px', lineHeight: '1.4' }}>
-                        {aug.description}
-                      </div>
-                    </div>
-                    <span
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                {arenaAugments
+                  .filter((aug) => aug.name.toLowerCase().includes(augmentSearch.toLowerCase()) || aug.role.toLowerCase().includes(augmentSearch.toLowerCase()))
+                  .map((aug) => (
+                    <div
+                      key={aug.name}
                       style={{
-                        fontSize: '12px',
-                        fontWeight: 900,
-                        color: 'var(--blue-primary)',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        background: 'rgba(0, 200, 255, 0.1)',
-                        border: '1px solid var(--border-blue)',
+                        padding: '10px 14px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: '12px',
                       }}
                     >
-                      {aug.rank}
-                    </span>
-                  </div>
-                ))}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>{aug.name}</span>
+                          <span
+                            style={{
+                              fontSize: '9px',
+                              fontWeight: 800,
+                              padding: '1px 6px',
+                              borderRadius: '3px',
+                              background:
+                                aug.tier === 'Prismatic'
+                                  ? 'rgba(192, 132, 252, 0.2)'
+                                  : aug.tier === 'Gold'
+                                  ? 'rgba(250, 204, 21, 0.2)'
+                                  : 'rgba(148, 163, 184, 0.2)',
+                              color:
+                                aug.tier === 'Prismatic'
+                                  ? '#c084fc'
+                                  : aug.tier === 'Gold'
+                                  ? '#facc15'
+                                  : '#94a3b8',
+                              border: `1px solid ${
+                                aug.tier === 'Prismatic'
+                                  ? '#c084fc'
+                                  : aug.tier === 'Gold'
+                                  ? '#facc15'
+                                  : '#94a3b8'
+                              }`,
+                            }}
+                          >
+                            {aug.tier}
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>Best on: {aug.role}</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '4px', lineHeight: '1.4' }}>
+                          {aug.description}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 900,
+                          color: 'var(--blue-primary)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(0, 200, 255, 0.1)',
+                          border: '1px solid var(--border-blue)',
+                        }}
+                      >
+                        {aug.rank}
+                      </span>
+                    </div>
+                  ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

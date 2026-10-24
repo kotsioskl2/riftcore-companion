@@ -213,6 +213,16 @@ export interface AppSettings {
   closeToTray?: boolean;
   riotApiKey?: string;
   riotRegion?: string;
+
+  // In-Game Tactical HUD Overlay Modules (Per-component toggle)
+  hudGoldLead?: boolean;
+  hudCsBenchmark?: boolean;
+  hudObjectiveTimers?: boolean;
+  hudSpellTimers?: boolean;
+  hudSkillOrder?: boolean;
+  hudItemGoal?: boolean;
+  hudMayhemCards?: boolean;
+  hudJunglePathing?: boolean;
 }
 
 declare global {

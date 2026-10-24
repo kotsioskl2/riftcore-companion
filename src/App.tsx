@@ -56,6 +56,14 @@ export const App: React.FC = () => {
     closeToTray: true,
     riotApiKey: 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9',
     riotRegion: 'eun1',
+    hudGoldLead: true,
+    hudCsBenchmark: true,
+    hudObjectiveTimers: true,
+    hudSpellTimers: true,
+    hudSkillOrder: true,
+    hudItemGoal: true,
+    hudMayhemCards: true,
+    hudJunglePathing: true,
   });
 
   // Sync font preference to HTML root
@@ -395,6 +403,7 @@ export const App: React.FC = () => {
       <div className="app-container compact-mode" style={{ background: 'transparent' }}>
         <RiftFloatingOverlay
           liveData={liveData}
+          settings={settings}
           onExpand={handleToggleCompact}
           onMinimize={() => window.riftAPI?.windowControl('minimize')}
         />
@@ -516,6 +525,7 @@ export const App: React.FC = () => {
           {activeTab === 'live-overlay' && (
             <LiveGameOverlay
               liveData={liveData}
+              settings={settings}
               isCompactMode={isCompactMode}
               isPinned={isPinned}
               onToggleCompact={handleToggleCompact}

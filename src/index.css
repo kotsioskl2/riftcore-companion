@@ -394,6 +394,8 @@ html.compact-mode {
 .app-content {
   display: flex;
   flex: 1;
+  min-width: 0;
+  width: 100%;
   overflow: hidden;
   position: relative;
   z-index: 1;
@@ -543,6 +545,9 @@ html.compact-mode {
 /* Viewport Area */
 .main-viewport {
   flex: 1;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden !important;
   overflow-anchor: none !important;
@@ -556,6 +561,9 @@ html.compact-mode {
 
 /* Finer Glass Cards */
 .glass-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   background: var(--bg-card);
   backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid var(--border-card);
