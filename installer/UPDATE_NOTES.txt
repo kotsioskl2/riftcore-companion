@@ -1,33 +1,31 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v1.1.1
+       RIFTCORE COMPANION - UPDATE v1.1.2
 --------------------------------------------------
 
-Hey! Welcome to v1.1.1. Here is what you need to know:
+Hey! Welcome to v1.1.2. Here is what is new:
+
+* In-App Automatic Updates:
+  Never miss a patch! RiftCore now checks GitHub
+  Releases automatically and lets you download and
+  upgrade with 1 click without ever opening a browser.
+
+* Pure Native Rust Engine (90% Smaller):
+  Completely removed legacy Electron bloat! The app
+  now runs 100% natively on Rust and Windows WebView2,
+  dropping the installer to just ~5MB with zero RAM waste.
+
+* Vanguard Safe & Zero Delay:
+  Compliant with Riot Games third-party policies.
+  Reads official local client memory/LCU APIs only.
 
 * Full Screen In-Game HUD:
   Works natively over League of Legends in Full
   Screen mode with zero mouse lag and click-through.
   Hit Alt + G in-game anytime to show or hide it.
 
-* Standby Overlay Guard:
-  Automatically remains idle in Standby when you're
-  not in a match, keeping your desktop clean.
-
-* Tab Section Gold Difference:
-  Shows real-time team gold lead/deficit and lane
-  matchup difference right at the top scoreboard.
-
-* Objective & Camp Timers:
-  Clean floating dock above the minimap for Dragon,
-  Baron, Voidgrubs, Blue Buff, and Red Buff.
-
-* Small CS Score Tracker:
-  Discreet CS score and CS/min pill beside your game
-  clock with live matchup comparison.
-
-* Skill Level-Up Indicator:
-  Arrow directly above your ability bar showing your
-  optimal skill upgrade for the next level.
+* Live Matchup & Objective Timers:
+  Shows team gold diff, lane matchup CS leads, and
+  floating objective timers right above the minimap.
 
 Enjoy the climb! Simple, lightweight, and Vanguard-safe.
 --------------------------------------------------

@@ -195,7 +195,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
               marginRight: '6px',
               transition: 'all 0.18s ease',
             }}
-            title="View What's New & v1.1.1 Update Notes"
+            title="View What's New & v1.1.2 Update Notes"
           >
             <Sparkles size={10} color="var(--blue-primary)" />
             <span>What's New</span>

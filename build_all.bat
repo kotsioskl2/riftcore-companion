@@ -40,7 +40,7 @@ copy /Y "riftcore-native\icon.ico" "RiftCore_Rust_Portable\icon.ico" >nul
 echo.
 echo [4/5] Generating Windows Installer (NSIS)...
 if not exist "installer_output" mkdir "installer_output"
-del /q "installer_output\*-1.1.0.*" 2>nul
+del /q "installer_output\*-1.1.1.*" 2>nul
 makensis "installer\installer.nsi"
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Installer generation failed!
@@ -49,12 +49,12 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo [5/5] Packaging Portable ZIP Archive...
-powershell -Command "Compress-Archive -Path 'RiftCore_Rust_Portable\*' -DestinationPath 'installer_output\RiftCore-Portable-1.1.1.zip' -Force"
+powershell -Command "Compress-Archive -Path 'RiftCore_Rust_Portable\*' -DestinationPath 'installer_output\RiftCore-Portable-1.1.2.zip' -Force"
 
 echo.
 echo ===================================================
 echo   BUILD COMPLETED SUCCESSFULLY!
 echo ===================================================
-echo   Installer: F:\league app\installer_output\RiftCore-Setup-1.1.1.exe
-echo   Portable:  F:\league app\installer_output\RiftCore-Portable-1.1.1.zip
+echo   Installer: F:\league app\installer_output\RiftCore-Setup-1.1.2.exe
+echo   Portable:  F:\league app\installer_output\RiftCore-Portable-1.1.2.zip
 echo ===================================================

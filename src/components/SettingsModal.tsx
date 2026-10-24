@@ -44,7 +44,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (res && res.hasUpdate) {
         setUpdateCheckMsg(`Update available: v${res.latestVersion}!`);
       } else {
-        setUpdateCheckMsg(`You are on the latest version! (v${res?.currentVersion || '1.1.1'})`);
+        setUpdateCheckMsg(`You are on the latest version! (v${res?.currentVersion || '1.1.2'})`);
       }
     } catch {
       setUpdateCheckMsg('Could not reach GitHub Releases.');
@@ -1203,7 +1203,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               border: '1px solid rgba(0, 210, 255, 0.25)',
             }}
           >
-            v{appUpdate?.currentVersion || '1.1.1'}
+            v{appUpdate?.currentVersion || '1.1.2'}
           </span>
         </div>
 

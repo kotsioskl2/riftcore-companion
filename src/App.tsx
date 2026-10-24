@@ -116,12 +116,12 @@ export const App: React.FC = () => {
       }
     });
 
-    // Check if app was updated to v1.1.0
+    // Check if app was updated to v1.1.2
     try {
       const seenVer = localStorage.getItem('riftcore_seen_version');
-      if (seenVer !== '1.1.0') {
+      if (seenVer !== '1.1.2') {
         setShowUpdateNotes(true);
-        localStorage.setItem('riftcore_seen_version', '1.1.0');
+        localStorage.setItem('riftcore_seen_version', '1.1.2');
       } else {
         const tourSeen = localStorage.getItem('riftcore_tour_seen');
         if (!tourSeen) {

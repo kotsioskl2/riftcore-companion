@@ -96,7 +96,7 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-                Hey! Welcome to v1.1.1
+                Hey! Welcome to v1.1.2
               </span>
               <span
                 style={{
@@ -110,17 +110,53 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
                   letterSpacing: '0.4px',
                 }}
               >
-                UPDATE v1.1.1
+                UPDATE v1.1.2
               </span>
             </div>
             <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-              Here is what you need to know:
+              Here is what is new in this release:
             </div>
           </div>
         </div>
 
         {/* Highlights List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+          {/* Highlight 0: In-App Updates & Pure Rust */}
+          <div
+            style={{
+              padding: '11px 14px',
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(0, 210, 255, 0.08) 100%)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'flex-start',
+            }}
+          >
+            <div
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: '1px',
+              }}
+            >
+              <Sparkles size={15} color="var(--emerald-primary)" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#6ee7b7' }}>
+                In-App Auto-Updates & 100% Native Rust Architecture
+              </span>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', lineHeight: '1.4' }}>
+                Never miss an update! RiftCore scans GitHub Releases automatically and installs with 1 click. Completely purged Electron bloat—installer is now only ~5MB!
+              </div>
+            </div>
+          </div>
           {/* Highlight 1: Full Screen In-Game HUD */}
           <div
             style={{
