@@ -348,22 +348,22 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Globe size={18} color="var(--blue-primary)" />
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff', letterSpacing: '0.5px' }}>
-              Multi-Region Cloud Scout
+            <Search size={16} color="var(--blue-primary)" />
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff', letterSpacing: '0.3px' }}>
+              Player Search
             </span>
             <span
               style={{
                 fontSize: '10px',
-                fontWeight: 800,
+                fontWeight: 700,
                 padding: '2px 8px',
-                borderRadius: '4px',
-                background: 'rgba(34, 197, 94, 0.15)',
-                color: '#22c55e',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
+                borderRadius: '10px',
+                background: 'rgba(0, 210, 255, 0.1)',
+                color: 'var(--blue-primary)',
+                border: '1px solid rgba(0, 210, 255, 0.25)',
               }}
             >
-              RIOT WEB API CONNECTED
+              All Regions
             </span>
           </div>
 
@@ -456,7 +456,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
             }}
           >
             {cloudLoading ? <RefreshCw size={14} className="spin" /> : <Search size={14} />}
-            <span>{cloudLoading ? 'Scouting...' : 'Scout Player'}</span>
+            <span>{cloudLoading ? 'Searching...' : 'Search'}</span>
           </button>
         </form>
 
@@ -544,13 +544,17 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
                     fontSize: '10px',
                     fontWeight: 800,
                     padding: '2px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(192, 132, 252, 0.2)',
+                    borderRadius: '12px',
+                    background: 'rgba(192, 132, 252, 0.15)',
                     color: '#c084fc',
-                    border: '1px solid rgba(192, 132, 252, 0.4)',
+                    border: '1px solid rgba(192, 132, 252, 0.35)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
                   }}
                 >
-                  REMOTE CLOUD SCOUT [{selectedRegion.toUpperCase()}]
+                  <Globe size={10} />
+                  <span>{selectedRegion.toUpperCase()}</span>
                 </span>
               ) : (
                 <span
@@ -558,13 +562,13 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
                     fontSize: '10px',
                     fontWeight: 800,
                     padding: '2px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(0, 200, 255, 0.15)',
+                    borderRadius: '12px',
+                    background: 'rgba(0, 200, 255, 0.12)',
                     color: 'var(--blue-primary)',
-                    border: '1px solid var(--border-blue)',
+                    border: '1px solid rgba(0, 200, 255, 0.3)',
                   }}
                 >
-                  LIVE CLIENT LINKED
+                  My Profile
                 </span>
               )}
             </div>
