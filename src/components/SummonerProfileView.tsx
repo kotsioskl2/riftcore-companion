@@ -24,6 +24,8 @@ import {
   RiotChampionMastery,
   RiotLeagueEntry
 } from '../services/riotApiService';
+import { patchService } from '../services/patchService';
+import { PostGameAnalysisModal } from './PostGameAnalysisModal';
 
 interface SummonerProfileViewProps {
   summoner: SummonerProfile | null;
@@ -63,6 +65,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
   // Local Matches
   const [matches, setMatches] = useState<MatchHistoryItem[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
+  const [selectedMatchForAnalysis, setSelectedMatchForAnalysis] = useState<MatchHistoryItem | null>(null);
 
   // Cloud Scout State (Riot Web API)
   const [searchRiotId, setSearchRiotId] = useState('');
@@ -813,6 +816,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
               return (
                 <div
                   key={m.gameId}
+                  onClick={() => setSelectedMatchForAnalysis(m)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -826,7 +830,10 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
                       : 'linear-gradient(90deg, rgba(255, 42, 95, 0.08) 0%, rgba(11, 18, 30, 0.6) 100%)',
                     borderLeft: `4px solid ${m.win ? 'var(--blue-primary)' : 'var(--red-primary)'}`,
                     border: '1px solid var(--border-subtle)',
+                    cursor: 'pointer',
+                    transition: 'transform 0.15s ease, border-color 0.15s ease',
                   }}
+                  title="Click to view detailed Post-Match Coaching Analysis"
                 >
                   <div style={{ minWidth: '90px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: m.win ? 'var(--blue-primary)' : 'var(--red-primary)' }}>
@@ -898,7 +905,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
                       >
                         {itemId > 0 && (
                           <img
-                            src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${itemId}.png`}
+                            src={patchService.getItemIconUrl(itemId)}
                             alt="Item"
                             style={{ width: '100%', height: '100%' }}
                             onError={(e: any) => { e.target.style.display = 'none'; }}
@@ -928,6 +935,12 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Post-Game Performance & Coaching Analysis Modal */}
+      <PostGameAnalysisModal
+        match={selectedMatchForAnalysis}
+        onClose={() => setSelectedMatchForAnalysis(null)}
+      />
     </div>
   );
 };

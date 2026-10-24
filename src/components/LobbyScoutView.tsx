@@ -13,7 +13,8 @@ import {
   Crosshair,
   BarChart3,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { ChampSelectSession, SummonerProfile, RankedData } from '../types';
 import { CHAMPIONS_LIST, getChampionIcon } from '../services/championData';
@@ -59,9 +60,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 48,
       kda: '3.4:1',
       badges: [
-        { label: 'HARD CARRY', type: 'carry' },
-        { label: 'OTP MAIN', type: 'otp' },
-        { label: 'HOT STREAK', type: 'hot' },
+        { label: '👑 OTP SPECIALIST (64%)', type: 'otp' },
+        { label: '🔥 WIN STREAK (3W)', type: 'hot' },
+        { label: '🌾 HIGH CS (7.8/m)', type: 'carry' },
       ],
       isMe: true,
     },
@@ -76,8 +77,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 72,
       kda: '2.8:1',
       badges: [
-        { label: 'HIGH OBJECTIVE RATE', type: 'vision' },
-        { label: 'RELIABLE', type: 'carry' },
+        { label: '🎯 FIRST BLOOD HUNTER', type: 'carry' },
+        { label: '⚡ EARLY GANK PRO', type: 'hot' },
+        { label: '🐉 HIGH DRAGON RATE', type: 'vision' },
       ],
       isMe: false,
     },
@@ -92,8 +94,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 17,
       kda: '1.9:1',
       badges: [
-        { label: 'ROAM ORIENTED', type: 'carry' },
-        { label: 'BURST FOCUS', type: 'otp' },
+        { label: '⚠️ VULNERABLE TO GANKS', type: 'warning' },
+        { label: '🏹 ROAM ORIENTED', type: 'otp' },
+        { label: '👁️ WEAK VISION (<12)', type: 'cold' },
       ],
       isMe: false,
     },
@@ -108,8 +111,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 91,
       kda: '3.1:1',
       badges: [
-        { label: 'FARM MACHINE', type: 'carry' },
-        { label: 'WINSTREAK', type: 'hot' },
+        { label: '🌾 CS MACHINE (8.8/m)', type: 'carry' },
+        { label: '🔥 HOT STREAK (4W)', type: 'hot' },
+        { label: '⭐ LATE GAME CARRY', type: 'carry' },
       ],
       isMe: false,
     },
@@ -124,8 +128,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 55,
       kda: '3.7:1',
       badges: [
-        { label: 'VISION KING', type: 'vision' },
-        { label: 'HIGH ROAM RATE', type: 'otp' },
+        { label: '🛡️ VISION GOD (42 pts)', type: 'vision' },
+        { label: '🎯 HOOK ACCURACY (68%)', type: 'otp' },
+        { label: '⚡ ROAM AGGRESSOR', type: 'hot' },
       ],
       isMe: false,
     },
@@ -176,8 +181,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 110,
       kda: '3.9:1',
       badges: [
-        { label: 'HIGH THREAT OTP', type: 'warning' },
-        { label: 'FIRST BLOOD PRO', type: 'hot' },
+        { label: '👑 OTP SPECIALIST (64%)', type: 'warning' },
+        { label: '⚔️ FIRST BLOOD AGGRESSOR', type: 'hot' },
+        { label: '⚠️ LANE BULLY', type: 'warning' },
       ],
       isMe: false,
     },
@@ -191,7 +197,10 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       winRate: 48.0,
       games: 25,
       kda: '2.1:1',
-      badges: [{ label: 'SCALING CARRY', type: 'carry' }],
+      badges: [
+        { label: '⚠️ VULNERABLE TO INVADES', type: 'cold' },
+        { label: '⭐ LATE SCALING THREAT', type: 'carry' },
+      ],
       isMe: false,
     },
     {
@@ -204,7 +213,10 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       winRate: 51.5,
       games: 60,
       kda: '2.7:1',
-      badges: [{ label: 'BURST THREAT', type: 'warning' }],
+      badges: [
+        { label: '⚡ BURST ASSASSIN', type: 'warning' },
+        { label: '🏹 HIGH ROAM RATE', type: 'hot' },
+      ],
       isMe: false,
     },
     {
@@ -218,8 +230,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       games: 12,
       kda: '1.8:1',
       badges: [
-        { label: 'LATE GAME HYPERCARRY', type: 'carry' },
-        { label: 'HIGH DAMAGE CEILING', type: 'otp' },
+        { label: '❄️ COLD STREAK (3L)', type: 'cold' },
+        { label: '⚠️ WEAK FARMER (<5.4 CS)', type: 'cold' },
+        { label: '⚠️ GANK MAGNET EARLY', type: 'warning' },
       ],
       isMe: false,
     },
@@ -233,7 +246,10 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       winRate: 56.5,
       games: 88,
       kda: '3.2:1',
-      badges: [{ label: 'ENGAGE HEAVY', type: 'otp' }],
+      badges: [
+        { label: '⚡ AGGRESSIVE LVL 2', type: 'hot' },
+        { label: '🛡️ HEAVY ENGAGE', type: 'otp' },
+      ],
       isMe: false,
     },
   ];
@@ -426,6 +442,28 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
             </div>
             <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '4px' }}>
               Jinx hypercarries past 25 mins with Illaoi frontline
+            </div>
+          </div>
+        </div>
+
+        {/* Porofessor-Style Strategic Lane Intel Box */}
+        <div style={{ marginTop: '16px', background: 'rgba(0, 210, 255, 0.04)', border: '1px solid var(--border-blue)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--blue-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={13} color="var(--blue-primary)" />
+            <span>Porofessor Strategic Lane Advice & Tactical Win Conditions</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px', fontSize: '11px', color: '#cbd5e1' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+              <span style={{ color: '#10b981', fontWeight: 800 }}>🎯 BOT:</span>
+              <span>Enemy Aphelios is on a 3-loss streak with low early survivability. Path botside for an easy 3:30 dive.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+              <span style={{ color: '#ff2a5f', fontWeight: 800 }}>⚠️ TOP:</span>
+              <span>Darius looks for First Blood Level 1-2 with Ghost. Respect early bushes and freeze near your turret.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+              <span style={{ color: '#facc15', fontWeight: 800 }}>🐉 OBJECTIVES:</span>
+              <span>Your team has superior Dragon setup with Thresh & Lee Sin. Ward river pit 50s before spawn.</span>
             </div>
           </div>
         </div>

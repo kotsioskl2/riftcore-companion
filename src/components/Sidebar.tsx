@@ -10,7 +10,8 @@ import {
   Layers,
   Trophy,
   Coffee,
-  Sparkles
+  Sparkles,
+  Dice5
 } from 'lucide-react';
 import { AppSettings } from '../types';
 
@@ -38,12 +39,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      category: 'Meta & Builds',
+      category: 'Game Modes & Meta',
       items: [
-        { id: 'champion-pool', label: 'Champion Pool', icon: Layers },
+        { id: 'tft-hub', label: 'TFT Companion', icon: Dice5, badge: 'Set 13', badgeClass: 'badge-gold' },
         { id: 'game-modes', label: 'Arena & Modes', icon: Trophy, badge: 'Modes', badgeClass: 'badge-gold' },
         { id: 'champions', label: 'Tier List & Builds', icon: Crown },
-        { id: 'profile', label: 'Profile & History', icon: User },
+        { id: 'champion-pool', label: 'Champion Pool', icon: Layers },
+        { id: 'profile', label: 'Profile & Analysis', icon: User },
       ],
     },
     {

@@ -12,6 +12,7 @@ import { RiftFloatingOverlay } from './components/RiftFloatingOverlay';
 import { SummonerProfileView } from './components/SummonerProfileView';
 import { ChampionTierListView } from './components/ChampionTierListView';
 import { SettingsModal } from './components/SettingsModal';
+import { TftHubView } from './components/TftHubView';
 import {
   GameflowPhase,
   SummonerProfile,
@@ -565,6 +566,10 @@ export const App: React.FC = () => {
                 setActiveTab('champ-select');
               }}
             />
+          )}
+
+          {activeTab === 'tft-hub' && (
+            <TftHubView />
           )}
 
           {activeTab === 'champions' && (
