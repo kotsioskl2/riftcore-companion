@@ -177,6 +177,7 @@ extern "system" {
     fn DestroyMenu(hMenu: *mut std::ffi::c_void) -> i32;
     fn GetCursorPos(lpPoint: *mut POINT) -> i32;
     fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
+    fn GetForegroundWindow() -> *mut std::ffi::c_void;
     fn BringWindowToTop(hWnd: *mut std::ffi::c_void) -> i32;
     fn SwitchToThisWindow(hWnd: *mut std::ffi::c_void, fUnknown: i32);
     fn GetAsyncKeyState(vKey: i32) -> i16;
@@ -453,22 +454,17 @@ fn find_league_game_cfg() -> Option<PathBuf> {
     None
 }
 
-fn ensure_league_borderless_cfg() {
+fn ensure_league_fullscreen_cfg() {
     if let Some(cfg_path) = find_league_game_cfg() {
         if let Ok(content) = std::fs::read_to_string(&cfg_path) {
-            if !content.contains("WindowMode=2") {
+            if content.contains("WindowMode=2") || content.contains("WindowMode=1") {
                 let mut new_lines = Vec::new();
-                let mut replaced = false;
                 for line in content.lines() {
                     if line.trim().starts_with("WindowMode=") {
-                        new_lines.push("WindowMode=2".to_string());
-                        replaced = true;
+                        new_lines.push("WindowMode=0".to_string());
                     } else {
                         new_lines.push(line.to_string());
                     }
-                }
-                if !replaced {
-                    new_lines.push("WindowMode=2".to_string());
                 }
                 let _ = std::fs::write(&cfg_path, new_lines.join("\r\n"));
             }
@@ -477,26 +473,20 @@ fn ensure_league_borderless_cfg() {
 }
 
 #[cfg(target_os = "windows")]
-fn ensure_league_fullscreen() {
+fn maintain_overlay_topmost(overlay_hwnd: *mut std::ffi::c_void) {
     unsafe {
         let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
-        let window_name: Vec<u16> = "League of Legends (TM) Client\0".encode_utf16().collect();
-        let mut hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
-        if hwnd.is_null() {
-            hwnd = FindWindowW(std::ptr::null(), window_name.as_ptr());
-        }
-        if !hwnd.is_null() {
-            let style = GetWindowLongW(hwnd, -16 /* GWL_STYLE */);
-            let target_style = (style & !(0x00C00000 /* WS_CAPTION */ | 0x00040000 /* WS_THICKFRAME */ | 0x00800000 /* WS_BORDER */)) | (0x80000000_u32 as i32 /* WS_POPUP */);
-            if style != target_style {
-                SetWindowLongW(hwnd, -16, target_style);
-                let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+        let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
+        if !league_hwnd.is_null() {
+            let fg = GetForegroundWindow();
+            // When League is running in Full Screen mode and active,
+            // ensure our transparent HUD window remains on top in the topmost Z-band
+            if fg == league_hwnd || fg == overlay_hwnd {
                 SetWindowPos(
-                    hwnd,
-                    std::ptr::null_mut(),
-                    0, 0, sw, sh,
-                    0x0020 /* SWP_FRAMECHANGED */ | 0x0040 /* SWP_SHOWWINDOW */ | 0x0004 /* SWP_NOZORDER */
+                    overlay_hwnd,
+                    HWND_TOPMOST as *mut std::ffi::c_void,
+                    0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
                 );
             }
         }
@@ -557,6 +547,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "windows")]
     ensure_webview2_loader();
+
+    // Ensure League of Legends remains in true Full Screen mode (never forced to borderless)
+    ensure_league_fullscreen_cfg();
 
     // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode
     std::env::set_var(
@@ -923,8 +916,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     st.is_pinned = true;
                                     #[cfg(target_os = "windows")]
                                     unsafe {
-                                        ensure_league_fullscreen();
-                                        ensure_league_borderless_cfg();
+                                        maintain_overlay_topmost(hwnd);
                                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -994,8 +986,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             st.is_pinned = true;
                             #[cfg(target_os = "windows")]
                             unsafe {
-                                ensure_league_fullscreen();
-                                ensure_league_borderless_cfg();
+                                maintain_overlay_topmost(hwnd);
                                 let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                 let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                                 let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -1451,9 +1442,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 st.is_compact = true;
                                 #[cfg(target_os = "windows")]
                                 unsafe {
-                                    ensure_league_fullscreen();
-                                    ensure_league_borderless_cfg();
                                     let hwnd = window_bg.hwnd() as *mut std::ffi::c_void;
+                                    maintain_overlay_topmost(hwnd);
                                     let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                     let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                                     let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -1471,6 +1461,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                                 let script = "window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true })); window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
                                 let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
+                            }
+
+                            #[cfg(target_os = "windows")]
+                            {
+                                let hwnd = window_bg.hwnd() as *mut std::ffi::c_void;
+                                maintain_overlay_topmost(hwnd);
                             }
 
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&live_json) {
@@ -1531,8 +1527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 #[cfg(target_os = "windows")]
                 {
-                    ensure_league_fullscreen();
-                    ensure_league_borderless_cfg();
+                    maintain_overlay_topmost(hwnd);
                 }
 
                 if window.is_minimized() || !st.is_compact {

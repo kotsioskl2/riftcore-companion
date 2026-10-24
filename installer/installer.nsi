@@ -50,13 +50,19 @@ Var PREV_VERSION
 !define MUI_PAGE_CUSTOMFUNCTION_PRE WelcomePage_Pre
 !insertmacro MUI_PAGE_WELCOME
 
-; 2. What's New & Update Notes Page
-!define MUI_LICENSEPAGE_TEXT_TOP "What's New in Version ${PRODUCT_VERSION}:"
-!define MUI_LICENSEPAGE_TEXT_BOTTOM "Review the update highlights above, then click Continue to proceed."
+; 2. Software License Agreement Page (MIT License)
+!define MUI_LICENSEPAGE_CHECKBOX
+!insertmacro MUI_PAGE_LICENSE "..\LICENSE"
+
+; 3. Release Highlights / What's New Page
+!define MUI_PAGE_HEADER_TEXT "Release Highlights"
+!define MUI_PAGE_HEADER_SUBTEXT "What's new and improved in Version ${PRODUCT_VERSION}"
+!define MUI_LICENSEPAGE_TEXT_TOP "Here is what is new in Version ${PRODUCT_VERSION}:"
+!define MUI_LICENSEPAGE_TEXT_BOTTOM "Review the highlights above, then click Continue to proceed."
 !define MUI_LICENSEPAGE_BUTTON "Continue >"
 !insertmacro MUI_PAGE_LICENSE "UPDATE_NOTES.txt"
 
-; 3. Installation Directory Page
+; 4. Installation Directory Page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE DirectoryPage_Pre
 !insertmacro MUI_PAGE_DIRECTORY
 
@@ -128,6 +134,7 @@ Section "MainSection" SEC01
   File "..\RiftCore_Rust_Portable\RiftCore.exe"
   File "..\RiftCore_Rust_Portable\WebView2Loader.dll"
   File "..\public\icon.ico"
+  File "..\LICENSE"
   File "UPDATE_NOTES.txt"
 
   ; Create Uninstaller
@@ -138,6 +145,7 @@ Section "MainSection" SEC01
   CreateDirectory "$SMPROGRAMS\RiftCore Companion"
   CreateShortCut "$SMPROGRAMS\RiftCore Companion\RiftCore Companion.lnk" "$INSTDIR\RiftCore.exe" "" "$INSTDIR\icon.ico" 0
   CreateShortCut "$SMPROGRAMS\RiftCore Companion\Update Notes.lnk" "$INSTDIR\UPDATE_NOTES.txt" "" "" 0
+  CreateShortCut "$SMPROGRAMS\RiftCore Companion\License (MIT).lnk" "$INSTDIR\LICENSE" "" "" 0
   CreateShortCut "$SMPROGRAMS\RiftCore Companion\Uninstall RiftCore.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
 
   ; Create Desktop Shortcut

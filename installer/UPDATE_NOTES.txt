@@ -4,19 +4,26 @@
 
 Hey! Welcome to v1.1.0. Here is what you need to know:
 
-• Overlay is Fixed: It now stays on your screen properly.
+- Full Screen In-Game HUD:
+  Works natively over League of Legends in Full Screen mode!
+  Zero mouse lag, clicks pass straight into the game.
   Hit Alt + G in-game anytime to show or hide it.
 
-• What to Level & Buy: Shows your next skill upgrade and exactly
-  how much gold you need for your next item.
+- Tab Section Gold Difference:
+  Shows real-time team gold lead/deficit and lane matchup
+  difference right at the top center scoreboard.
 
-• Enemy Timers: Tap an enemy Flash or Ult to track their cooldown,
-  or copy it straight to your team chat.
+- Objective & Camp Timers:
+  Separate floating timers on the map for Dragon, Baron,
+  Voidgrubs, Blue Buff, and Red Buff.
 
-• Lane Tips: Quick reminders on how to beat your matchup.
+- Small CS Score Tracker:
+  Discreet CS score and CS/min pill beside your game clock
+  with live matchup comparison.
 
-Quick tip: Set League's video setting to 'Borderless' so the overlay
-floats smoothly over your game.
+- Skill Level-Up Indicator:
+  Arrow directly above your ability bar showing your optimal
+  skill upgrade for the next level.
 
-That's it! Simple, fast, and 0 lag.
+Enjoy the climb! Simple, lightweight, and 100% Vanguard-safe.
 ======================================================================
