@@ -38,6 +38,18 @@ fn ensure_webview2_loader() {
 
 #[cfg(target_os = "windows")]
 use tao::platform::windows::WindowExtWindows;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+fn cleanup_old_update_files() {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(dir) = exe_path.parent() {
+            let _ = std::fs::remove_file(dir.join("RiftCore.exe.old"));
+            let _ = std::fs::remove_file(dir.join("RiftCore.exe.new"));
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct LcuCredentials {
@@ -579,6 +591,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "windows")]
     ensure_webview2_loader();
+
+    #[cfg(target_os = "windows")]
+    cleanup_old_update_files();
 
     // Ensure League of Legends remains in true Full Screen mode (never forced to borderless)
     ensure_league_fullscreen_cfg();
@@ -1593,19 +1608,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             .replace('\r', "");
                                         let has_update = tag != current_version && !tag.is_empty();
 
-                                        // Find the .exe installer asset download URL
+                                        // Priority 1: Direct raw RiftCore.exe (installer-free in-place self-updater)
                                         let mut download_url = String::new();
                                         let mut asset_size: u64 = 0;
                                         if let Some(assets) = release.get("assets").and_then(|v| v.as_array()) {
                                             for asset in assets {
                                                 let name = asset.get("name").and_then(|v| v.as_str()).unwrap_or("");
-                                                if name.ends_with(".exe") && name.contains("Setup") {
+                                                if name.eq_ignore_ascii_case("RiftCore.exe") {
                                                     download_url = asset.get("browser_download_url")
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
                                                         .to_string();
                                                     asset_size = asset.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
                                                     break;
+                                                }
+                                            }
+                                            // Priority 2: Fallback to any .exe asset
+                                            if download_url.is_empty() {
+                                                for asset in assets {
+                                                    let name = asset.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                                                    if name.ends_with(".exe") {
+                                                        download_url = asset.get("browser_download_url")
+                                                            .and_then(|v| v.as_str())
+                                                            .unwrap_or("")
+                                                            .to_string();
+                                                        asset_size = asset.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                        break;
+                                                    }
                                                 }
                                             }
                                         }
@@ -1661,27 +1690,83 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         }
                                     };
 
-                                    // Save to temp
-                                    let temp_dir = std::env::temp_dir();
-                                    let installer_path = temp_dir.join("RiftCore-Setup-latest.exe");
-                                    if let Err(e) = std::fs::write(&installer_path, &bytes) {
-                                        let script = format!("window.__riftIpcReply({}, \"Failed to save installer: {}\", null);", req_id, e);
-                                        let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
-                                        return;
-                                    }
+                                    let current_exe = match std::env::current_exe() {
+                                        Ok(p) => p,
+                                        Err(e) => {
+                                            let script = format!("window.__riftIpcReply({}, \"Failed to get current executable path: {}\", null);", req_id, e);
+                                            let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+                                            return;
+                                        }
+                                    };
 
-                                    // Notify frontend: download complete, launching installer
+                                    let exe_dir = current_exe.parent().unwrap_or(Path::new("."));
+                                    let is_raw_exe = url.ends_with("RiftCore.exe") || !url.contains("Setup");
+
+                                    // Notify frontend: download complete, swapping in-place
                                     let script = format!(
                                         "window.dispatchEvent(new CustomEvent('rift-update-progress', {{ detail: {{ stage: 'installing', percent: 100 }} }}));"
                                     );
                                     let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
 
-                                    // Launch the installer and exit
-                                    let _ = Command::new(&installer_path).spawn();
+                                    if is_raw_exe {
+                                        // DIRECT IN-PLACE SELF UPDATE (ZERO INSTALLER REQUIRED)
+                                        let new_exe = exe_dir.join("RiftCore.exe.new");
+                                        let old_exe = exe_dir.join("RiftCore.exe.old");
 
-                                    // Give it a moment then exit
-                                    std::thread::sleep(std::time::Duration::from_millis(500));
-                                    std::process::exit(0);
+                                        if let Err(e) = std::fs::write(&new_exe, &bytes) {
+                                            let script = format!("window.__riftIpcReply({}, \"Failed to save update binary: {}\", null);", req_id, e);
+                                            let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+                                            return;
+                                        }
+
+                                        let _ = std::fs::remove_file(&old_exe);
+
+                                        // Try instant rename swap while running
+                                        let mut direct_swapped = false;
+                                        if std::fs::rename(&current_exe, &old_exe).is_ok() {
+                                            if std::fs::rename(&new_exe, &current_exe).is_ok() {
+                                                direct_swapped = true;
+                                            } else {
+                                                // Rollback
+                                                let _ = std::fs::rename(&old_exe, &current_exe);
+                                            }
+                                        }
+
+                                        if direct_swapped {
+                                            let _ = Command::new(&current_exe).spawn();
+                                            std::thread::sleep(std::time::Duration::from_millis(300));
+                                            std::process::exit(0);
+                                        } else {
+                                            // Fallback: spawn silent background cmd to swap after exit
+                                            let cmd_line = format!(
+                                                "ping 127.0.0.1 -n 2 > nul & move /Y \"{}\" \"{}\" & start \"\" \"{}\"",
+                                                new_exe.display(),
+                                                current_exe.display(),
+                                                current_exe.display()
+                                            );
+                                            #[cfg(target_os = "windows")]
+                                            let _ = Command::new("cmd")
+                                                .args(["/C", &cmd_line])
+                                                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                                                .spawn();
+
+                                            #[cfg(not(target_os = "windows"))]
+                                            let _ = Command::new("sh")
+                                                .args(["-c", &format!("sleep 1 && mv \"{}\" \"{}\" && \"{}\"", new_exe.display(), current_exe.display(), current_exe.display())])
+                                                .spawn();
+
+                                            std::thread::sleep(std::time::Duration::from_millis(300));
+                                            std::process::exit(0);
+                                        }
+                                    } else {
+                                        // Fallback if only Setup.exe was provided: run silently (/S)
+                                        let temp_dir = std::env::temp_dir();
+                                        let installer_path = temp_dir.join("RiftCore-Setup-latest.exe");
+                                        let _ = std::fs::write(&installer_path, &bytes);
+                                        let _ = Command::new(&installer_path).arg("/S").spawn();
+                                        std::thread::sleep(std::time::Duration::from_millis(500));
+                                        std::process::exit(0);
+                                    }
                                 }
                                 Ok(res) => {
                                     let status = res.status();
