@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Square, X, Pin, LayoutTemplate, RefreshCw, Zap, Sparkles } from 'lucide-react';
+import { Minus, Square, X, Pin, RefreshCw, Zap, Sparkles } from 'lucide-react';
 import { GameflowPhase } from '../types';
 import { patchService, PatchState } from '../services/patchService';
 
@@ -203,18 +203,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           id="btn-toggle-pin"
           className={`control-btn ${isPinned ? 'active' : ''}`}
           onClick={onTogglePin}
-          title={isPinned ? 'Unpin from Top' : 'Always on Top (Overlay)'}
+          title={isPinned ? 'Unpin from Top' : 'Always on Top'}
         >
           <Pin size={12.5} />
-        </button>
-
-        <button
-          id="btn-toggle-compact"
-          className={`control-btn ${isCompactMode ? 'active' : ''}`}
-          onClick={onToggleCompact}
-          title={isCompactMode ? 'Full App Mode (Alt+G)' : 'In-Game Overlay HUD (Alt+G / Ctrl+Space)'}
-        >
-          <LayoutTemplate size={12.5} />
         </button>
 
         <button

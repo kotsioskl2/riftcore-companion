@@ -601,6 +601,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Apply native taskbar icon from own embedded PE binary (large & small)
     #[cfg(target_os = "windows")]
     unsafe {
+        let hwnd = window.hwnd() as *mut std::ffi::c_void;
+
         let mut exe_path = [0u16; 1024];
         let len = GetModuleFileNameW(std::ptr::null_mut(), exe_path.as_mut_ptr(), 1024);
         if len > 0 {
@@ -608,7 +610,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut h_small: *mut std::ffi::c_void = std::ptr::null_mut();
             let count = ExtractIconExW(exe_path.as_ptr(), 0, &mut h_large, &mut h_small, 1);
             if count > 0 {
-                let hwnd = window.hwnd() as *mut std::ffi::c_void;
                 if !h_large.is_null() {
                     SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_large as isize);
                     SetClassLongPtrW(hwnd, GCLP_HICON, h_large as isize);
@@ -620,26 +621,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     tray_icon_handle = h_large;
                 }
-
-                // Apply Windows 11 DWM theme: Dark mode and borderless/no outline (DWMWA_COLOR_NONE)
-                const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
-                const DWMWA_BORDER_COLOR: u32 = 34;
-                const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
-                let dark_mode: i32 = 1;
-                let _ = DwmSetWindowAttribute(
-                    hwnd,
-                    DWMWA_USE_IMMERSIVE_DARK_MODE,
-                    &dark_mode as *const _ as *const std::ffi::c_void,
-                    std::mem::size_of::<i32>() as u32,
-                );
-                let _ = DwmSetWindowAttribute(
-                    hwnd,
-                    DWMWA_BORDER_COLOR,
-                    &DWMWA_COLOR_NONE as *const _ as *const std::ffi::c_void,
-                    std::mem::size_of::<u32>() as u32,
-                );
             }
         }
+
+        // Apply Windows 11 DWM theme: Dark mode and blend border into #05080e background
+        const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
+        const DWMWA_BORDER_COLOR: u32 = 34;
+        let dark_mode: i32 = 1;
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &dark_mode as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<i32>() as u32,
+        );
+        // COLORREF format 0x00BBGGRR: #05080e -> R=0x05, G=0x08, B=0x0e -> 0x000E0805
+        let border_color: u32 = 0x000E0805;
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_BORDER_COLOR,
+            &border_color as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<u32>() as u32,
+        );
     }
     let proxy = event_loop.create_proxy();
 
