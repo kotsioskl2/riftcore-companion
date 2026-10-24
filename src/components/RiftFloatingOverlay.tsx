@@ -17,6 +17,7 @@ import {
   PanelTop,
   Columns,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon } from '../services/championData';
 import { soundService } from '../services/soundService';
@@ -275,13 +276,13 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     { role: 'SUP', champ: 'Support', name: 'Ignite', total: 180, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/SummonerDot.png' },
   ]);
 
-  // Separate camp timers on the map (Dragon, Baron, Voidgrubs, Blue Buff, Red Buff)
+  // Separate camp timers positioned directly on the in-game minimap
   const [campTimers, setCampTimers] = useState([
-    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: { bottom: '90px', right: '85px' } },
-    { id: 'baron', name: 'Baron', icon: '👑', total: 1200, remaining: Math.max(0, 1200 - gameTime), color: '#c084fc', mapPos: { bottom: '185px', right: '180px' } },
-    { id: 'grubs', name: 'Grubs', icon: '👾', total: 360, remaining: 0, color: '#f43f5e', mapPos: { bottom: '175px', right: '200px' } },
-    { id: 'blue', name: 'Blue Buff', icon: '🔵', total: 300, remaining: 105, color: '#3b82f6', mapPos: { bottom: '125px', right: '170px' } },
-    { id: 'red', name: 'Red Buff', icon: '🔴', total: 300, remaining: 130, color: '#ef4444', mapPos: { bottom: '65px', right: '130px' } },
+    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: { bottom: '72px', right: '78px' } },
+    { id: 'baron', name: 'Baron', icon: '👑', total: 1200, remaining: Math.max(0, 1200 - gameTime), color: '#c084fc', mapPos: { bottom: '162px', right: '166px' } },
+    { id: 'grubs', name: 'Grubs', icon: '👾', total: 360, remaining: 0, color: '#f43f5e', mapPos: { bottom: '168px', right: '176px' } },
+    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 105, color: '#3b82f6', mapPos: { bottom: '110px', right: '160px' } },
+    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 130, color: '#ef4444', mapPos: { bottom: '60px', right: '124px' } },
   ]);
 
   // Objective Timers
@@ -335,11 +336,11 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     const redRemaining = gTime < 90 ? 90 - gTime : 0;
 
     setCampTimers([
-      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '90px', right: '85px' } },
-      { id: 'baron', name: 'Baron', icon: '👑', total: 1200, remaining: baronRemaining, color: '#c084fc', mapPos: { bottom: '185px', right: '180px' } },
-      { id: 'grubs', name: 'Grubs', icon: '👾', total: 360, remaining: grubsRemaining, color: '#f43f5e', mapPos: { bottom: '175px', right: '200px' } },
-      { id: 'blue', name: 'Blue Buff', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '125px', right: '170px' } },
-      { id: 'red', name: 'Red Buff', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '65px', right: '130px' } },
+      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '72px', right: '78px' } },
+      { id: 'baron', name: 'Baron', icon: '👑', total: 1200, remaining: baronRemaining, color: '#c084fc', mapPos: { bottom: '162px', right: '166px' } },
+      { id: 'grubs', name: 'Grubs', icon: '👾', total: 360, remaining: grubsRemaining, color: '#f43f5e', mapPos: { bottom: '168px', right: '176px' } },
+      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '110px', right: '160px' } },
+      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '60px', right: '124px' } },
     ]);
 
     setObjectives([
@@ -671,6 +672,33 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                       <Maximize2 size={9} />
                       <span>Full App</span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setIsPreviewMode(false);
+                        if (window.riftAPI?.setCompactHud) {
+                          window.riftAPI.setCompactHud(false);
+                        }
+                        onExpand();
+                      }}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.18)',
+                        border: '1px solid rgba(239, 68, 68, 0.5)',
+                        color: '#ff4d6d',
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        padding: '2px 7px',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                      title="Close Overlay & Return to App"
+                    >
+                      <X size={9} />
+                      <span>Close</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -819,56 +847,51 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </div>
               )}
 
-              {/* 3. MINIMAP OBJECTIVE DOCK BAR (Pinned cleanly above the minimap) */}
+              {/* 3. IN-MAP OBJECTIVE TIMERS (Pinned directly on minimap camp spawn pits) */}
               {settings?.hudObjectiveTimers !== false && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '235px',
-                    right: '16px',
-                    pointerEvents: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'rgba(5, 10, 20, 0.92)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: '1px solid var(--border-subtle)',
-                    padding: '5px 8px',
-                    borderRadius: '10px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.85)',
-                  }}
-                >
-                  {campTimers.map((camp) => (
-                    <div
-                      key={camp.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        background: 'rgba(255,255,255,0.06)',
-                        border: `1px solid ${camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : 'rgba(255,255,255,0.1)'}`,
-                        padding: '3px 7px',
-                        borderRadius: '6px',
-                        boxShadow: camp.remaining <= 30 ? `0 0 10px ${camp.color}` : 'none',
-                      }}
-                    >
-                      <span style={{ fontSize: '11px' }}>{camp.icon}</span>
-                      <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#94a3b8' }}>
-                        {camp.name}:
-                      </span>
-                      <span
+                <>
+                  {campTimers.map((camp) => {
+                    // Only show countdown while dead/spawning (remaining > 0)
+                    if (camp.remaining <= 0) return null;
+                    return (
+                      <div
+                        key={camp.id}
                         style={{
-                          fontSize: '10px',
-                          fontWeight: 900,
-                          color: camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : camp.color,
+                          position: 'absolute',
+                          bottom: camp.mapPos.bottom,
+                          right: camp.mapPos.right,
+                          transform: 'translate(50%, 50%)',
+                          pointerEvents: 'none',
+                          zIndex: 9999,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          background: 'rgba(5, 10, 20, 0.94)',
+                          backdropFilter: 'blur(8px)',
+                          WebkitBackdropFilter: 'blur(8px)',
+                          border: `1.5px solid ${camp.remaining <= 30 ? '#f59e0b' : camp.color}`,
+                          boxShadow: `0 2px 10px rgba(0,0,0,0.9), 0 0 ${camp.remaining <= 30 ? '12px #f59e0b' : '8px ' + camp.color}`,
+                          borderRadius: '12px',
+                          padding: '2px 6px',
+                          animation: camp.remaining <= 15 ? 'pulse-blue 1.2s infinite' : 'none',
                         }}
                       >
-                        {camp.remaining === 0 ? 'UP' : camp.remaining > 60 ? formatMinSec(camp.remaining) : `${camp.remaining}s`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                        <span style={{ fontSize: '10px' }}>{camp.icon}</span>
+                        <span
+                          className="tabular-nums"
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 900,
+                            color: camp.remaining <= 30 ? '#f59e0b' : camp.color,
+                            letterSpacing: '0.2px',
+                          }}
+                        >
+                          {camp.remaining > 60 ? formatMinSec(camp.remaining) : `${camp.remaining}s`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </>
               )}
 
               {/* 4. SKILL BAR LEVEL-UP ANCHOR (Hovering directly over ability bar at bottom center) */}

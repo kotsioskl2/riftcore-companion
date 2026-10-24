@@ -185,6 +185,7 @@ extern "system" {
     fn GetSystemMetrics(nIndex: i32) -> i32;
     fn GetWindow(hWnd: *mut std::ffi::c_void, uCmd: u32) -> *mut std::ffi::c_void;
     fn DestroyWindow(hWnd: *mut std::ffi::c_void) -> i32;
+    fn ShowWindow(hWnd: *mut std::ffi::c_void, nCmdShow: i32) -> i32;
 }
 
 #[cfg(target_os = "windows")]
@@ -278,6 +279,8 @@ const SWP_NOZORDER: u32 = 0x0004;
 const SWP_NOACTIVATE: u32 = 0x0010;
 const SWP_FRAMECHANGED: u32 = 0x0020;
 const SWP_SHOWWINDOW: u32 = 0x0040;
+const SW_HIDE: i32 = 0;
+const SW_SHOWNA: i32 = 8;
 
 #[allow(dead_code)]
 const WM_HOTKEY: u32 = 0x0312;
@@ -490,20 +493,32 @@ fn maintain_overlay_topmost(overlay_hwnd: *mut std::ffi::c_void) {
         let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
         let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
         if !league_hwnd.is_null() {
-            let ex = GetWindowLongW(overlay_hwnd, GWL_EXSTYLE);
-            if (ex & WS_EX_TOPMOST) == 0 {
-                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
-                SetWindowLongW(overlay_hwnd, GWL_EXSTYLE, new_ex);
-            }
-            // Only update Z-order if the overlay has actually been covered by another window
-            let prev_wnd = GetWindow(overlay_hwnd, 3 /* GW_HWNDPREV */);
-            if !prev_wnd.is_null() {
-                SetWindowPos(
-                    overlay_hwnd,
-                    HWND_TOPMOST as *mut std::ffi::c_void,
-                    0, 0, 0, 0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                );
+            let fg = GetForegroundWindow();
+            let is_league_active = (fg == league_hwnd) || (fg == overlay_hwnd);
+
+            if is_league_active {
+                // League of Legends is the active foreground window:
+                // Ensure overlay is shown and stays layered directly over League
+                ShowWindow(overlay_hwnd, SW_SHOWNA);
+                let ex = GetWindowLongW(overlay_hwnd, GWL_EXSTYLE);
+                if (ex & WS_EX_TOPMOST) == 0 {
+                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
+                    SetWindowLongW(overlay_hwnd, GWL_EXSTYLE, new_ex);
+                }
+                // Only update Z-order if the overlay has actually been covered by another window
+                let prev_wnd = GetWindow(overlay_hwnd, 3 /* GW_HWNDPREV */);
+                if !prev_wnd.is_null() {
+                    SetWindowPos(
+                        overlay_hwnd,
+                        HWND_TOPMOST as *mut std::ffi::c_void,
+                        0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                    );
+                }
+            } else {
+                // User has Alt-Tabbed out of League (Desktop, File Explorer, Chrome, Discord):
+                // Hide overlay immediately so it never traps or covers Windows desktop!
+                ShowWindow(overlay_hwnd, SW_HIDE);
             }
         }
     }
@@ -988,6 +1003,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         );
                                     }
                                 } else {
+                                    st.is_pinned = false;
                                     #[cfg(target_os = "windows")]
                                     unsafe {
                                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
@@ -1062,6 +1078,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 );
                             }
                         } else {
+                            st.is_pinned = false;
                             #[cfg(target_os = "windows")]
                             unsafe {
                                 let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
@@ -1070,6 +1087,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let app_h = 820;
                                 let app_x = ((sw - app_w) / 2).max(0);
                                 let app_y = ((sh - app_h) / 2).max(0);
+                                let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                                let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+                                SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_NOTOPMOST as *mut std::ffi::c_void,
@@ -1077,9 +1097,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     app_y,
                                     app_w,
                                     app_h,
-                                    SWP_SHOWWINDOW,
+                                    SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                 );
                                 apply_fullscreen_topmost(hwnd, false);
+                                SetForegroundWindow(hwnd);
                             }
                         }
                         let is_compact = st.is_compact;
@@ -1596,11 +1617,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             } else {
                                 #[cfg(target_os = "windows")]
                                 {
-                                    let is_compact_or_pinned = {
+                                    let is_compact = {
                                         let st = bg_state.lock().unwrap();
-                                        st.is_compact || st.is_pinned
+                                        st.is_compact
                                     };
-                                    if is_compact_or_pinned {
+                                    if is_compact {
                                         maintain_overlay_topmost(window_bg.hwnd() as *mut std::ffi::c_void);
                                     }
                                 }
