@@ -31,6 +31,30 @@ interface SummonerProfileViewProps {
   onRefresh?: () => void;
 }
 
+export const formatFriendlyGameMode = (queueId?: number, gameMode?: string): string => {
+  if (queueId === 420) return 'Ranked Solo';
+  if (queueId === 440) return 'Ranked Flex';
+  if (queueId === 450) return 'ARAM';
+  if (queueId === 400) return 'Normal Draft';
+  if (queueId === 430) return 'Blind Pick';
+  if (queueId === 490) return 'Quickplay';
+  if (queueId === 1700) return 'Arena 2v2v2v2';
+  if (queueId === 900 || queueId === 1010) return 'URF';
+  if (queueId === 1020) return 'One for All';
+  if (queueId === 1300) return 'Nexus Blitz';
+
+  const m = (gameMode || '').toUpperCase().trim();
+  if (m === 'KIWI' || m === 'ARAM') return 'ARAM';
+  if (m === 'CHERRY' || m === 'ARENA') return 'Arena';
+  if (m === 'STRAWBERRY') return 'Swarm PvE';
+  if (m === 'URF') return 'URF';
+  if (m === 'ONEFORALL' || m === 'OFA') return 'One for All';
+  if (m === 'CLASSIC') return "Summoner's Rift";
+  if (m === 'SWIFTPLAY') return 'Quickplay';
+
+  return gameMode || "Summoner's Rift";
+};
+
 export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
   summoner,
   rankedData,
@@ -85,7 +109,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
               gameDuration: g.gameDuration,
               gameCreationDate: g.gameCreationDate,
               queueId: g.queueId,
-              gameMode: g.gameMode || 'CLASSIC',
+              gameMode: formatFriendlyGameMode(g.queueId, g.gameMode),
               championId: playerStats?.championId || 420,
               championName: champ?.name || 'Champion',
               win,
@@ -227,7 +251,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
             gameDuration: d.info?.gameDuration || 1800,
             gameCreationDate: new Date(d.info?.gameCreation || Date.now()).toISOString(),
             queueId: d.info?.queueId || 420,
-            gameMode: d.info?.gameMode || 'CLASSIC',
+            gameMode: formatFriendlyGameMode(d.info?.queueId, d.info?.gameMode),
             championId: champ?.id || stats.championId || 420,
             championName: stats.championName || champ?.name || 'Champion',
             win,

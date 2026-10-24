@@ -30,7 +30,7 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "title": "the Rogue Assassin",
     "roles": [
       "MID",
-      "JUNGLE"
+      "TOP"
     ]
   },
   {
@@ -68,7 +68,7 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "key": "Amumu",
     "title": "the Sad Mummy",
     "roles": [
-      "TOP",
+      "JUNGLE",
       "SUPPORT"
     ]
   },
@@ -462,8 +462,7 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "key": "Illaoi",
     "title": "the Kraken Priestess",
     "roles": [
-      "TOP",
-      "JUNGLE"
+      "TOP"
     ]
   },
   {
@@ -482,6 +481,7 @@ export const CHAMPIONS_LIST: { id: number; name: string; key: string; title: str
     "key": "Ivern",
     "title": "the Green Father",
     "roles": [
+      "JUNGLE",
       "SUPPORT"
     ]
   },

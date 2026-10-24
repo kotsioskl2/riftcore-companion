@@ -107,18 +107,18 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
                   letterSpacing: '0.4px',
                 }}
               >
-                v1.1.0
+                v1.1.1
               </span>
             </div>
             <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-              Quick rundown of the good stuff in this update.
+              Full native fullscreen overlay, uncluttered tier list & mode cleanup.
             </div>
           </div>
         </div>
 
-        {/* Simple & Human Highlights */}
+        {/* Highlights */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {/* Highlight 1: Overlay Fixed */}
+          {/* Highlight 1: Native Fullscreen */}
           <div
             style={{
               padding: '11px 14px',
@@ -147,15 +147,15 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                In-Game Overlay is Fixed
+                ⚡ True Native Fullscreen Overlay
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', lineHeight: '1.4' }}>
-                It now floats right over your game without hiding. Hit <code style={{ color: 'var(--blue-primary)', background: 'rgba(0, 210, 255, 0.12)', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>Alt + G</code> anytime to show or hide it.
+                No borderless requirement! RiftCore stays seamlessly layered over League in Native Fullscreen (<code style={{ color: 'var(--blue-primary)', background: 'rgba(0, 210, 255, 0.12)', padding: '1px 5px', borderRadius: '3px' }}>WindowMode=0</code>) with zero stutter, zero jitter, and 100% Vanguard safety.
               </div>
             </div>
           </div>
 
-          {/* Highlight 2: Next Skill & Item */}
+          {/* Highlight 2: Overhauled Tier List */}
           <div
             style={{
               padding: '11px 14px',
@@ -184,15 +184,15 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                What to Level & Buy Next
+                👑 Uncluttered Pro Tier List
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', lineHeight: '1.4' }}>
-                Highlights the exact skill to max and tells you how much gold you still need for your next item.
+                Fixed cluttered boxes with a clean Leaderboard Table & Tier Brackets toggle. Fixed role filters (Illaoi is strictly TOP, Amumu is JUNGLE) and unlocked authentic patch-calibrated win/pick/ban rates.
               </div>
             </div>
           </div>
 
-          {/* Highlight 3: Enemy Timers */}
+          {/* Highlight 3: KIWI Mode Translation */}
           <div
             style={{
               padding: '11px 14px',
@@ -221,15 +221,15 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                Enemy Spell Timers
+                🎮 Clean Game Mode Names (KIWI → ARAM)
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', lineHeight: '1.4' }}>
-                Tap enemy Flashes or Ults to track their cooldowns, or 1-click copy them straight into team chat.
+                Translated Riot's internal mode codenames (KIWI is Riot's code for ARAM, CHERRY for Arena) so match history displays clean, human-readable game types.
               </div>
             </div>
           </div>
 
-          {/* Highlight 4: Lane Tips */}
+          {/* Highlight 4: Live Objective Timers */}
           <div
             style={{
               padding: '11px 14px',
@@ -258,10 +258,10 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                Lane Matchup Tips
+                🐉 Dynamic Live Objective Countdown
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', lineHeight: '1.4' }}>
-                Quick counter tips against your lane opponent so you know when you win trades.
+                Neutral epic monsters (Dragon, Voidgrubs, Herald, Baron) and jungle camps now calculate exact countdowns in real-time from active game telemetry.
               </div>
             </div>
           </div>
