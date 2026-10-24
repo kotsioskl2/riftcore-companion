@@ -621,12 +621,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tray_icon_handle = h_large;
                 }
 
-                // Apply Windows 11 DWM theme: Dark mode + Hextech Cyan border (#00c8ff)
-                // COLORREF: 0x00BBGGRR -> 0x00FFC800 (RGB: 0, 200, 255)
+                // Apply Windows 11 DWM theme: Dark mode and borderless/no outline (DWMWA_COLOR_NONE)
                 const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
                 const DWMWA_BORDER_COLOR: u32 = 34;
+                const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
                 let dark_mode: i32 = 1;
-                let border_color: u32 = 0x00FFC800;
                 let _ = DwmSetWindowAttribute(
                     hwnd,
                     DWMWA_USE_IMMERSIVE_DARK_MODE,
@@ -636,7 +635,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let _ = DwmSetWindowAttribute(
                     hwnd,
                     DWMWA_BORDER_COLOR,
-                    &border_color as *const _ as *const std::ffi::c_void,
+                    &DWMWA_COLOR_NONE as *const _ as *const std::ffi::c_void,
                     std::mem::size_of::<u32>() as u32,
                 );
             }
