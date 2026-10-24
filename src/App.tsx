@@ -8,7 +8,7 @@ import { GameModesHubView } from './components/GameModesHubView';
 import { AramHubView } from './components/AramHubView';
 import { LobbyScoutView } from './components/LobbyScoutView';
 import { LiveGameOverlay } from './components/LiveGameOverlay';
-import { BlitzFloatingOverlay } from './components/BlitzFloatingOverlay';
+import { RiftFloatingOverlay } from './components/RiftFloatingOverlay';
 import { SummonerProfileView } from './components/SummonerProfileView';
 import { ChampionTierListView } from './components/ChampionTierListView';
 import { SettingsModal } from './components/SettingsModal';
@@ -22,6 +22,7 @@ import {
 } from './types';
 import { soundService } from './services/soundService';
 import { CloseConfirmationModal } from './components/CloseConfirmationModal';
+import { UpdateNotesModal } from './components/UpdateNotesModal';
 import { Check, Flame, ShieldAlert, Sparkles, Zap } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -32,6 +33,7 @@ export const App: React.FC = () => {
   const [isCompactMode, setIsCompactMode] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [showUpdateNotes, setShowUpdateNotes] = useState(false);
 
   // League Data
   const [summoner, setSummoner] = useState<SummonerProfile | null>(null);
@@ -49,11 +51,18 @@ export const App: React.FC = () => {
     autoImportItemSets: true,
     soundAlerts: true,
     theme: 'hextech',
+    fontFamily: 'plus-jakarta',
     alwaysOnTop: false,
     closeToTray: true,
     riotApiKey: 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9',
     riotRegion: 'eun1',
   });
+
+  // Sync font preference to HTML root
+  useEffect(() => {
+    const font = settings.fontFamily || 'plus-jakarta';
+    document.documentElement.setAttribute('data-font', font);
+  }, [settings.fontFamily]);
 
   // Initialize and register electron event listeners
   useEffect(() => {
@@ -73,7 +82,8 @@ export const App: React.FC = () => {
         } else {
           setChampSelectSession(null);
           if (res.gameflowPhase === 'InProgress' || res.gameflowPhase === 'GameStart') {
-            setActiveTab('live-overlay');
+            setIsCompactMode(true);
+            window.riftAPI?.setCompactHud?.(true);
             window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
               if (r) setIsPinned(r.isPinned);
             });
@@ -90,6 +100,15 @@ export const App: React.FC = () => {
         soundService.setEnabled(s.soundAlerts);
       }
     });
+
+    // Check if app was updated to v1.1.0
+    try {
+      const seenVer = localStorage.getItem('riftcore_seen_version');
+      if (seenVer !== '1.1.0') {
+        setShowUpdateNotes(true);
+        localStorage.setItem('riftcore_seen_version', '1.1.0');
+      }
+    } catch {}
 
     // 3. Listen to LCU Status
     const unsubLCU = window.riftAPI.onLCUStatusChange((status: any) => {
@@ -126,10 +145,14 @@ export const App: React.FC = () => {
         } else if (phase === 'InProgress' || phase === 'GameStart') {
           setActiveTab('live-overlay');
           setReadyCheckData(null);
-          // Auto-enable Always-on-Top so overlay floats over borderless League
+          setIsCompactMode(true);
+          window.riftAPI?.setCompactHud?.(true);
           window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
             if (r) setIsPinned(r.isPinned);
           });
+        } else if (phase === 'EndOfGame' || phase === 'None' || phase === 'Lobby') {
+          setIsCompactMode(false);
+          window.riftAPI?.setCompactHud?.(false);
         }
       }
     });
@@ -159,14 +182,10 @@ export const App: React.FC = () => {
     const unsubLive = window.riftAPI.onLiveGameUpdate((gData) => {
       setLiveData(gData);
       if (gData && gData.gameData) {
-        setActiveTab((prev) => {
-          if (prev !== 'live-overlay') {
-            window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-              if (r) setIsPinned(r.isPinned);
-            });
-            return 'live-overlay';
-          }
-          return prev;
+        setIsCompactMode(true);
+        window.riftAPI?.setCompactHud?.(true);
+        window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+          if (r) setIsPinned(r.isPinned);
         });
       }
     });
@@ -199,14 +218,10 @@ export const App: React.FC = () => {
         const data = await window.riftAPI.getLiveClientData();
         if (isSubscribed && data && data.gameData) {
           setLiveData(data);
-          setActiveTab((prev) => {
-            if (prev !== 'live-overlay') {
-              window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-                if (r) setIsPinned(r.isPinned);
-              });
-              return 'live-overlay';
-            }
-            return prev;
+          setIsCompactMode(true);
+          window.riftAPI?.setCompactHud?.(true);
+          window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
+            if (r) setIsPinned(r.isPinned);
           });
         }
       } catch {}
@@ -229,6 +244,7 @@ export const App: React.FC = () => {
 
     let isSubscribed = true;
     const pollSession = async () => {
+      if (!window.riftAPI) return;
       try {
         const sess = await window.riftAPI.lcuRequest('/lol-champ-select/v1/session');
         if (isSubscribed && sess && !sess.errorCode) {
@@ -353,11 +369,11 @@ export const App: React.FC = () => {
     }
   }, [isCompactMode]);
 
-  // When in Compact In-Game Overlay Mode: Render Pure Floating Blitz-Style HUD Widget
+  // When in Compact In-Game Overlay Mode: Render Pure Floating Tactical HUD Widget
   if (isCompactMode) {
     return (
       <div className="app-container compact-mode" style={{ background: 'transparent' }}>
-        <BlitzFloatingOverlay
+        <RiftFloatingOverlay
           liveData={liveData}
           onExpand={handleToggleCompact}
           onMinimize={() => window.riftAPI?.windowControl('minimize')}
@@ -379,6 +395,13 @@ export const App: React.FC = () => {
         onTogglePin={handleTogglePin}
         onLaunchLeague={handleLaunchLeague}
         onCloseClick={handleTitleBarClose}
+        onOpenUpdateNotes={() => setShowUpdateNotes(true)}
+      />
+
+      {/* Update Notes / What's New Modal */}
+      <UpdateNotesModal
+        isOpen={showUpdateNotes}
+        onClose={() => setShowUpdateNotes(false)}
       />
 
       {/* Close Confirmation Modal */}
@@ -392,27 +415,28 @@ export const App: React.FC = () => {
       {/* Queue Pop Notification Modal */}
       {isQueuePopActive && (
         <div className="queue-pop-modal" id="queue-pop-modal">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div
               style={{
-                width: '40px',
-                height: '40px',
+                width: '42px',
+                height: '42px',
                 borderRadius: '50%',
-                background: 'rgba(37, 211, 102, 0.2)',
-                border: '2px solid #25d366',
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '2px solid #10b981',
+                boxShadow: '0 0 16px rgba(16, 185, 129, 0.4)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                animation: 'pulse 1s infinite',
+                animation: 'pulse-blue 1.2s infinite',
               }}
             >
-              <Sparkles size={20} color="#25d366" />
+              <Sparkles size={20} color="#10b981" />
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff', letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: '15px', fontWeight: 900, color: '#fff', letterSpacing: '0.8px' }}>
                 MATCH FOUND!
               </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
                 {settings.autoAccept ? 'Auto-Accepting in progress...' : 'Ready Check Active'}
               </div>
             </div>
@@ -422,9 +446,9 @@ export const App: React.FC = () => {
             id="btn-modal-accept"
             className="btn-primary btn-accent"
             onClick={handleManualAccept}
-            style={{ padding: '8px 24px', fontSize: '13px' }}
+            style={{ padding: '8px 22px', fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px' }}
           >
-            <Check size={16} />
+            <Check size={15} />
             <span>ACCEPT MATCH</span>
           </button>
         </div>

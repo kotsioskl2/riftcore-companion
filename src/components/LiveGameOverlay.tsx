@@ -775,22 +775,23 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               <button
                 onClick={onToggleCompact}
                 style={{
-                  padding: '6px 12px',
+                  padding: '6px 14px',
                   borderRadius: '6px',
-                  border: '1px solid var(--border-blue)',
-                  background: isCompactMode ? 'var(--blue-primary)' : 'rgba(0, 200, 255, 0.12)',
-                  color: isCompactMode ? '#000' : 'var(--blue-primary)',
+                  border: '1px solid var(--blue-primary)',
+                  background: isCompactMode ? 'var(--blue-primary)' : 'linear-gradient(135deg, rgba(0, 210, 255, 0.25) 0%, rgba(14, 165, 233, 0.15) 100%)',
+                  color: isCompactMode ? '#000' : '#fff',
                   fontSize: '11px',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '6px',
+                  boxShadow: '0 0 12px rgba(0, 210, 255, 0.25)',
                 }}
-                title="Resize RiftCore into an unobtrusive floating HUD on the side of your screen"
+                title="Pop up the floating tactical in-game overlay directly on top of League of Legends (Alt+G)"
               >
-                {isCompactMode ? <Maximize2 size={12} /> : <Minimize2 size={12} />}
-                <span>{isCompactMode ? 'Expand Full View' : '🗖 Mini HUD Mode'}</span>
+                {isCompactMode ? <Maximize2 size={13} /> : <Zap size={13} color="var(--blue-primary)" />}
+                <span>{isCompactMode ? 'Expand Desktop View' : '✨ Floating In-Game Overlay (Alt+G)'}</span>
               </button>
             )}
 
@@ -830,7 +831,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
             <strong style={{ color: '#00c8ff' }}>RiftCore Fullscreen In-Game Guide:</strong>
             <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
               <li>
-                <strong>Borderless Fullscreen Required:</strong> Like Blitz and Porofessor, standard Windows overlays require League to be in <strong>Borderless</strong> (Esc → Video → Window Mode → Borderless) so DirectX allows the HUD to display over your match.
+                <strong>Borderless Fullscreen Required:</strong> Standard Windows overlays require League to be in <strong>Borderless</strong> (Esc → Video → Window Mode → Borderless) so DirectX allows the HUD to display over your match.
               </li>
               <li>
                 <strong>Instant In-Game Hotkeys:</strong> Press <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Ctrl + Space</kbd>, <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Alt + ~</kbd>, or <kbd style={{ background: '#334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Alt + X</kbd> at any time in-game to toggle RiftCore HUD overlay on/off without minimizing.
@@ -911,9 +912,12 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
               <Clock size={14} color="var(--blue-primary)" />
               <span style={{ fontSize: '11px', color: '#94a3b8' }}>Game Clock:</span>
               <strong
+                className="tabular-nums"
                 style={{
-                  fontSize: '14px',
-                  fontFamily: 'var(--font-mono)',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  fontFamily: 'var(--font-timer)',
+                  letterSpacing: '0.8px',
                   color: isLive ? '#22c55e' : isDemoMode ? '#facc15' : 'var(--blue-primary)',
                 }}
               >
@@ -1015,7 +1019,7 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
             </div>
           </div>
 
-          {/* EARLY JUNGLE LEASH & PATH PREDICTOR (Porofessor / Mobalytics Feature) */}
+          {/* EARLY JUNGLE LEASH & PATH PREDICTOR */}
           <div
             className="glass-card"
             style={{
@@ -1148,7 +1152,10 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                   <div style={{ fontSize: '11px', fontWeight: 800, color: jungleStart === 'bot' ? 'var(--red-primary)' : 'var(--blue-primary)', textTransform: 'uppercase' }}>
                     {jungleStart === 'bot' ? '⚠️ High Alert: Top & Mid Lanes' : '⚠️ High Alert: Bot & Mid Lanes'}
                   </div>
-                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#facc15' }}>
+                  <div
+                    className="tabular-nums"
+                    style={{ fontSize: '12px', fontFamily: 'var(--font-timer)', fontWeight: 800, letterSpacing: '0.6px', color: '#facc15' }}
+                  >
                     {activeGameTime < 210 ? `Scuttle in ${formatTime(210 - activeGameTime)}` : 'Scuttles Active'}
                   </div>
                 </div>
@@ -1228,10 +1235,12 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div
+                        className="tabular-nums"
                         style={{
-                          fontSize: '15px',
+                          fontSize: '17px',
                           fontWeight: 800,
-                          fontFamily: 'var(--font-mono)',
+                          fontFamily: 'var(--font-timer)',
+                          letterSpacing: '0.8px',
                           color: obj.respawnTime > 0 ? obj.color : '#22c55e',
                         }}
                       >

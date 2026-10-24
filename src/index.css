@@ -1,52 +1,88 @@
 :root {
-  /* Minimalist Cyber Red & Blue Duality Design System */
-  --bg-primary: #06090f;
-  --bg-secondary: #090e18;
-  --bg-card: rgba(11, 18, 30, 0.75);
-  --bg-card-hover: rgba(16, 26, 44, 0.85);
-  --bg-glass: rgba(8, 13, 22, 0.85);
+  /* ========================================================= */
+  /* RiftCore Design System: Refined Obsidian & Cyber Duality  */
+  /* ========================================================= */
+  --bg-primary: #050811;
+  --bg-secondary: #080d18;
+  --bg-card: rgba(10, 16, 28, 0.72);
+  --bg-card-hover: rgba(15, 23, 40, 0.85);
+  --bg-card-solid: #090e1a;
+  --bg-glass: rgba(7, 12, 22, 0.82);
+  --bg-elevated: rgba(18, 28, 48, 0.5);
 
-  /* Cyber Blue Hues (Utility / Allies / Primary) */
+  /* Cyber Blue Hues (Hextech / Allies / Utility) */
   --blue-50: #e0f8ff;
   --blue-100: #b8f0ff;
   --blue-200: #7be4ff;
   --blue-300: #38d6ff;
-  --blue-primary: #00c8ff;
+  --blue-primary: #00d2ff;
+  --blue-secondary: #0ea5e9;
   --blue-deep: #0077b6;
-  --blue-glow: rgba(0, 200, 255, 0.35);
-  --blue-subtle: rgba(0, 200, 255, 0.1);
+  --blue-glow: rgba(0, 210, 255, 0.32);
+  --blue-glow-subtle: rgba(0, 210, 255, 0.12);
+  --blue-subtle: rgba(0, 210, 255, 0.08);
 
-  /* Cyber Red Hues (Burst / Enemies / Action) */
+  /* Cyber Crimson Hues (Burst / Enemies / Action) */
   --red-50: #ffe5ec;
   --red-100: #ffb8ca;
   --red-200: #ff7597;
   --red-primary: #ff2a5f;
   --red-deep: #ba1238;
-  --red-glow: rgba(255, 42, 95, 0.35);
-  --red-subtle: rgba(255, 42, 95, 0.1);
+  --red-glow: rgba(255, 42, 95, 0.32);
+  --red-glow-subtle: rgba(255, 42, 95, 0.12);
+  --red-subtle: rgba(255, 42, 95, 0.08);
 
-  /* Clean Neutrals */
+  /* Gold / Hextech Accents */
+  --gold-primary: #e5b869;
+  --gold-glow: rgba(229, 184, 105, 0.3);
+  --emerald-primary: #10b981;
+  --emerald-glow: rgba(16, 185, 129, 0.3);
+
+  /* Refined Neutrals */
   --text-main: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #526075;
+  --text-dim: #334155;
   --text-highlight: #ffffff;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-card: rgba(255, 255, 255, 0.1);
-  --border-blue: rgba(0, 200, 255, 0.4);
-  --border-red: rgba(255, 42, 95, 0.4);
+  /* Hairline Borders */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-card: rgba(255, 255, 255, 0.09);
+  --border-highlight: rgba(255, 255, 255, 0.16);
+  --border-blue: rgba(0, 210, 255, 0.35);
+  --border-red: rgba(255, 42, 95, 0.35);
 
+  --radius-xs: 4px;
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
+  --radius-xl: 18px;
   --radius-full: 9999px;
 
-  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Primary Typography: Plus Jakarta Sans (Supreme Readability) + Rajdhani (Esports HUD Timers) */
+  --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-timer: 'Rajdhani', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'Rajdhani', 'JetBrains Mono', monospace;
+  --font-brand: 'Cinzel', 'Plus Jakarta Sans', serif;
 
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-blue: 0 0 20px rgba(0, 200, 255, 0.25);
-  --shadow-red: 0 0 20px rgba(255, 42, 95, 0.25);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 8px 32px -4px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-card-hover: 0 14px 40px -4px rgba(0, 0, 0, 0.65), 0 0 24px rgba(0, 210, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --shadow-blue: 0 0 22px rgba(0, 210, 255, 0.25);
+  --shadow-red: 0 0 22px rgba(255, 42, 95, 0.25);
+}
+
+/* User Font Theme Overrides */
+[data-font="outfit"] {
+  --font-ui: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  --font-timer: 'Rajdhani', 'Outfit', sans-serif;
+  --font-mono: 'Rajdhani', monospace;
+}
+
+[data-font="inter"] {
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-timer: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 * {
@@ -64,19 +100,42 @@ body {
   height: 100vh;
   width: 100vw;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.01em;
 }
 
-/* Minimalist Scrollbars */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+/* Tabular Numerics for Stats */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Dedicated Esports HUD Timer Styling */
+.timer-num, .timer-hud {
+  font-family: var(--font-timer);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: 0.6px;
+  font-weight: 700;
+}
+
+/* Sleek Finer Scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(6, 9, 15, 0.6);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 200, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-full);
+  transition: background 0.2s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--blue-primary);
@@ -89,14 +148,15 @@ body {
   height: 100vh;
   width: 100vw;
   background: 
-    radial-gradient(circle at 10% 10%, rgba(255, 42, 95, 0.07) 0%, transparent 40%),
-    radial-gradient(circle at 90% 90%, rgba(0, 200, 255, 0.07) 0%, transparent 40%),
-    linear-gradient(180deg, #070c16 0%, #05080e 100%);
+    radial-gradient(ellipse 50% 40% at 88% 8%, rgba(0, 210, 255, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 12% 92%, rgba(255, 42, 95, 0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(10, 18, 35, 0.4) 0%, transparent 100%),
+    linear-gradient(180deg, #060a14 0%, #04070e 100%);
   position: relative;
   overflow: hidden;
 }
 
-/* Compact Floating Overlay Mode (Blitz Style) */
+/* Compact Floating In-Game Overlay Mode */
 body.compact-mode,
 html.compact-mode {
   background: transparent !important;
@@ -119,13 +179,13 @@ html.compact-mode {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 38px;
+  height: 40px;
   padding: 0 14px;
-  background: rgba(5, 8, 14, 0.95);
+  background: rgba(5, 8, 15, 0.92);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-app-region: drag;
   z-index: 100;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
 }
 
 .titlebar-brand {
@@ -158,8 +218,17 @@ html.compact-mode {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-secondary);
+}
+
+.status-dot-container {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .status-dot {
@@ -167,19 +236,38 @@ html.compact-mode {
   height: 7px;
   border-radius: 50%;
   background: var(--red-primary);
-  box-shadow: 0 0 6px var(--red-primary);
+  box-shadow: 0 0 8px var(--red-primary);
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
 }
 
 .status-dot.online {
   background: var(--blue-primary);
-  box-shadow: 0 0 8px var(--blue-primary);
-  animation: pulse-blue 2s infinite;
+  box-shadow: 0 0 10px var(--blue-primary);
 }
 
 .status-dot.ready {
   background: #ffb703;
-  box-shadow: 0 0 8px #ffb703;
-  animation: pulse-amber 2s infinite;
+  box-shadow: 0 0 10px #ffb703;
+}
+
+.status-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.status-dot.online ~ .status-ring {
+  animation: ping-ring 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  border: 1px solid var(--blue-primary);
+}
+
+@keyframes ping-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  75%, 100% { transform: scale(2.8); opacity: 0; }
 }
 
 @keyframes pulse-amber {
@@ -192,38 +280,55 @@ html.compact-mode {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: var(--radius-full);
   background: var(--blue-subtle);
   color: var(--blue-primary);
   border: 1px solid var(--border-blue);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
 }
 
 .phase-pill.queue {
   background: var(--red-subtle);
   color: var(--red-primary);
   border-color: var(--border-red);
-  animation: pulse-red 1.5s infinite;
+  animation: pulse-red 1.6s infinite;
 }
 
 .phase-pill.ready-check {
-  background: linear-gradient(90deg, var(--blue-subtle), var(--red-subtle));
+  background: linear-gradient(90deg, rgba(0, 210, 255, 0.15), rgba(255, 42, 95, 0.15));
   color: #fff;
   border: 1px solid var(--blue-primary);
-  box-shadow: 0 0 12px var(--blue-glow);
-  animation: pulse-blue 0.8s infinite;
+  box-shadow: 0 0 14px var(--blue-glow);
+  animation: pulse-blue 1s infinite;
 }
 
 .phase-pill.in-game {
   background: var(--blue-subtle);
   color: var(--blue-primary);
   border-color: var(--blue-primary);
+  box-shadow: 0 0 10px var(--blue-glow);
+}
+
+.phase-pill.idle {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+.phase-pill.offline {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 .titlebar-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   -webkit-app-region: no-drag;
 }
 
@@ -231,7 +336,7 @@ html.compact-mode {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  width: 28px;
+  width: 30px;
   height: 28px;
   border-radius: var(--radius-sm);
   display: flex;
@@ -254,6 +359,7 @@ html.compact-mode {
 .control-btn.active {
   color: var(--blue-primary);
   background: var(--blue-subtle);
+  border: 1px solid rgba(0, 210, 255, 0.2);
 }
 
 /* App Main Layout */
@@ -265,51 +371,102 @@ html.compact-mode {
   z-index: 1;
 }
 
-/* Minimalist Sidebar */
+/* Refined Finer Sidebar */
 .sidebar {
-  width: 210px;
-  background: rgba(6, 10, 18, 0.9);
+  width: 220px;
+  background: rgba(6, 10, 18, 0.88);
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  padding: 16px 10px;
-  gap: 6px;
-  backdrop-filter: blur(16px);
+  padding: 14px 10px;
+  gap: 4px;
+  backdrop-filter: blur(20px);
+}
+
+.sidebar-category-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #475569;
+  padding: 8px 12px 4px 12px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 8.5px 12px;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
+  letter-spacing: 0.15px;
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
+  position: relative;
 }
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-main);
+  transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: linear-gradient(90deg, rgba(0, 200, 255, 0.12), rgba(0, 200, 255, 0.02));
-  border-color: rgba(0, 200, 255, 0.3);
+  background: linear-gradient(90deg, rgba(0, 210, 255, 0.12) 0%, rgba(0, 210, 255, 0.02) 100%);
+  border-color: rgba(0, 210, 255, 0.25);
   color: var(--blue-primary);
+  font-weight: 600;
   box-shadow: inset 3px 0 0 var(--blue-primary);
+}
+
+.nav-item.active svg {
+  filter: drop-shadow(0 0 6px var(--blue-primary));
+}
+
+.nav-item-badge {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.badge-cyan {
+  background: rgba(0, 210, 255, 0.14);
+  color: var(--blue-primary);
+  border: 1px solid rgba(0, 210, 255, 0.3);
+}
+
+.badge-crimson {
+  background: rgba(255, 42, 95, 0.14);
+  color: var(--red-primary);
+  border: 1px solid rgba(255, 42, 95, 0.3);
+}
+
+.badge-emerald {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-gold {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .quick-toggles {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 12px 6px 4px 6px;
   border-top: 1px solid var(--border-subtle);
 }
@@ -324,17 +481,19 @@ html.compact-mode {
 
 .toggle-switch {
   position: relative;
-  width: 32px;
-  height: 18px;
-  background: rgba(255, 255, 255, 0.1);
+  width: 34px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .toggle-switch.on {
-  background: var(--blue-primary);
-  box-shadow: 0 0 10px var(--blue-glow);
+  background: linear-gradient(135deg, #00d2ff, #0088cc);
+  border-color: #00d2ff;
+  box-shadow: 0 0 12px var(--blue-glow);
 }
 
 .toggle-knob {
@@ -345,7 +504,8 @@ html.compact-mode {
   height: 14px;
   border-radius: 50%;
   background: #ffffff;
-  transition: transform 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .toggle-switch.on .toggle-knob {
@@ -362,23 +522,23 @@ html.compact-mode {
   gap: 20px;
 }
 
-/* Minimalist Glass Cards */
+/* Finer Glass Cards */
 .glass-card {
   background: var(--bg-card);
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid var(--border-card);
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: 1px solid var(--border-highlight);
   border-radius: var(--radius-lg);
   padding: 20px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-card);
+  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
 }
 
 .glass-card:hover {
-  border-color: rgba(0, 200, 255, 0.35);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), 0 0 20px rgba(0, 200, 255, 0.1);
+  border-color: rgba(0, 210, 255, 0.3);
+  box-shadow: var(--shadow-card-hover);
   transform: translateY(-1px);
 }
 
@@ -390,50 +550,54 @@ html.compact-mode {
 }
 
 .card-title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   color: #fff;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-/* Minimalist Action Buttons */
+/* Finer Action Buttons */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: linear-gradient(135deg, #0088cc 0%, #005580 100%);
+  background: linear-gradient(135deg, #00c8ff 0%, #0077b6 100%);
   color: #fff;
-  border: 1px solid var(--blue-primary);
-  padding: 9px 18px;
-  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 8px 16px;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 14px var(--blue-glow);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px var(--blue-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #00aaff 0%, #006699 100%);
-  box-shadow: 0 0 20px var(--blue-glow);
+  background: linear-gradient(135deg, #26d4ff 0%, #008ecc 100%);
+  box-shadow: 0 0 24px var(--blue-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transform: translateY(-1px);
 }
 
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
 .btn-accent {
-  background: linear-gradient(135deg, #ff2a5f 0%, #b8143d 100%);
-  border: 1px solid var(--red-primary);
-  box-shadow: 0 4px 14px var(--red-glow);
+  background: linear-gradient(135deg, #ff2a5f 0%, #ba1238 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 16px var(--red-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .btn-accent:hover {
-  background: linear-gradient(135deg, #ff4d79 0%, #cc1744 100%);
-  box-shadow: 0 0 20px var(--red-glow);
+  background: linear-gradient(135deg, #ff4d7a 0%, #d41743 100%);
+  box-shadow: 0 0 24px var(--red-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .btn-secondary {
@@ -441,25 +605,49 @@ html.compact-mode {
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-main);
   padding: 7px 14px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   border-radius: var(--radius-md);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
 
 .btn-secondary:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transform: translateY(-0.5px);
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
 }
 
 .btn-secondary.active {
   background: var(--blue-subtle);
   border-color: var(--blue-primary);
   color: var(--blue-primary);
+  box-shadow: 0 0 12px var(--blue-glow-subtle);
+}
+
+/* Finer Search Input */
+.search-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(4, 7, 14, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  transition: all 0.2s ease;
+}
+
+.search-input-box:focus-within {
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 0 2px rgba(0, 210, 255, 0.15), 0 0 16px rgba(0, 210, 255, 0.1);
 }
 
 /* Animations */
@@ -470,7 +658,7 @@ html.compact-mode {
   }
   50% {
     opacity: 0.6;
-    transform: scale(1.08);
+    transform: scale(1.06);
   }
 }
 
@@ -481,7 +669,7 @@ html.compact-mode {
   }
   50% {
     opacity: 0.6;
-    transform: scale(1.08);
+    transform: scale(1.06);
   }
 }
 
@@ -526,29 +714,35 @@ html.compact-mode {
   }
 }
 
-/* Minimalist Tier Badges */
+/* Finer Tier Badges */
 .tier-badge {
-  padding: 3px 8px;
+  padding: 2.5px 8px;
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .tier-s-plus {
   background: linear-gradient(135deg, #ff2a5f, #ff7597);
   color: #fff;
-  box-shadow: 0 0 10px var(--red-glow);
+  box-shadow: 0 0 12px var(--red-glow);
+  border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .tier-s {
   background: linear-gradient(135deg, #00c8ff, #0077b6);
   color: #fff;
-  box-shadow: 0 0 10px var(--blue-glow);
+  box-shadow: 0 0 12px var(--blue-glow);
+  border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .tier-a {
-  background: rgba(0, 200, 255, 0.2);
+  background: rgba(0, 210, 255, 0.18);
   color: var(--blue-primary);
   border: 1px solid var(--border-blue);
 }
@@ -556,6 +750,7 @@ html.compact-mode {
 .tier-b {
   background: rgba(148, 163, 184, 0.15);
   color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 /* Compact Mode */
@@ -637,7 +832,7 @@ html.compact-mode {
 /* Large Laptops / Scaled Displays (<= 1180px) */
 @media (max-width: 1180px) {
   .sidebar {
-    width: 185px;
+    width: 190px;
     padding: 12px 8px;
   }
   .nav-item {
@@ -660,6 +855,9 @@ html.compact-mode {
     width: 60px;
     padding: 12px 6px;
     align-items: center;
+  }
+  .sidebar-category-label {
+    display: none;
   }
   .nav-item {
     width: 44px;
@@ -736,4 +934,13 @@ html.compact-mode {
     padding: 8px;
     gap: 8px;
   }
+}
+
+/* Electron Window Dragging Utilities */
+.app-drag-region {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
 }

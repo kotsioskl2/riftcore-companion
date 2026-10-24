@@ -229,6 +229,7 @@ export const ITEMS = {
   BANSHEES_VEIL: { id: 3152, name: "Banshee's Veil" },
   MORELLONOMICON: { id: 3165, name: 'Morellonomicon' },
   CRYPTBLOOM: { id: 3137, name: 'Cryptbloom' },
+  RYLAIS: { id: 3116, name: "Rylai's Crystal Scepter" },
 
   // AD Assassin & Lethality
   PROFANE_HYDRA: { id: 6698, name: 'Profane Hydra' },
@@ -274,6 +275,7 @@ export const ITEMS = {
   JAKSHO: { id: 6665, name: "Jak'Sho, The Protean" },
   RANDUINS_OMEN: { id: 3143, name: "Randuin's Omen" },
   FORCE_OF_NATURE: { id: 4401, name: 'Force of Nature' },
+  DEAD_MANS_PLATE: { id: 3742, name: "Dead Man's Plate" },
 
   // Support Enchanter & Tank
   DREAM_MAKER: { id: 3869, name: 'Dream Maker' },
@@ -282,6 +284,8 @@ export const ITEMS = {
   STAFF_OF_FLOWING_WATER: { id: 6616, name: 'Staff of Flowing Water' },
   ARDENT_CENSER: { id: 3504, name: 'Ardent Censer' },
   REDEMPTION: { id: 3107, name: 'Redemption' },
+  MICHAELS_BLESSING: { id: 3222, name: "Mikael's Blessing" },
+  MIKAELS_BLESSING: { id: 3222, name: "Mikael's Blessing" },
   LOCKET_IRON_SOLARI: { id: 3190, name: 'Locket of the Iron Solari' },
   KNIGHTS_VOW: { id: 3109, name: "Knight's Vow" },
   TRAILBLAZER: { id: 2503, name: 'Trailblazer' },

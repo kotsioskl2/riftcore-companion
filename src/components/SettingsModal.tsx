@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle, Minimize2, Keyboard, Coffee, Heart, Copy, Check } from 'lucide-react';
+import { Settings, Shield, Volume2, Zap, CheckCircle2, RotateCw, Monitor, Sparkles, Key, Globe, ExternalLink, Eye, EyeOff, AlertCircle, Minimize2, Keyboard, Coffee, Heart, Copy, Check, Type } from 'lucide-react';
 import { AppSettings } from '../types';
 import { soundService } from '../services/soundService';
 import { riotApiService, RIOT_REGIONS } from '../services/riotApiService';
@@ -66,8 +66,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <div className="glass-card">
         <div className="card-header">
           <div className="card-title">
-            <Settings size={18} color="var(--gold-200)" />
-            <span>HexCore Preferences & Automation</span>
+            <Settings size={17} color="var(--blue-primary)" />
+            <span>RiftCore Preferences & Automation</span>
           </div>
           <span
             style={{
@@ -140,14 +140,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Auto Export In-Game Item Sets (Blitz Style) */}
+          {/* Auto Export In-Game Item Sets */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>Auto Export In-Game Item Sets</span>
-                <span style={{ fontSize: '10px', background: 'rgba(0, 200, 255, 0.15)', color: 'var(--blue-primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                  BLITZ STYLE
-                </span>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>
+                Auto Export In-Game Item Sets
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
                 Automatically injects personalized item builds directly into your League in-game shop (Press 'P' in game).
@@ -192,6 +189,127 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* App Typography & Tactical HUD Font Card */}
+      <div className="glass-card">
+        <div className="card-header">
+          <div className="card-title">
+            <Type size={18} color="var(--blue-primary)" />
+            <span>App Typography & Tactical HUD Font</span>
+          </div>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--blue-primary)',
+              background: 'rgba(0, 210, 255, 0.1)',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              border: '1px solid rgba(0, 210, 255, 0.25)',
+            }}
+          >
+            Live Switching
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+          {/* Option 1: Plus Jakarta Sans + Rajdhani (Recommended) */}
+          <button
+            onClick={() => onUpdateSetting('fontFamily', 'plus-jakarta')}
+            style={{
+              padding: '14px',
+              borderRadius: '8px',
+              background: (!settings.fontFamily || settings.fontFamily === 'plus-jakarta') ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+              border: (!settings.fontFamily || settings.fontFamily === 'plus-jakarta') ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                Plus Jakarta Sans
+              </span>
+              <span style={{ fontSize: '9.5px', fontWeight: 800, color: 'var(--blue-primary)', background: 'rgba(0,210,255,0.15)', padding: '1px 6px', borderRadius: '3px' }}>
+                RECOMMENDED
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: '1.4' }}>
+              Supreme legibility on dark obsidian cards with bold Rajdhani esports HUD timers.
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: '#22c55e', fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.8px', marginTop: '2px' }}>
+              Timer Preview: 05:00 • 20:00 READY
+            </div>
+          </button>
+
+          {/* Option 2: Outfit + Rajdhani */}
+          <button
+            onClick={() => onUpdateSetting('fontFamily', 'outfit')}
+            style={{
+              padding: '14px',
+              borderRadius: '8px',
+              background: settings.fontFamily === 'outfit' ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+              border: settings.fontFamily === 'outfit' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff', fontFamily: 'Outfit, sans-serif' }}>
+                Outfit
+              </span>
+              <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#e5b869', background: 'rgba(229,184,105,0.15)', padding: '1px 6px', borderRadius: '3px' }}>
+                FUTURISTIC
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: '1.4' }}>
+              Sleek rounded geometric curves for an authentic futuristic high-tech gaming HUD.
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: '#22c55e', fontFamily: 'Rajdhani, sans-serif', letterSpacing: '0.8px', marginTop: '2px' }}>
+              Timer Preview: 05:00 • 20:00 READY
+            </div>
+          </button>
+
+          {/* Option 3: Inter */}
+          <button
+            onClick={() => onUpdateSetting('fontFamily', 'inter')}
+            style={{
+              padding: '14px',
+              borderRadius: '8px',
+              background: settings.fontFamily === 'inter' ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+              border: settings.fontFamily === 'inter' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff', fontFamily: 'Inter, sans-serif' }}>
+                Inter
+              </span>
+              <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '3px' }}>
+                CLASSIC
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: '1.4' }}>
+              Standard minimalist neutral interface with JetBrains Mono code-style timers.
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: '#22c55e', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.4px', marginTop: '2px' }}>
+              Timer Preview: 05:00 • 20:00 READY
+            </div>
+          </button>
         </div>
       </div>
 

@@ -1,0 +1,22 @@
+======================================================================
+                  RIFTCORE COMPANION - UPDATE v1.1.0
+======================================================================
+
+Hey! Welcome to v1.1.0. Here is what you need to know:
+
+• Overlay is Fixed: It now stays on your screen properly.
+  Hit Alt + G in-game anytime to show or hide it.
+
+• What to Level & Buy: Shows your next skill upgrade and exactly
+  how much gold you need for your next item.
+
+• Enemy Timers: Tap an enemy Flash or Ult to track their cooldown,
+  or copy it straight to your team chat.
+
+• Lane Tips: Quick reminders on how to beat your matchup.
+
+Quick tip: Set League's video setting to 'Borderless' so the overlay
+floats smoothly over your game.
+
+That's it! Simple, fast, and 0 lag.
+======================================================================

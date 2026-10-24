@@ -263,57 +263,59 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Top Smart Lobby Overview Card */}
-      <div className="glass-card" style={{ padding: '20px 24px', border: '1px solid var(--border-blue)' }}>
+      <div className="glass-card" style={{ padding: '20px 24px', border: '1px solid rgba(0, 210, 255, 0.25)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '50%',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
                   background: 'var(--blue-subtle)',
-                  border: '1px solid var(--blue-primary)',
+                  border: '1px solid var(--border-blue)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  boxShadow: '0 0 14px var(--blue-glow-subtle)',
                 }}
               >
-                <Users size={20} color="var(--blue-primary)" />
+                <Users size={18} color="var(--blue-primary)" />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>Smart Lobby Scout & Intel</h2>
+                  <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#fff', letterSpacing: '0.2px' }}>Smart Lobby Scout & Intel</h2>
                   <span
                     style={{
                       fontSize: '9px',
                       fontWeight: 800,
                       textTransform: 'uppercase',
-                      padding: '2px 8px',
+                      padding: '2px 7px',
                       borderRadius: '4px',
-                      background: 'rgba(0, 200, 255, 0.15)',
+                      background: 'rgba(0, 210, 255, 0.12)',
                       color: 'var(--blue-primary)',
                       border: '1px solid var(--border-blue)',
+                      letterSpacing: '0.4px',
                     }}
                   >
                     AI Pre-Game Analysis
                   </span>
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                   Evaluates teammate history, champion mastery, winrates, and composition balance in real time
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
                   <span
                     style={{
-                      fontSize: '10px',
+                      fontSize: '9.5px',
                       fontWeight: 800,
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      background: session ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.15)',
-                      color: session ? '#22c55e' : '#f59e0b',
-                      border: session ? '1px solid #22c55e' : '1px solid rgba(234, 179, 8, 0.4)',
+                      background: session ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.12)',
+                      color: session ? '#10b981' : '#f59e0b',
+                      border: session ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
                     }}
                   >
                     {session ? '● LIVE LOBBY CONNECTED' : 'ℹ️ PREVIEW MODE — Connect LoL Client & Enter Lobby for Live Team Intel'}
@@ -321,11 +323,11 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
                   {Boolean(localStorage.getItem('riftcore_settings')?.includes('RGAPI-')) && (
                     <span
                       style={{
-                        fontSize: '10px',
+                        fontSize: '9.5px',
                         fontWeight: 800,
                         padding: '2px 8px',
                         borderRadius: '4px',
-                        background: 'rgba(0, 200, 255, 0.15)',
+                        background: 'rgba(0, 210, 255, 0.12)',
                         color: 'var(--blue-primary)',
                         border: '1px solid var(--border-blue)',
                       }}
@@ -344,28 +346,29 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
               display: 'flex',
               alignItems: 'center',
               gap: '12px',
-              padding: '10px 18px',
+              padding: '9px 16px',
               borderRadius: 'var(--radius-md)',
-              background: isSafeToPlay ? 'rgba(0, 200, 255, 0.08)' : 'rgba(255, 42, 95, 0.08)',
+              background: isSafeToPlay ? 'rgba(0, 210, 255, 0.08)' : 'rgba(255, 42, 95, 0.08)',
               border: `1px solid ${isSafeToPlay ? 'var(--blue-primary)' : 'var(--red-primary)'}`,
+              boxShadow: isSafeToPlay ? '0 0 16px rgba(0, 210, 255, 0.12)' : '0 0 16px rgba(255, 42, 95, 0.12)',
             }}
           >
             {isSafeToPlay ? (
-              <ShieldCheck size={26} color="var(--blue-primary)" />
+              <ShieldCheck size={24} color="var(--blue-primary)" />
             ) : (
-              <ShieldAlert size={26} color="var(--red-primary)" />
+              <ShieldAlert size={24} color="var(--red-primary)" />
             )}
             <div>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#94a3b8' }}>
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.5px' }}>
                 AI Match Assessment
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: isSafeToPlay ? 'var(--blue-primary)' : 'var(--blue-primary)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
                 {isSafeToPlay ? '🟢 BALANCED DRAFT — Strong Carries & Scaling' : '⚖️ SCALING FOCUS — Prioritize Safe Farm & Objectives'}
               </div>
             </div>
             <div style={{ borderLeft: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '12px' }}>
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>Win Odds</div>
-              <div style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--blue-primary)' }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Win Odds</div>
+              <div className="tabular-nums" style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--blue-primary)' }}>
                 {teamWinProb}%
               </div>
             </div>
@@ -379,49 +382,49 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
             paddingTop: '16px',
             borderTop: '1px solid var(--border-subtle)',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: '16px',
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', marginBottom: '6px' }}>
               <span style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>Damage Profile</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: '#fff', fontSize: '11px', whiteSpace: 'nowrap' }}>
-                <span style={{ color: '#00c8ff' }}>{adPercent}% AD</span> / <span style={{ color: '#ff2a5f' }}>{apPercent}% AP</span>
+              <span className="tabular-nums" style={{ fontFamily: 'var(--font-mono)', color: '#fff', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: '#00d2ff', fontWeight: 700 }}>{adPercent}% AD</span> / <span style={{ color: '#ff2a5f', fontWeight: 700 }}>{apPercent}% AP</span>
               </span>
             </div>
-            <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden', display: 'flex' }}>
-              <div style={{ width: `${adPercent}%`, height: '100%', background: '#00c8ff' }} title="Physical Damage (AD)" />
+            <div style={{ width: '100%', height: '5px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden', display: 'flex' }}>
+              <div style={{ width: `${adPercent}%`, height: '100%', background: '#00d2ff' }} title="Physical Damage (AD)" />
               <div style={{ width: `${apPercent}%`, height: '100%', background: '#ff2a5f' }} title="Magic Damage (AP)" />
               <div style={{ width: `${truePercent}%`, height: '100%', background: '#f59e0b' }} title="True Damage" />
             </div>
-            <div style={{ fontSize: '11px', color: '#22c55e', marginTop: '4px' }}>
+            <div style={{ fontSize: '10.5px', color: '#10b981', marginTop: '4px', fontWeight: 600 }}>
               ✓ Balanced damage mix (Hard for enemies to itemize)
             </div>
           </div>
 
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '6px', gap: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', marginBottom: '6px', gap: '6px' }}>
               <span style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>Crowd Control (CC)</span>
-              <span style={{ fontWeight: 700, color: '#00c8ff', fontSize: '11px', whiteSpace: 'nowrap' }}>Grade: A (Heavy Lockdown)</span>
+              <span style={{ fontWeight: 700, color: 'var(--blue-primary)', fontSize: '11px', whiteSpace: 'nowrap' }}>Grade: A (Heavy Lockdown)</span>
             </div>
-            <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
-              <div style={{ width: '82%', height: '100%', background: 'var(--blue-primary)', boxShadow: '0 0 8px var(--blue-primary)' }} />
+            <div style={{ width: '100%', height: '5px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: '82%', height: '100%', background: 'var(--blue-primary)', boxShadow: '0 0 8px var(--blue-glow)' }} />
             </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+            <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '4px' }}>
               Thresh Q/E + Lee R + Ahri Charm = High pick potential
             </div>
           </div>
 
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', marginBottom: '6px' }}>
               <span style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>Team Scaling Power</span>
               <span style={{ fontWeight: 700, color: '#c084fc', fontSize: '11px', whiteSpace: 'nowrap' }}>Mid-to-Late Game</span>
             </div>
-            <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '5px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{ width: '75%', height: '100%', background: '#c084fc' }} />
             </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+            <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '4px' }}>
               Jinx hypercarries past 25 mins with Illaoi frontline
             </div>
           </div>
@@ -429,26 +432,27 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
       </div>
 
       {/* Tabs: Allies vs Enemy Threats */}
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div style={{ display: 'flex', gap: '8px' }}>
         <button
           onClick={() => setActiveTab('allies')}
           style={{
             flex: 1,
-            padding: '12px 18px',
+            padding: '10px 16px',
             borderRadius: 'var(--radius-md)',
             border: activeTab === 'allies' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
-            background: activeTab === 'allies' ? 'rgba(0, 200, 255, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+            background: activeTab === 'allies' ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 255, 255, 0.02)',
             color: activeTab === 'allies' ? '#fff' : '#94a3b8',
             fontWeight: 700,
-            fontSize: '13px',
+            fontSize: '12px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '8px',
+            transition: 'all 0.18s ease',
           }}
         >
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--blue-primary)' }} />
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--blue-primary)', boxShadow: activeTab === 'allies' ? '0 0 8px var(--blue-primary)' : 'none' }} />
           <span>Your Team Scouting (Allies)</span>
         </button>
 
@@ -456,27 +460,28 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
           onClick={() => setActiveTab('enemies')}
           style={{
             flex: 1,
-            padding: '12px 18px',
+            padding: '10px 16px',
             borderRadius: 'var(--radius-md)',
             border: activeTab === 'enemies' ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
-            background: activeTab === 'enemies' ? 'rgba(255, 42, 95, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+            background: activeTab === 'enemies' ? 'rgba(255, 42, 95, 0.12)' : 'rgba(255, 255, 255, 0.02)',
             color: activeTab === 'enemies' ? '#fff' : '#94a3b8',
             fontWeight: 700,
-            fontSize: '13px',
+            fontSize: '12px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '8px',
+            transition: 'all 0.18s ease',
           }}
         >
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--red-primary)' }} />
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--red-primary)', boxShadow: activeTab === 'enemies' ? '0 0 8px var(--red-primary)' : 'none' }} />
           <span>Opponent Threats & Weaknesses</span>
         </button>
       </div>
 
       {/* Player Scouting Cards List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {(activeTab === 'allies' ? teammates : enemyThreats).map((player) => {
           const icon = getChampionIcon(player.championId);
           return (
@@ -484,23 +489,26 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
               key={player.name}
               className="glass-card player-scout-card"
               style={{
-                border: player.isMe ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
-                background: player.isMe ? 'rgba(0, 200, 255, 0.04)' : undefined,
+                padding: '12px 16px',
+                border: player.isMe ? '1px solid var(--blue-primary)' : '1px solid var(--border-card)',
+                background: player.isMe ? 'rgba(0, 210, 255, 0.05)' : undefined,
+                boxShadow: player.isMe ? '0 0 16px rgba(0, 210, 255, 0.15)' : undefined,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 {/* Role Pill */}
                 <div
                   style={{
-                    width: '65px',
+                    width: '62px',
                     textAlign: 'center',
-                    fontSize: '11px',
+                    fontSize: '10px',
                     fontWeight: 800,
-                    padding: '3px 8px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: activeTab === 'allies' ? 'rgba(0, 200, 255, 0.12)' : 'rgba(255, 42, 95, 0.12)',
+                    letterSpacing: '0.4px',
+                    padding: '2.5px 6px',
+                    borderRadius: 'var(--radius-xs)',
+                    background: activeTab === 'allies' ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 42, 95, 0.12)',
                     color: activeTab === 'allies' ? 'var(--blue-primary)' : 'var(--red-primary)',
-                    border: `1px solid ${activeTab === 'allies' ? 'var(--border-blue)' : 'var(--border-red)'}`,
+                    border: `1px solid ${activeTab === 'allies' ? 'rgba(0, 210, 255, 0.3)' : 'rgba(255, 42, 95, 0.3)'}`,
                   }}
                 >
                   {player.role}
@@ -512,22 +520,24 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
                     src={icon}
                     alt={player.championName}
                     style={{
-                      width: '46px',
-                      height: '46px',
+                      width: '42px',
+                      height: '42px',
                       borderRadius: '8px',
-                      border: '2px solid rgba(255, 255, 255, 0.15)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      display: 'block',
                     }}
                   />
                   <div
+                    className="tabular-nums"
                     style={{
                       position: 'absolute',
-                      bottom: '-4px',
-                      right: '-4px',
-                      fontSize: '9px',
+                      bottom: '-3px',
+                      right: '-3px',
+                      fontSize: '8.5px',
                       fontWeight: 800,
                       background: '#050811',
                       padding: '1px 4px',
-                      borderRadius: '4px',
+                      borderRadius: '3px',
                       border: '1px solid #334155',
                       color: '#94a3b8',
                     }}
@@ -539,25 +549,26 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
                 {/* Player details */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '15px', fontWeight: 800, color: player.isMe ? 'var(--blue-primary)' : '#fff' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: player.isMe ? 'var(--blue-primary)' : '#fff' }}>
                       {player.name}
                     </span>
                     {player.isMe && (
                       <span
                         style={{
-                          fontSize: '9px',
-                          fontWeight: 800,
+                          fontSize: '8.5px',
+                          fontWeight: 900,
                           background: 'var(--blue-primary)',
                           color: '#000',
-                          padding: '1px 6px',
-                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          letterSpacing: '0.5px',
                         }}
                       >
                         YOU
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                  <div className="tabular-nums" style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
                     {player.championName} • <span style={{ color: '#cbd5e1' }}>{player.rank} ({player.lp} LP)</span>
                   </div>
                 </div>
@@ -566,24 +577,25 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
               {/* Stats & Smart Badges */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                 {/* Winrate & KDA */}
-                <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                <div style={{ textAlign: 'right', minWidth: '85px' }}>
                   <div
+                    className="tabular-nums"
                     style={{
-                      fontSize: '15px',
+                      fontSize: '14px',
                       fontWeight: 800,
                       fontFamily: 'var(--font-mono)',
-                      color: player.winRate >= 55 ? '#22c55e' : player.winRate < 48 ? '#ff2a5f' : '#f8fafc',
+                      color: player.winRate >= 55 ? '#10b981' : player.winRate < 48 ? '#ff2a5f' : '#f8fafc',
                     }}
                   >
                     {player.winRate}% WR
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  <div className="tabular-nums" style={{ fontSize: '10.5px', color: '#94a3b8' }}>
                     {player.kda} KDA
                   </div>
                 </div>
 
                 {/* Smart Tags */}
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxWidth: '340px' }}>
+                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', maxWidth: '340px' }}>
                   {player.badges.map((b) => {
                     const style = getBadgeStyle(b.type);
                     const Icon = style.icon;
@@ -591,9 +603,9 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
                       <span
                         key={b.label}
                         style={{
-                          fontSize: '10px',
+                          fontSize: '9.5px',
                           fontWeight: 700,
-                          padding: '3px 8px',
+                          padding: '2.5px 7px',
                           borderRadius: '4px',
                           background: style.bg,
                           color: style.text,
@@ -601,9 +613,10 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
+                          letterSpacing: '0.3px',
                         }}
                       >
-                        <Icon size={12} />
+                        <Icon size={11} />
                         <span>{b.label}</span>
                       </span>
                     );
@@ -617,3 +630,4 @@ export const LobbyScoutView: React.FC<LobbyScoutViewProps> = ({ session, summone
     </div>
   );
 };
+

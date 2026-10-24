@@ -18,7 +18,7 @@
 
 ## ⚡ Why RiftCore?
 
-Tired of bloated League companion apps (Overwolf, Blitz, Porofessor) consuming **1GB+ of RAM**, injecting intrusive audio/video ads, and slowing down your PC mid-game?
+Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heavy apps) consuming **1GB+ of RAM**, injecting intrusive audio/video ads, and slowing down your PC mid-game?
 
 **RiftCore** was engineered from the ground up to solve this:
 - **Zero Ads, Zero Trackers:** Pure utility, 100% free and open-source forever.
@@ -56,7 +56,7 @@ Tired of bloated League companion apps (Overwolf, Blitz, Porofessor) consuming *
 
 ## 📊 Performance Benchmark
 
-| Metric | Blitz.gg / Overwolf | Porofessor / Mobalytics | ⚡ **RiftCore (Rust)** |
+| Metric | Commercial Apps / Overwolf | Porofessor / Mobalytics | ⚡ **RiftCore (Rust)** |
 | :--- | :---: | :---: | :---: |
 | **Idle Memory (RAM)** | ~800 MB – 1.4 GB | ~600 MB – 950 MB | **~38 MB** |
 | **Standalone Binary Size** | ~280 MB – 450 MB | ~200 MB – 350 MB | **~11 MB** |
@@ -71,17 +71,17 @@ Tired of bloated League companion apps (Overwolf, Blitz, Porofessor) consuming *
 ### Direct Downloads
 | Package | Type | Download Link | Size |
 | :--- | :--- | :--- | :--- |
-| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.0.0.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.0.0.exe) | ~4.7 MB |
-| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.0.0.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.0.0.zip) | ~7.4 MB |
+| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.1.0.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.1.0.exe) | ~4.9 MB |
+| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.1.0.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.1.0.zip) | ~5.9 MB |
 | **Portable Folder** | Extracted Directory | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Ready to Run |
 
 ### Option A: Windows Installer (Recommended)
-1. Download [**RiftCore-Setup-1.0.0.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.0.0.exe).
+1. Download [**RiftCore-Setup-1.1.0.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.1.0.exe).
 2. Run the setup and choose your installation directory.
 3. Desktop and Start Menu shortcuts with the custom RiftCore emblem will be created automatically.
 
 ### Option B: Standalone Portable `.exe`
-1. Download [**RiftCore-Portable-1.0.0.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.0.0.zip) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
+1. Download [**RiftCore-Portable-1.1.0.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.1.0.zip) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
 2. Double-click `RiftCore.exe` (or `Launch_RiftCore.bat`) to launch instantly with zero installation required.
 
 ---
@@ -122,7 +122,7 @@ xcopy /E /I /Y "..\dist" "target\release\dist"
 ```bash
 makensis installer\installer.nsi
 ```
-The compiled installer will be generated in `installer_output\RiftCore-Setup-1.0.0.exe`.
+The compiled installer will be generated in `installer_output\RiftCore-Setup-1.1.0.exe`.
 
 ---
 

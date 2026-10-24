@@ -48,12 +48,12 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo [5/5] Packaging Portable ZIP Archive...
-powershell -Command "Compress-Archive -Path 'RiftCore_Rust_Portable\*' -DestinationPath 'installer_output\RiftCore-Portable-1.0.0.zip' -Force"
+powershell -Command "Compress-Archive -Path 'RiftCore_Rust_Portable\*' -DestinationPath 'installer_output\RiftCore-Portable-1.1.0.zip' -Force"
 
 echo.
 echo ===================================================
 echo   BUILD COMPLETED SUCCESSFULLY!
 echo ===================================================
-echo   Installer: F:\league app\installer_output\RiftCore-Setup-1.0.0.exe
+echo   Installer: F:\league app\installer_output\RiftCore-Setup-1.1.0.exe
 echo   Portable:  F:\league app\RiftCore_Rust_Portable\RiftCore.exe
 echo ===================================================

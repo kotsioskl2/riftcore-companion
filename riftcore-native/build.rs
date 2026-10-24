@@ -34,8 +34,8 @@ BLOCK "000004b0"
 {
 VALUE "ProductName", "RiftCore Companion"
 VALUE "FileDescription", "RiftCore League of Legends Companion"
-VALUE "ProductVersion", "1.0.0"
-VALUE "FileVersion", "1.0.0"
+VALUE "ProductVersion", "1.1.0"
+VALUE "FileVersion", "1.1.0"
 VALUE "LegalCopyright", "Copyright (c) 2026 kotsioskl2"
 }
 }

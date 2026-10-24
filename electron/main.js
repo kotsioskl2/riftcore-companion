@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -30,6 +30,7 @@ let appSettings = {
   soundAlerts: true,
   theme: 'hextech',
   alwaysOnTop: false,
+  closeToTray: true,
 };
 
 function loadSettings() {
@@ -54,15 +55,38 @@ function saveSettings(newSettings) {
 
 loadSettings();
 
+function findLeagueGameCfg() {
+  const candidatePaths = [
+    'C:\\Riot Games\\League of Legends\\Config\\game.cfg',
+    'D:\\Riot Games\\League of Legends\\Config\\game.cfg',
+    'E:\\Riot Games\\League of Legends\\Config\\game.cfg',
+    'F:\\Riot Games\\League of Legends\\Config\\game.cfg',
+    'C:\\Riot Games\\League of Legends (PBE)\\Config\\game.cfg',
+    'D:\\Riot Games\\League of Legends (PBE)\\Config\\game.cfg',
+  ];
+
+  if (lcuCredentials && lcuCredentials.installDir) {
+    candidatePaths.unshift(path.join(lcuCredentials.installDir, 'Config', 'game.cfg'));
+  }
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return null;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1240,
     height: 820,
-    minWidth: 900,
-    minHeight: 640,
+    minWidth: 340,
+    minHeight: 240,
     frame: false,
-    transparent: false,
-    backgroundColor: '#070b12',
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: true,
     icon: path.join(__dirname, '../public/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -75,13 +99,10 @@ function createWindow() {
   const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    // Open devtools in detached mode if debugging is needed
-    // mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // Open external links (such as revolut.me or Riot Dev Portal) in default web browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       shell.openExternal(url);
@@ -178,8 +199,7 @@ function connectWebSocket(credentials) {
   });
 
   ws.on('open', () => {
-    console.log('[HexCore] LCU WebSocket Connected');
-    // Subscribe to all json api events
+    console.log('[RiftCore] LCU WebSocket Connected');
     ws.send(JSON.stringify([5, 'OnJsonApiEvent']));
     notifyRenderer('lcu-status', { connected: true, credentials });
   });
@@ -194,17 +214,15 @@ function connectWebSocket(credentials) {
           handleLCUEvent(payload);
         }
       }
-    } catch (err) {
-      // ignore parse heartbeat noise
-    }
+    } catch {}
   });
 
   ws.on('error', (err) => {
-    console.warn('[HexCore] LCU WebSocket error:', err.message);
+    console.warn('[RiftCore] LCU WebSocket error:', err.message);
   });
 
   ws.on('close', () => {
-    console.log('[HexCore] LCU WebSocket Closed');
+    console.log('[RiftCore] LCU WebSocket Closed');
     notifyRenderer('lcu-status', { connected: false });
     champSelectSession = null;
     notifyRenderer('champ-select-session', null);
@@ -238,8 +256,7 @@ function handleLCUEvent(event) {
       notifyRenderer('champ-select-session', null);
     }
 
-    // If entering InProgress, start polling Live Client Data
-    if (data === 'InProgress') {
+    if (data === 'InProgress' || data === 'GameStart') {
       startLiveGamePolling();
     } else {
       stopLiveGamePolling();
@@ -250,7 +267,7 @@ function handleLCUEvent(event) {
   if (uri === '/lol-matchmaking/v1/ready-check') {
     notifyRenderer('ready-check', data);
     if (appSettings.autoAccept && data && data.state === 'InProgress' && data.playerResponse === 'None') {
-      console.log('[HexCore] Auto-accepting queue match!');
+      console.log('[RiftCore] Auto-accepting queue match!');
       requestLCU('/lol-matchmaking/v1/ready-check/accept', 'POST')
         .catch(err => console.error('Auto accept error:', err));
     }
@@ -281,15 +298,13 @@ function startLiveGamePolling() {
     try {
       const res = await fetch('https://127.0.0.1:2999/liveclientdata/allgamedata', {
         agent: httpsAgent,
-        signal: AbortSignal.timeout(1500)
+        signal: AbortSignal.timeout(1200)
       });
       if (res.ok) {
         const liveData = await res.json();
         notifyRenderer('live-game-update', liveData);
       }
-    } catch {
-      // Game may still be loading or port not ready
-    }
+    } catch {}
   }, 1000);
 }
 
@@ -305,11 +320,10 @@ async function pollForClient() {
   if (!lcuCredentials) {
     const creds = await detectLCUProcess();
     if (creds) {
-      console.log('[HexCore] Detected League Client on port:', creds.port);
+      console.log('[RiftCore] Detected League Client on port:', creds.port);
       lcuCredentials = creds;
       connectWebSocket(creds);
 
-      // Fetch initial gameflow phase
       try {
         const phase = await requestLCU('/lol-gameflow/v1/gameflow-phase');
         gameflowPhase = phase;
@@ -343,7 +357,6 @@ ipcMain.handle('lcu-request', async (_event, { endpoint, method, body }) => {
 ipcMain.handle('import-runes', async (_event, pageData) => {
   if (!lcuCredentials) throw new Error('League Client not running');
 
-  // 1. Get current rune pages
   const pages = await requestLCU('/lol-perks/v1/pages');
   let targetPage = pages.find(p => p.isEditable && p.isDeletable);
 
@@ -352,7 +365,7 @@ ipcMain.handle('import-runes', async (_event, pageData) => {
   }
 
   const payload = {
-    name: pageData.name || '⚡ HexCore Build',
+    name: pageData.name || '⚡ RiftCore Build',
     primaryStyleId: pageData.primaryStyleId,
     subStyleId: pageData.subStyleId,
     selectedPerkIds: pageData.selectedPerkIds,
@@ -361,12 +374,10 @@ ipcMain.handle('import-runes', async (_event, pageData) => {
   };
 
   if (targetPage) {
-    // Delete and recreate or PUT to replace cleanly
     try {
       await requestLCU(`/lol-perks/v1/pages/${targetPage.id}`, 'DELETE');
       return await requestLCU('/lol-perks/v1/pages', 'POST', payload);
     } catch {
-      // Fallback to PUT
       return await requestLCU(`/lol-perks/v1/pages/${targetPage.id}`, 'PUT', payload);
     }
   } else {
@@ -385,12 +396,10 @@ ipcMain.handle('import-spells', async (_event, { spell1Id, spell2Id }) => {
 ipcMain.handle('export-item-set', async (_event, itemSetPayload) => {
   if (!lcuCredentials) throw new Error('League Client not running');
 
-  // 1. Get summonerId
   const summoner = await requestLCU('/lol-summoner/v1/current-summoner');
   if (!summoner || !summoner.summonerId) throw new Error('Summoner not found');
   const summonerId = summoner.summonerId;
 
-  // 2. Fetch existing item sets
   let setsData = { itemSets: [], timestamp: Date.now() };
   try {
     const existing = await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`);
@@ -399,7 +408,6 @@ ipcMain.handle('export-item-set', async (_event, itemSetPayload) => {
     }
   } catch {}
 
-  // 3. Remove old RiftCore set for this specific champion
   const champId = itemSetPayload.associatedChampions?.[0];
   setsData.itemSets = setsData.itemSets.filter(s => {
     if (s.title && s.title.startsWith('⚡ RiftCore:')) {
@@ -410,10 +418,7 @@ ipcMain.handle('export-item-set', async (_event, itemSetPayload) => {
     return true;
   });
 
-  // 4. Append new item set
   setsData.itemSets.push(itemSetPayload);
-
-  // 5. Save back via PUT
   return await requestLCU(`/lol-item-sets/v1/item-sets/${summonerId}/sets`, 'PUT', setsData);
 });
 
@@ -453,6 +458,7 @@ ipcMain.handle('riot-api-request', async (_event, { url, key }) => {
   }
 });
 
+// Window controls & Overlay Mode
 ipcMain.handle('window-control', (_event, action) => {
   if (!mainWindow) return;
 
@@ -468,38 +474,250 @@ ipcMain.handle('window-control', (_event, action) => {
       }
       break;
     case 'close':
-      mainWindow.close();
+      if (appSettings.closeToTray) {
+        mainWindow.minimize();
+      } else {
+        mainWindow.close();
+      }
       break;
+    case 'minimize-to-tray':
+      mainWindow.minimize();
+      break;
+    case 'exit-app':
+      app.quit();
+      break;
+    case 'set-pin-on':
+      isPinned = true;
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      return { isPinned, isCompactMode };
+    case 'set-pin-off':
+      isPinned = false;
+      mainWindow.setAlwaysOnTop(false);
+      return { isPinned, isCompactMode };
     case 'toggle-pin':
       isPinned = !isPinned;
-      mainWindow.setAlwaysOnTop(isPinned);
+      mainWindow.setAlwaysOnTop(isPinned, 'screen-saver');
       return { isPinned, isCompactMode };
     case 'toggle-compact':
       isCompactMode = !isCompactMode;
       if (isCompactMode) {
-        mainWindow.setSize(440, 750);
-        mainWindow.setAlwaysOnTop(true);
-        mainWindow.setResizable(false);
+        mainWindow.setMinimumSize(240, 36);
+        mainWindow.setSize(340, 270);
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
         isPinned = true;
       } else {
+        mainWindow.setMinimumSize(900, 640);
         mainWindow.setSize(1240, 820);
-        mainWindow.setAlwaysOnTop(isPinned);
-        mainWindow.setResizable(true);
+        mainWindow.setAlwaysOnTop(isPinned, 'screen-saver');
+        mainWindow.center();
       }
+      notifyRenderer('rift-compact-hud', isCompactMode);
       return { isPinned, isCompactMode };
   }
 });
+
+ipcMain.handle('resize-window', (_event, { width, height }) => {
+  if (!mainWindow) return;
+  mainWindow.setSize(width, height);
+  return { width, height };
+});
+
+ipcMain.handle('snap-overlay', (_event, { position, width = 340, height = 270 }) => {
+  if (!mainWindow) return;
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: sw } = primaryDisplay.workAreaSize;
+  let x = Math.max(0, sw - width - 24);
+  let y = 60;
+  if (position === 'top-center') {
+    x = Math.max(0, Math.floor((sw - width) / 2));
+    y = 12;
+  } else if (position === 'top-left') {
+    x = 24;
+    y = 60;
+  }
+  mainWindow.setBounds({ x, y, width, height });
+  return { x, y, width, height };
+});
+
+ipcMain.handle('set-click-through', (_event, enabled) => {
+  if (!mainWindow) return { clickThrough: false };
+  mainWindow.setIgnoreMouseEvents(Boolean(enabled), { forward: true });
+  return { clickThrough: Boolean(enabled) };
+});
+
+ipcMain.handle('set-hud-mode', (_event, mode) => {
+  if (!mainWindow) return { mode };
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: sw, height: sh } = primaryDisplay.bounds;
+
+  if (mode === 'integrated') {
+    mainWindow.setBounds({ x: 0, y: 0, width: sw, height: sh });
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  } else if (mode === 'card') {
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.setBounds({ x: Math.max(0, sw - 340 - 24), y: 60, width: 340, height: 270 });
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  } else if (mode === 'bar') {
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.setBounds({ x: Math.max(0, Math.floor((sw - 620) / 2)), y: 12, width: 620, height: 42 });
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  }
+  return { mode };
+});
+
+ipcMain.handle('set-always-on-top', (_event, alwaysOnTop) => {
+  if (!mainWindow) return { isPinned: false };
+  isPinned = Boolean(alwaysOnTop);
+  mainWindow.setAlwaysOnTop(isPinned, 'screen-saver');
+  return { isPinned };
+});
+
+ipcMain.handle('set-compact-hud', (_event, compact) => {
+  if (!mainWindow) return { isCompactMode, isPinned };
+  isCompactMode = Boolean(compact);
+  if (isCompactMode) {
+    mainWindow.setMinimumSize(240, 36);
+    mainWindow.setSize(340, 270);
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    isPinned = true;
+  } else {
+    mainWindow.setMinimumSize(900, 640);
+    mainWindow.setSize(1240, 820);
+    mainWindow.setAlwaysOnTop(isPinned, 'screen-saver');
+    mainWindow.center();
+  }
+  notifyRenderer('rift-compact-hud', isCompactMode);
+  return { isPinned, isCompactMode };
+});
+
+ipcMain.handle('focus-window', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return { success: true };
+  }
+  return { success: false };
+});
+
+ipcMain.handle('launch-league', async () => {
+  const riotClientPaths = [
+    'C:\\Riot Games\\Riot Client\\RiotClientServices.exe',
+    'D:\\Riot Games\\Riot Client\\RiotClientServices.exe',
+    'E:\\Riot Games\\Riot Client\\RiotClientServices.exe',
+    'F:\\Riot Games\\Riot Client\\RiotClientServices.exe',
+  ];
+
+  for (const exe of riotClientPaths) {
+    if (fs.existsSync(exe)) {
+      exec(`"${exe}" --launch-product=league_of_legends --launch-patchline=live`);
+      return { success: true };
+    }
+  }
+  return { success: false, message: 'RiotClientServices.exe not found' };
+});
+
+ipcMain.handle('get-league-window-mode', async () => {
+  const cfgPath = findLeagueGameCfg();
+  if (!cfgPath) return { found: false, windowMode: 0, path: '' };
+
+  try {
+    const content = fs.readFileSync(cfgPath, 'utf8');
+    let windowMode = 0;
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('WindowMode=')) {
+        windowMode = parseInt(trimmed.replace('WindowMode=', ''), 10) || 0;
+        break;
+      }
+    }
+    return { found: true, windowMode, path: cfgPath };
+  } catch {
+    return { found: false, windowMode: 0, path: cfgPath };
+  }
+});
+
+ipcMain.handle('set-league-borderless', async () => {
+  const cfgPath = findLeagueGameCfg();
+  if (!cfgPath) return { success: false };
+
+  try {
+    let content = fs.readFileSync(cfgPath, 'utf8');
+    if (content.includes('WindowMode=')) {
+      content = content.replace(/WindowMode=\d+/g, 'WindowMode=2');
+    } else {
+      content += '\r\nWindowMode=2\r\n';
+    }
+    fs.writeFileSync(cfgPath, content, 'utf8');
+    return { success: true };
+  } catch {
+    return { success: false };
+  }
+});
+
+function toggleOverlayAction() {
+  if (!mainWindow) return;
+
+  if (mainWindow.isMinimized() || !mainWindow.isVisible()) {
+    mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    if (!isCompactMode) {
+      isCompactMode = true;
+      mainWindow.setMinimumSize(340, 240);
+      mainWindow.setSize(380, 680);
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      isPinned = true;
+      notifyRenderer('rift-compact-hud', true);
+    }
+    return;
+  }
+
+  // If already visible in compact mode: toggle minimize
+  if (isCompactMode) {
+    mainWindow.minimize();
+  } else {
+    // Switch to compact overlay mode
+    isCompactMode = true;
+    mainWindow.setMinimumSize(340, 240);
+    mainWindow.setSize(380, 680);
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    isPinned = true;
+    notifyRenderer('rift-compact-hud', true);
+  }
+}
 
 // App Lifecycle
 app.whenReady().then(() => {
   createWindow();
   pollForClient();
 
+  // Register Global Overlay Shortcuts
+  const registerShortcut = (accelerator, handler) => {
+    try {
+      globalShortcut.register(accelerator, handler);
+    } catch (e) {
+      console.warn(`Failed to register global shortcut ${accelerator}:`, e);
+    }
+  };
+
+  registerShortcut('Alt+G', toggleOverlayAction);
+  registerShortcut('CommandOrControl+Space', toggleOverlayAction);
+  registerShortcut('Alt+X', toggleOverlayAction);
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+

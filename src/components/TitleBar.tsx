@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Square, X, Pin, LayoutTemplate, RefreshCw, Zap } from 'lucide-react';
+import { Minus, Square, X, Pin, LayoutTemplate, RefreshCw, Zap, Sparkles } from 'lucide-react';
 import { GameflowPhase } from '../types';
 import { patchService, PatchState } from '../services/patchService';
 
@@ -13,6 +13,7 @@ interface TitleBarProps {
   onTogglePin: () => void;
   onLaunchLeague?: () => void;
   onCloseClick?: () => void;
+  onOpenUpdateNotes?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
@@ -25,6 +26,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onTogglePin,
   onLaunchLeague,
   onCloseClick,
+  onOpenUpdateNotes,
 }) => {
   const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
 
@@ -88,33 +90,36 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           src="/logo.png"
           alt="RiftCore"
           style={{
-            width: '22px',
-            height: '22px',
-            borderRadius: '5px',
-            boxShadow: '0 0 12px rgba(0, 200, 255, 0.45)',
+            width: '20px',
+            height: '20px',
+            borderRadius: '4px',
+            boxShadow: '0 0 10px rgba(0, 210, 255, 0.45)',
+          }}
+          onError={(e) => {
+            (e.target as HTMLElement).style.display = 'none';
           }}
         />
         <span
           style={{
-            background: 'linear-gradient(90deg, #ffffff 0%, #b8f0ff 60%, #00c8ff 100%)',
+            background: 'linear-gradient(90deg, #ffffff 0%, #d8f5ff 55%, #00d2ff 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             fontWeight: 900,
-            fontSize: '13px',
-            letterSpacing: '1.5px',
+            fontSize: '12.5px',
+            letterSpacing: '1.8px',
           }}
         >
           RIFTCORE
         </span>
         <span
           style={{
-            fontSize: '9px',
+            fontSize: '8.5px',
             fontWeight: 800,
-            letterSpacing: '0.5px',
-            padding: '1px 6px',
-            borderRadius: '4px',
-            background: 'rgba(0, 200, 255, 0.1)',
-            border: '1px solid rgba(0, 200, 255, 0.25)',
+            letterSpacing: '0.6px',
+            padding: '1px 5px',
+            borderRadius: '3px',
+            background: 'rgba(0, 210, 255, 0.1)',
+            border: '1px solid rgba(0, 210, 255, 0.25)',
             color: 'var(--blue-primary)',
           }}
         >
@@ -123,13 +128,16 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       </div>
 
       <div className="titlebar-status">
-        <div className={`status-dot ${getStatusDotClass()}`} />
-        <span className="titlebar-status-text">{getStatusText()}</span>
+        <div className="status-dot-container">
+          <div className={`status-dot ${getStatusDotClass()}`} />
+          <div className="status-ring" />
+        </div>
+        <span className="titlebar-status-text tabular-nums">{getStatusText()}</span>
         {!isConnected && isRiotClientReady && onLaunchLeague ? (
           <button
             onClick={onLaunchLeague}
             className="phase-pill ready-check"
-            style={{ cursor: 'pointer', border: '1px solid #00c8ff', background: 'rgba(0, 200, 255, 0.15)' }}
+            style={{ cursor: 'pointer', border: '1px solid #00d2ff', background: 'rgba(0, 210, 255, 0.15)' }}
             title="Launch League of Legends via Riot Client"
           >
             ▶ Launch League
@@ -140,6 +148,32 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       </div>
 
       <div className="titlebar-controls">
+        {/* What's New / Update Notes Button */}
+        {onOpenUpdateNotes && (
+          <button
+            onClick={onOpenUpdateNotes}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2.5px 8px',
+              borderRadius: 'var(--radius-xs)',
+              background: 'rgba(0, 210, 255, 0.12)',
+              border: '1px solid rgba(0, 210, 255, 0.35)',
+              fontSize: '10px',
+              fontWeight: 800,
+              color: '#fff',
+              cursor: 'pointer',
+              marginRight: '6px',
+              transition: 'all 0.18s ease',
+            }}
+            title="View What's New & v1.1.0 Update Notes"
+          >
+            <Sparkles size={10} color="var(--blue-primary)" />
+            <span>What's New</span>
+          </button>
+        )}
+
         {/* Dynamic Riot Patch Badge */}
         <button
           onClick={() => patchService.checkAndApplyPatchUpdate()}
@@ -148,21 +182,21 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            padding: '3px 8px',
-            borderRadius: '4px',
-            background: 'rgba(0, 200, 255, 0.08)',
-            border: '1px solid rgba(0, 200, 255, 0.25)',
-            fontSize: '11px',
+            padding: '2.5px 8px',
+            borderRadius: 'var(--radius-xs)',
+            background: 'rgba(0, 210, 255, 0.08)',
+            border: '1px solid rgba(0, 210, 255, 0.22)',
+            fontSize: '10.5px',
             fontWeight: 700,
             color: 'var(--blue-primary)',
             cursor: 'pointer',
             marginRight: '6px',
-            transition: 'all 0.15s ease',
+            transition: 'all 0.18s ease',
           }}
           title={`Patch ${patchState.version} • Click to check Riot for updates`}
         >
-          <RefreshCw size={11} style={{ animation: patchState.isChecking ? 'spin 1s linear infinite' : 'none' }} />
-          <span>Patch {patchState.majorMinor}</span>
+          <RefreshCw size={10} style={{ animation: patchState.isChecking ? 'spin 1s linear infinite' : 'none' }} />
+          <span className="tabular-nums">Patch {patchState.majorMinor}</span>
         </button>
 
         <button
@@ -171,16 +205,16 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           onClick={onTogglePin}
           title={isPinned ? 'Unpin from Top' : 'Always on Top (Overlay)'}
         >
-          <Pin size={13} />
+          <Pin size={12.5} />
         </button>
 
         <button
           id="btn-toggle-compact"
           className={`control-btn ${isCompactMode ? 'active' : ''}`}
           onClick={onToggleCompact}
-          title={isCompactMode ? 'Full Mode' : 'Compact HUD Mode'}
+          title={isCompactMode ? 'Full App Mode (Alt+G)' : 'In-Game Overlay HUD (Alt+G / Ctrl+Space)'}
         >
-          <LayoutTemplate size={13} />
+          <LayoutTemplate size={12.5} />
         </button>
 
         <button
@@ -189,7 +223,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           onClick={() => handleControl('minimize')}
           title="Minimize"
         >
-          <Minus size={14} />
+          <Minus size={13} />
         </button>
 
         <button
@@ -198,7 +232,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           onClick={() => handleControl('maximize')}
           title="Maximize"
         >
-          <Square size={12} />
+          <Square size={11} />
         </button>
 
         <button
@@ -207,7 +241,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           onClick={() => handleControl('close')}
           title="Close RiftCore"
         >
-          <X size={14} />
+          <X size={13} />
         </button>
       </div>
     </header>

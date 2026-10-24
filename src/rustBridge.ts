@@ -206,5 +206,21 @@ export function initRustBridge() {
     setLeagueBorderless: async () => {
       return sendRustIpc('set-league-borderless');
     },
+
+    resizeWindow: async (width: number, height: number) => {
+      return sendRustIpc('resize-window', { width, height });
+    },
+
+    snapOverlay: async (position: string, width?: number, height?: number) => {
+      return sendRustIpc('snap-overlay', { position, width, height });
+    },
+
+    setHudMode: async (mode: 'integrated' | 'card' | 'bar') => {
+      return sendRustIpc('set-hud-mode', { mode });
+    },
+
+    setClickThrough: async (enabled: boolean) => {
+      return sendRustIpc('set-click-through', { enabled });
+    },
   };
 }

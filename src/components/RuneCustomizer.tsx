@@ -123,12 +123,12 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {/* Preset Switcher Bar */}
       {onSelectPreset && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8' }}>
-            Rune Build:
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.4px', marginRight: '4px' }}>
+            Build Preset:
           </span>
           <button
             onClick={() => onSelectPreset('meta')}
@@ -136,17 +136,18 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 12px',
-              borderRadius: '6px',
-              background: activePreset === 'meta' ? 'var(--blue-subtle)' : 'rgba(255, 255, 255, 0.04)',
+              padding: '3.5px 11px',
+              borderRadius: 'var(--radius-sm)',
+              background: activePreset === 'meta' ? 'rgba(0, 210, 255, 0.14)' : 'rgba(255, 255, 255, 0.03)',
               border: activePreset === 'meta' ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
               color: activePreset === 'meta' ? 'var(--blue-primary)' : '#94a3b8',
               fontSize: '11px',
               fontWeight: 700,
               cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
           >
-            <Flame size={13} />
+            <Flame size={12} />
             <span>Highest Win Rate (Meta)</span>
           </button>
 
@@ -156,17 +157,18 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 12px',
-              borderRadius: '6px',
-              background: activePreset === 'burst' ? 'rgba(255, 42, 95, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+              padding: '3.5px 11px',
+              borderRadius: 'var(--radius-sm)',
+              background: activePreset === 'burst' ? 'rgba(255, 42, 95, 0.14)' : 'rgba(255, 255, 255, 0.03)',
               border: activePreset === 'burst' ? '1px solid var(--red-primary)' : '1px solid var(--border-subtle)',
               color: activePreset === 'burst' ? 'var(--red-primary)' : '#94a3b8',
               fontSize: '11px',
               fontWeight: 700,
               cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
           >
-            <Zap size={13} />
+            <Zap size={12} />
             <span>Lethality & Burst</span>
           </button>
 
@@ -176,29 +178,30 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 12px',
-              borderRadius: '6px',
-              background: activePreset === 'sustain' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-              border: activePreset === 'sustain' ? '1px solid #22c55e' : '1px solid var(--border-subtle)',
-              color: activePreset === 'sustain' ? '#22c55e' : '#94a3b8',
+              padding: '3.5px 11px',
+              borderRadius: 'var(--radius-sm)',
+              background: activePreset === 'sustain' ? 'rgba(16, 185, 129, 0.14)' : 'rgba(255, 255, 255, 0.03)',
+              border: activePreset === 'sustain' ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+              color: activePreset === 'sustain' ? '#10b981' : '#94a3b8',
               fontSize: '11px',
               fontWeight: 700,
               cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
           >
-            <Shield size={13} />
+            <Shield size={12} />
             <span>Anti-Tank / Sustain</span>
           </button>
 
           {activePreset === 'custom' && (
             <span
               style={{
-                fontSize: '11px',
+                fontSize: '10.5px',
                 fontWeight: 700,
                 color: 'var(--blue-primary)',
-                padding: '3px 8px',
-                borderRadius: '4px',
-                background: 'rgba(0, 200, 255, 0.1)',
+                padding: '2.5px 7px',
+                borderRadius: 'var(--radius-xs)',
+                background: 'rgba(0, 210, 255, 0.1)',
                 border: '1px solid var(--border-blue)',
               }}
             >
@@ -213,9 +216,9 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
         {/* PRIMARY STYLE */}
         <div
           style={{
-            background: 'rgba(6, 9, 15, 0.65)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '10px',
+            background: 'rgba(6, 10, 18, 0.65)',
+            border: '1px solid var(--border-card)',
+            borderRadius: 'var(--radius-md)',
             padding: '14px',
             display: 'flex',
             flexDirection: 'column',
@@ -383,9 +386,9 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
         {/* SECONDARY STYLE & SHARDS */}
         <div
           style={{
-            background: 'rgba(6, 9, 15, 0.65)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '10px',
+            background: 'rgba(6, 10, 18, 0.65)',
+            border: '1px solid var(--border-card)',
+            borderRadius: 'var(--radius-md)',
             padding: '14px',
             display: 'flex',
             flexDirection: 'column',

@@ -24,8 +24,8 @@ export const CloseConfirmationModal: React.FC<CloseConfirmationModalProps> = ({
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        background: 'rgba(3, 6, 12, 0.78)',
-        backdropFilter: 'blur(8px)',
+        background: 'rgba(2, 5, 11, 0.82)',
+        backdropFilter: 'blur(16px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -36,15 +36,17 @@ export const CloseConfirmationModal: React.FC<CloseConfirmationModalProps> = ({
         className="glass-card"
         style={{
           width: '100%',
-          maxWidth: '460px',
-          padding: '24px',
-          border: '1px solid var(--border-blue)',
-          boxShadow: '0 0 35px rgba(0, 200, 255, 0.22)',
+          maxWidth: '450px',
+          padding: '22px 24px',
+          border: '1px solid rgba(0, 210, 255, 0.3)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 16px 40px -4px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 210, 255, 0.2)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
+          gap: '14px',
           position: 'relative',
           animation: 'modalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+          borderRadius: 'var(--radius-lg)',
         }}
       >
         {/* Close dialog button */}
@@ -58,43 +60,50 @@ export const CloseConfirmationModal: React.FC<CloseConfirmationModalProps> = ({
             border: 'none',
             color: '#64748b',
             cursor: 'pointer',
+            padding: '4px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'color 0.15s ease',
           }}
           title="Cancel"
         >
-          <X size={16} />
+          <X size={15} />
         </button>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div
             style={{
-              width: '42px',
-              height: '42px',
+              width: '40px',
+              height: '40px',
               borderRadius: '10px',
               background: 'var(--blue-subtle)',
               border: '1px solid var(--border-blue)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 14px var(--blue-glow)',
+              boxShadow: '0 0 16px var(--blue-glow-subtle)',
+              flexShrink: 0,
             }}
           >
-            <ShieldCheck size={22} color="var(--blue-primary)" />
+            <ShieldCheck size={20} color="var(--blue-primary)" />
           </div>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#fff' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', letterSpacing: '0.2px' }}>
               Keep Running in Background?
             </h3>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+            <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 600 }}>
               Windows System Tray Active
             </span>
           </div>
         </div>
 
         {/* Content explanation */}
-        <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
+        <div style={{ fontSize: '12.5px', color: '#cbd5e1', lineHeight: '1.55' }}>
           Minimizing to the <strong>system tray</strong> keeps <strong>Auto-Accept</strong> and the <strong>In-Game HUD Overlay</strong> active while keeping your desktop clean:
-          <ul style={{ marginTop: '8px', paddingLeft: '20px', fontSize: '12px', color: '#94a3b8' }}>
+          <ul style={{ marginTop: '8px', paddingLeft: '18px', fontSize: '11.5px', color: '#94a3b8' }}>
             <li>Left click or double-click the tray icon to restore RiftCore.</li>
             <li>Right click the tray icon to exit completely at any time.</li>
           </ul>
@@ -106,11 +115,11 @@ export const CloseConfirmationModal: React.FC<CloseConfirmationModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            fontSize: '12px',
+            fontSize: '11.5px',
             color: '#94a3b8',
             cursor: 'pointer',
             userSelect: 'none',
-            marginTop: '4px',
+            marginTop: '2px',
           }}
         >
           <input
@@ -123,24 +132,25 @@ export const CloseConfirmationModal: React.FC<CloseConfirmationModalProps> = ({
         </label>
 
         {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
           <button
             onClick={onExitApp}
             style={{
               background: 'none',
               border: 'none',
-              color: '#ef4444',
-              fontSize: '12px',
+              color: '#ff2a5f',
+              fontSize: '11.5px',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 10px',
-              borderRadius: '6px',
+              borderRadius: 'var(--radius-sm)',
+              transition: 'all 0.15s ease',
             }}
           >
-            <Power size={14} />
+            <Power size={13} />
             <span>Exit Application</span>
           </button>
 
@@ -148,14 +158,14 @@ export const CloseConfirmationModal: React.FC<CloseConfirmationModalProps> = ({
             className="btn-primary"
             onClick={() => onMinimizeToTray(remember)}
             style={{
-              padding: '8px 20px',
-              fontSize: '13px',
+              padding: '7px 18px',
+              fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '7px',
             }}
           >
-            <Minimize2 size={15} />
+            <Minimize2 size={14} />
             <span>Minimize to Tray</span>
           </button>
         </div>

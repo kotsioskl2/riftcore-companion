@@ -63,6 +63,18 @@ contextBridge.exposeInMainWorld('riftAPI', {
     return ipcRenderer.invoke('window-control', action);
   },
 
+  setAlwaysOnTop: (alwaysOnTop) => {
+    return ipcRenderer.invoke('set-always-on-top', alwaysOnTop);
+  },
+
+  setCompactHud: (compact) => {
+    return ipcRenderer.invoke('set-compact-hud', compact);
+  },
+
+  focusWindow: () => {
+    return ipcRenderer.invoke('focus-window');
+  },
+
   getSettings: () => {
     return ipcRenderer.invoke('get-settings');
   },
@@ -73,6 +85,34 @@ contextBridge.exposeInMainWorld('riftAPI', {
 
   checkClientStatus: () => {
     return ipcRenderer.invoke('check-client-status');
+  },
+
+  launchLeague: () => {
+    return ipcRenderer.invoke('launch-league');
+  },
+
+  getLeagueWindowMode: () => {
+    return ipcRenderer.invoke('get-league-window-mode');
+  },
+
+  setLeagueBorderless: () => {
+    return ipcRenderer.invoke('set-league-borderless');
+  },
+
+  resizeWindow: (width, height) => {
+    return ipcRenderer.invoke('resize-window', { width, height });
+  },
+
+  snapOverlay: (position, width, height) => {
+    return ipcRenderer.invoke('snap-overlay', { position, width, height });
+  },
+
+  setHudMode: (mode) => {
+    return ipcRenderer.invoke('set-hud-mode', mode);
+  },
+
+  setClickThrough: (enabled) => {
+    return ipcRenderer.invoke('set-click-through', enabled);
   },
 
   riotApiRequest: (url, key) => {

@@ -350,30 +350,52 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
         className="glass-card"
         style={{
           position: 'relative',
-          padding: '24px',
-          backgroundImage: `linear-gradient(90deg, rgba(6, 9, 15, 0.96) 0%, rgba(6, 9, 15, 0.8) 55%, rgba(6, 9, 15, 0.45) 100%), url(${getChampionSplash(champ.key)})`,
+          padding: '22px 24px',
+          backgroundImage: `linear-gradient(90deg, rgba(5, 8, 16, 0.98) 0%, rgba(5, 8, 16, 0.88) 42%, rgba(5, 8, 16, 0.35) 100%), url(${getChampionSplash(champ.key)})`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center 20%',
-          border: '1px solid var(--border-blue)',
-          borderRadius: '12px',
+          backgroundPosition: 'center 22%',
+          border: '1px solid rgba(0, 210, 255, 0.3)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: '0 12px 36px -4px rgba(0, 0, 0, 0.65), 0 0 24px rgba(0, 210, 255, 0.1)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-            <img
-              src={getChampionIcon(champ.key)}
-              alt={champ.name}
-              style={{
-                width: '74px',
-                height: '74px',
-                borderRadius: '12px',
-                border: '2px solid var(--blue-primary)',
-                boxShadow: '0 0 20px var(--blue-glow)',
-              }}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ position: 'relative' }}>
+              <img
+                src={getChampionIcon(champ.key)}
+                alt={champ.name}
+                style={{
+                  width: '72px',
+                  height: '72px',
+                  borderRadius: '13px',
+                  border: '2px solid rgba(0, 210, 255, 0.7)',
+                  boxShadow: '0 0 20px rgba(0, 210, 255, 0.35)',
+                  display: 'block',
+                }}
+              />
+              <span
+                style={{
+                  position: 'absolute',
+                  bottom: '-5px',
+                  right: '-5px',
+                  fontSize: '9px',
+                  fontWeight: 900,
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  background: 'rgba(5, 8, 16, 0.95)',
+                  border: '1px solid rgba(0, 210, 255, 0.4)',
+                  color: 'var(--blue-primary)',
+                  letterSpacing: '0.4px',
+                }}
+              >
+                {initialBuild.tier}
+              </span>
+            </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                <h1 style={{ fontSize: '24px', color: '#fff', fontWeight: 800, letterSpacing: '0.5px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '23px', color: '#fff', fontWeight: 800, letterSpacing: '0.3px', margin: 0 }}>
                   {champ.name}
                 </h1>
                 <span className={`tier-badge tier-${initialBuild.tier.toLowerCase().replace('+', '-plus')}`}>
@@ -381,36 +403,47 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 </span>
                 <span
                   style={{
-                    fontSize: '11px',
+                    fontSize: '10.5px',
                     fontWeight: 700,
                     textTransform: 'uppercase',
-                    padding: '3px 8px',
-                    background: 'rgba(255, 255, 255, 0.08)',
+                    letterSpacing: '0.5px',
+                    padding: '2.5px 8px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
                     borderRadius: '4px',
-                    color: '#94a3b8',
+                    color: '#cbd5e1',
                   }}
                 >
                   {initialBuild.role}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: '18px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                <span>Win Rate: <strong style={{ color: 'var(--blue-primary)' }}>{initialBuild.winRate}%</strong></span>
-                <span>Pick Rate: <strong style={{ color: '#fff' }}>{initialBuild.pickRate}%</strong></span>
-                <span>Ban Rate: <strong style={{ color: 'var(--red-primary)' }}>{initialBuild.banRate}%</strong></span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0, 210, 255, 0.07)', border: '1px solid rgba(0, 210, 255, 0.2)', padding: '2px 9px', borderRadius: '5px', fontSize: '11px' }}>
+                  <span style={{ color: '#94a3b8' }}>Win:</span>
+                  <strong className="tabular-nums" style={{ color: 'var(--blue-primary)', fontWeight: 800 }}>{initialBuild.winRate}%</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '2px 9px', borderRadius: '5px', fontSize: '11px' }}>
+                  <span style={{ color: '#94a3b8' }}>Pick:</span>
+                  <strong className="tabular-nums" style={{ color: '#fff', fontWeight: 800 }}>{initialBuild.pickRate}%</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(255, 42, 95, 0.07)', border: '1px solid rgba(255, 42, 95, 0.2)', padding: '2px 9px', borderRadius: '5px', fontSize: '11px' }}>
+                  <span style={{ color: '#94a3b8' }}>Ban:</span>
+                  <strong className="tabular-nums" style={{ color: 'var(--red-primary)', fontWeight: 800 }}>{initialBuild.banRate}%</strong>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Quick Actions Bar */}
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* Sync to Client Pick Button */}
             {lastSyncedLcuChampId > 0 && selectedChampId !== lastSyncedLcuChampId && (
               <button
                 onClick={() => handleSelectChampion(lastSyncedLcuChampId)}
                 style={{
                   padding: '6px 12px',
-                  borderRadius: '6px',
-                  background: 'rgba(0, 200, 255, 0.15)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'rgba(0, 210, 255, 0.15)',
                   border: '1px solid var(--blue-primary)',
                   color: 'var(--blue-primary)',
                   fontSize: '11px',
@@ -419,7 +452,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  boxShadow: '0 0 10px rgba(0, 200, 255, 0.2)',
+                  boxShadow: '0 0 12px rgba(0, 210, 255, 0.25)',
                 }}
                 title="Return to the champion currently selected in League Client"
               >
@@ -433,8 +466,8 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               onClick={() => setAutoImport(!autoImport)}
               style={{
                 padding: '6px 12px',
-                borderRadius: '6px',
-                background: autoImport ? 'rgba(0, 200, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                borderRadius: 'var(--radius-sm)',
+                background: autoImport ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
                 border: autoImport ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
                 color: autoImport ? 'var(--blue-primary)' : '#94a3b8',
                 fontSize: '11px',
@@ -443,6 +476,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
+                transition: 'all 0.18s ease',
               }}
               title="Automatically push optimal runes upon picking champion"
             >
@@ -462,13 +496,13 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 <>Applying Runes...</>
               ) : importStatus === 'success' ? (
                 <>
-                  <Check size={16} color="#00c8ff" />
+                  <Check size={14} color="#fff" />
                   <span>Runes Injected! (100ms)</span>
                 </>
               ) : (
                 <>
-                  <Zap size={16} />
-                  <span>Push Runes to Client</span>
+                  <Zap size={14} />
+                  <span>Push Runes</span>
                 </>
               )}
             </button>
@@ -480,14 +514,14 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               onClick={handleImportSpells}
             >
               {spellStatus === 'success' ? (
-                <Check size={14} color="var(--blue-primary)" />
+                <Check size={13} color="var(--blue-primary)" />
               ) : (
-                <Sparkles size={14} color="var(--blue-primary)" />
+                <Sparkles size={13} color="var(--blue-primary)" />
               )}
               <span>Push Spells</span>
             </button>
 
-            {/* Export In-Game Shop Item Set (Blitz Style) */}
+            {/* Export In-Game Shop Item Set */}
             <button
               id="btn-export-item-set"
               className="btn-secondary"
@@ -497,22 +531,22 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 borderColor: itemSetStatus === 'success' ? '#10b981' : itemSetStatus === 'error' ? 'var(--red-primary)' : 'var(--border-blue)',
                 color: itemSetStatus === 'success' ? '#10b981' : itemSetStatus === 'error' ? 'var(--red-primary)' : 'var(--blue-primary)',
               }}
-              title="Export full Blitz-style item set directly into the League in-game shop (Press 'P' in game)"
+              title="Export recommended item set directly into the League in-game shop (Press 'P' in game)"
             >
               {itemSetStatus === 'exporting' ? (
                 <>
-                  <RotateCcw className="spin" size={14} />
-                  <span>Exporting Shop...</span>
+                  <RotateCcw className="spin" size={13} />
+                  <span>Exporting...</span>
                 </>
               ) : itemSetStatus === 'success' ? (
                 <>
-                  <Check size={14} color="#10b981" />
-                  <span>In-Game Shop Ready!</span>
+                  <Check size={13} color="#10b981" />
+                  <span>Shop Ready!</span>
                 </>
               ) : (
                 <>
-                  <ShoppingBag size={14} color="var(--blue-primary)" />
-                  <span>⚡ In-Game Shop</span>
+                  <ShoppingBag size={13} color="var(--blue-primary)" />
+                  <span>⚡ LoL Shop</span>
                 </>
               )}
             </button>
@@ -520,21 +554,10 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
         </div>
 
         {/* Champion Search, Role Filters & Full Roster Bar */}
-        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {/* Search Box */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'rgba(0, 0, 0, 0.6)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              padding: '6px 12px',
-              width: '210px',
-            }}
-          >
-            <Search size={14} color="#64748b" />
+          <div className="search-input-box" style={{ width: '220px' }}>
+            <Search size={13} color="#64748b" />
             <input
               type="text"
               placeholder="Search 169 Champions..."
@@ -544,7 +567,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 background: 'transparent',
                 border: 'none',
                 color: '#fff',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 outline: 'none',
                 width: '100%',
               }}
@@ -552,20 +575,22 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
           </div>
 
           {/* Role Filters */}
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: 'flex', gap: '5px' }}>
             {roles.map((r) => (
               <button
                 key={r}
                 onClick={() => setSelectedRoleFilter(r)}
                 style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
+                  padding: '4px 9px',
+                  borderRadius: 'var(--radius-sm)',
                   background: selectedRoleFilter === r ? 'var(--blue-subtle)' : 'rgba(255, 255, 255, 0.04)',
                   border: selectedRoleFilter === r ? '1px solid var(--blue-primary)' : '1px solid transparent',
                   color: selectedRoleFilter === r ? 'var(--blue-primary)' : '#94a3b8',
-                  fontSize: '11px',
+                  fontSize: '10.5px',
                   fontWeight: 700,
+                  letterSpacing: '0.3px',
                   cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 {r}
@@ -580,18 +605,19 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 12px',
-              borderRadius: '6px',
-              background: showFullRosterModal ? 'rgba(0, 200, 255, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+              padding: '4px 11px',
+              borderRadius: 'var(--radius-sm)',
+              background: showFullRosterModal ? 'rgba(0, 210, 255, 0.18)' : 'rgba(255, 255, 255, 0.05)',
               border: '1px solid var(--border-blue)',
               color: '#fff',
               fontSize: '11px',
               fontWeight: 700,
               cursor: 'pointer',
               marginLeft: 'auto',
+              transition: 'all 0.15s ease',
             }}
           >
-            <Grid size={13} color="var(--blue-primary)" />
+            <Grid size={12.5} color="var(--blue-primary)" />
             <span>{showFullRosterModal ? 'Close Roster' : 'Browse All 169 Champions'}</span>
           </button>
         </div>
@@ -609,9 +635,9 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    background: isSelected ? 'var(--blue-subtle)' : 'rgba(255, 255, 255, 0.04)',
+                    padding: '3.5px 9px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: isSelected ? 'var(--blue-subtle)' : 'rgba(255, 255, 255, 0.03)',
                     border: isSelected ? '1px solid var(--blue-primary)' : '1px solid transparent',
                     color: isSelected ? 'var(--blue-primary)' : '#94a3b8',
                     fontSize: '11px',
@@ -619,12 +645,13 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                     transition: 'all 0.15s ease',
+                    boxShadow: isSelected ? '0 0 10px var(--blue-glow-subtle)' : 'none',
                   }}
                 >
                   <img
                     src={getChampionIcon(c.key)}
                     alt={c.name}
-                    style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                    style={{ width: '18px', height: '18px', borderRadius: '50%' }}
                   />
                   <span>{c.name}</span>
                 </button>
@@ -1073,7 +1100,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             </div>
           </div>
 
-          {/* Skill Max Order & 1-18 Leveling Matrix (Blitz / Porofessor Style) */}
+          {/* Skill Max Order & 1-18 Leveling Matrix */}
           <div className="glass-card" style={{ padding: '18px 20px' }}>
             <div className="card-header" style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
               <div className="card-title">

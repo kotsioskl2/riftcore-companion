@@ -249,7 +249,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
     return `${min}m ${sec}s`;
   };
 
-  // Porofessor Player Badges
+  // Player Performance Badges
   const badges: { label: string; color: string; bg: string }[] = [];
   if (winrate >= 60 && totalSoloGames >= 5) {
     badges.push({ label: '🔥 High Winrate', color: '#ff2a5f', bg: 'rgba(255, 42, 95, 0.15)' });
@@ -553,7 +553,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '2px 0' }}>
               <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-                {soloQueue.tier} {soloQueue.division || (soloQueue as any).rank || ''}
+                {soloQueue.tier} {('division' in soloQueue ? (soloQueue as any).division : (soloQueue as any).rank) || ''}
               </span>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--blue-primary)' }}>
                 {soloQueue.leaguePoints} LP
@@ -603,7 +603,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
         </div>
       </div>
 
-      {/* TOP CHAMPION MASTERIES (Porofessor / Blitz Pro Feature) */}
+      {/* TOP CHAMPION MASTERIES (RiftCore Pro Feature) */}
       <div className="glass-card" style={{ padding: '18px 20px' }}>
         <div className="card-header" style={{ marginBottom: '14px' }}>
           <div className="card-title">

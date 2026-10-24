@@ -250,15 +250,20 @@ const GCLP_HICONSM: i32 = -34;
 
 const GWL_EXSTYLE: i32 = -20;
 const WS_EX_TOPMOST: i32 = 0x00000008;
+const WS_EX_TOOLWINDOW: i32 = 0x00000080;
+const WS_EX_APPWINDOW: i32 = 0x00040000;
 const WS_EX_NOACTIVATE: i32 = 0x08000000;
+const WS_EX_TRANSPARENT: i32 = 0x00000020;
+const WS_EX_LAYERED: i32 = 0x00080000;
 
 const HWND_TOPMOST: isize = -1;
 const HWND_NOTOPMOST: isize = -2;
 
 const SWP_NOSIZE: u32 = 0x0001;
 const SWP_NOMOVE: u32 = 0x0002;
-#[allow(dead_code)]
+const SWP_NOZORDER: u32 = 0x0004;
 const SWP_NOACTIVATE: u32 = 0x0010;
+const SWP_FRAMECHANGED: u32 = 0x0020;
 const SWP_SHOWWINDOW: u32 = 0x0040;
 
 #[allow(dead_code)]
@@ -448,6 +453,29 @@ fn find_league_game_cfg() -> Option<PathBuf> {
     None
 }
 
+fn ensure_league_borderless_cfg() {
+    if let Some(cfg_path) = find_league_game_cfg() {
+        if let Ok(content) = std::fs::read_to_string(&cfg_path) {
+            if !content.contains("WindowMode=2") {
+                let mut new_lines = Vec::new();
+                let mut replaced = false;
+                for line in content.lines() {
+                    if line.trim().starts_with("WindowMode=") {
+                        new_lines.push("WindowMode=2".to_string());
+                        replaced = true;
+                    } else {
+                        new_lines.push(line.to_string());
+                    }
+                }
+                if !replaced {
+                    new_lines.push("WindowMode=2".to_string());
+                }
+                let _ = std::fs::write(&cfg_path, new_lines.join("\r\n"));
+            }
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn ensure_league_fullscreen() {
     unsafe {
@@ -480,23 +508,27 @@ fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
     unsafe {
         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
         if enable {
-            SetWindowLongW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOPMOST) & !WS_EX_NOACTIVATE);
+            // In-Game Overlay Mode:
+            // 1. WS_EX_TOPMOST: Stays layered on top of borderless League
+            // 2. WS_EX_NOACTIVATE: Never steals mouse/keyboard focus from League
+            // 3. WS_EX_TOOLWINDOW: Hides from Windows Taskbar and Alt-Tab
+            let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
+            SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
             SetWindowPos(
                 hwnd,
                 HWND_TOPMOST as *mut std::ffi::c_void,
                 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
             );
-            SetForegroundWindow(hwnd);
-            BringWindowToTop(hwnd);
-            SwitchToThisWindow(hwnd, 1);
         } else {
-            SetWindowLongW(hwnd, GWL_EXSTYLE, ex & !(WS_EX_TOPMOST | WS_EX_NOACTIVATE));
+            // Full Desktop Client Mode: Standard window with taskbar presence
+            let new_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
+            SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
             SetWindowPos(
                 hwnd,
                 HWND_NOTOPMOST as *mut std::ffi::c_void,
                 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
             );
         }
     }
@@ -721,6 +753,117 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "drag-window" => {
                         let _ = window_clone.drag_window();
                     }
+                    "resize-window" => {
+                        let w = json.get("width").and_then(|v| v.as_i64()).unwrap_or(340) as i32;
+                        let h = json.get("height").and_then(|v| v.as_i64()).unwrap_or(270) as i32;
+                        #[cfg(target_os = "windows")]
+                        unsafe {
+                            let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                            SetWindowPos(
+                                hwnd,
+                                std::ptr::null_mut(),
+                                0,
+                                0,
+                                w,
+                                h,
+                                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                            );
+                        }
+                        let reply_script = format!("window.__riftIpcReply({}, null, {{ width: {}, height: {} }});", req_id, w, h);
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                    }
+                    "snap-overlay" => {
+                        let position = json.get("position").and_then(|v| v.as_str()).unwrap_or("top-right");
+                        let w = json.get("width").and_then(|v| v.as_i64()).unwrap_or(340) as i32;
+                        let h = json.get("height").and_then(|v| v.as_i64()).unwrap_or(270) as i32;
+                        #[cfg(target_os = "windows")]
+                        unsafe {
+                            let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                            let (x, y) = match position {
+                                "top-center" => (((sw - w) / 2).max(0), 12),
+                                "top-left" => (24, 60),
+                                _ => ((sw - w - 24).max(0), 60),
+                            };
+                            let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                            SetWindowPos(
+                                hwnd,
+                                HWND_TOPMOST as *mut std::ffi::c_void,
+                                x,
+                                y,
+                                w,
+                                h,
+                                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                            );
+                        }
+                        let reply_script = format!("window.__riftIpcReply({}, null, {{ snapped: true }});", req_id);
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                    }
+                    "set-hud-mode" => {
+                        let mode = json.get("mode").and_then(|v| v.as_str()).unwrap_or("card");
+                        #[cfg(target_os = "windows")]
+                        unsafe {
+                            let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                            let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                            let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+
+                            if mode == "integrated" {
+                                // Fullscreen transparent click-through layer covering the game
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                SetWindowPos(
+                                    hwnd,
+                                    HWND_TOPMOST as *mut std::ffi::c_void,
+                                    0, 0, sw, sh,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                );
+                            } else if mode == "card" {
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                let w = 340;
+                                let h = 270;
+                                let x = (sw - w - 24).max(0);
+                                let y = 60;
+                                SetWindowPos(
+                                    hwnd,
+                                    HWND_TOPMOST as *mut std::ffi::c_void,
+                                    x, y, w, h,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                );
+                            } else if mode == "bar" {
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                let w = 620;
+                                let h = 42;
+                                let x = ((sw - w) / 2).max(0);
+                                let y = 12;
+                                SetWindowPos(
+                                    hwnd,
+                                    HWND_TOPMOST as *mut std::ffi::c_void,
+                                    x, y, w, h,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                );
+                            }
+                        }
+                        let reply_script = format!("window.__riftIpcReply({}, null, {{ mode: '{}' }});", req_id, mode);
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                    }
+                    "set-click-through" => {
+                        let enable = json.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+                        #[cfg(target_os = "windows")]
+                        unsafe {
+                            let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                            let new_ex = if enable {
+                                ex | WS_EX_TRANSPARENT | WS_EX_LAYERED
+                            } else {
+                                ex & !WS_EX_TRANSPARENT
+                            };
+                            SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                        }
+                        let reply_script = format!("window.__riftIpcReply({}, null, {{ clickThrough: {} }});", req_id, enable);
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
+                    }
                     "window-control" => {
                         let sub_action = json.get("subAction").and_then(|v| v.as_str()).unwrap_or("");
                         match sub_action {
@@ -777,12 +920,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 #[cfg(target_os = "windows")]
                                 let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                                 if st.is_compact {
-                                    window_clone.set_inner_size(LogicalSize::new(280.0, 310.0));
                                     st.is_pinned = true;
                                     #[cfg(target_os = "windows")]
-                                    apply_fullscreen_topmost(hwnd, true);
+                                    unsafe {
+                                        ensure_league_fullscreen();
+                                        ensure_league_borderless_cfg();
+                                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                        SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                        SetWindowPos(
+                                            hwnd,
+                                            HWND_TOPMOST as *mut std::ffi::c_void,
+                                            0,
+                                            0,
+                                            sw,
+                                            sh,
+                                            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                        );
+                                    }
                                 } else {
-                                    window_clone.set_inner_size(LogicalSize::new(1240.0, 820.0));
+                                    #[cfg(target_os = "windows")]
+                                    unsafe {
+                                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                        let app_w = 1240;
+                                        let app_h = 820;
+                                        let app_x = ((sw - app_w) / 2).max(0);
+                                        let app_y = ((sh - app_h) / 2).max(0);
+                                        SetWindowPos(
+                                            hwnd,
+                                            HWND_NOTOPMOST as *mut std::ffi::c_void,
+                                            app_x,
+                                            app_y,
+                                            app_w,
+                                            app_h,
+                                            SWP_SHOWWINDOW,
+                                        );
+                                        apply_fullscreen_topmost(hwnd, false);
+                                    }
                                 }
                                 let is_compact = st.is_compact;
                                 let is_pinned = st.is_pinned;
@@ -814,12 +991,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         #[cfg(target_os = "windows")]
                         let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                         if compact {
-                            window_clone.set_inner_size(LogicalSize::new(280.0, 310.0));
                             st.is_pinned = true;
                             #[cfg(target_os = "windows")]
-                            apply_fullscreen_topmost(hwnd, true);
+                            unsafe {
+                                ensure_league_fullscreen();
+                                ensure_league_borderless_cfg();
+                                let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                                let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                SetWindowPos(
+                                    hwnd,
+                                    HWND_TOPMOST as *mut std::ffi::c_void,
+                                    0,
+                                    0,
+                                    sw,
+                                    sh,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                );
+                            }
                         } else {
-                            window_clone.set_inner_size(LogicalSize::new(1240.0, 820.0));
+                            #[cfg(target_os = "windows")]
+                            unsafe {
+                                let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                                let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                let app_w = 1240;
+                                let app_h = 820;
+                                let app_x = ((sw - app_w) / 2).max(0);
+                                let app_y = ((sh - app_h) / 2).max(0);
+                                SetWindowPos(
+                                    hwnd,
+                                    HWND_NOTOPMOST as *mut std::ffi::c_void,
+                                    app_x,
+                                    app_y,
+                                    app_w,
+                                    app_h,
+                                    SWP_SHOWWINDOW,
+                                );
+                                apply_fullscreen_topmost(hwnd, false);
+                            }
                         }
                         let is_compact = st.is_compact;
                         let is_pinned = st.is_pinned;
@@ -1147,6 +1358,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bg_state = Arc::clone(&state);
     let bg_http = http_client.clone();
     let bg_proxy = proxy.clone();
+    let window_bg = Arc::clone(&window);
 
     tokio::spawn(async move {
         let mut last_phase = String::new();
@@ -1236,11 +1448,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let mut st = bg_state.lock().unwrap();
                                 st.gameflow_phase = "InProgress".to_string();
                                 st.is_pinned = true;
+                                st.is_compact = true;
                                 #[cfg(target_os = "windows")]
-                                ensure_league_fullscreen();
-                                let script = "window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
+                                unsafe {
+                                    ensure_league_fullscreen();
+                                    ensure_league_borderless_cfg();
+                                    let hwnd = window_bg.hwnd() as *mut std::ffi::c_void;
+                                    let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                                    let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                    let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                    SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                    SetWindowPos(
+                                        hwnd,
+                                        HWND_TOPMOST as *mut std::ffi::c_void,
+                                        0,
+                                        0,
+                                        sw,
+                                        sh,
+                                        SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
+                                    );
+                                }
+                                let script = "window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true })); window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
                                 let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
-                                let _ = bg_proxy.send_event(AppUserEvent::ApplyTopmost(true));
                             }
 
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&live_json) {
@@ -1300,22 +1530,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let hwnd = window.hwnd() as *mut std::ffi::c_void;
 
                 #[cfg(target_os = "windows")]
-                ensure_league_fullscreen();
+                {
+                    ensure_league_fullscreen();
+                    ensure_league_borderless_cfg();
+                }
 
                 if window.is_minimized() || !st.is_compact {
                     window.set_visible(true);
                     window.set_minimized(false);
-                    window.set_focus();
 
                     st.is_compact = true;
                     st.is_pinned = true;
-                    window.set_inner_size(LogicalSize::new(280.0, 310.0));
                     #[cfg(target_os = "windows")]
-                    {
-                        apply_fullscreen_topmost(hwnd, true);
-                        unsafe {
-                            SwitchToThisWindow(hwnd, 1);
-                        }
+                    unsafe {
+                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                        SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                        SetWindowPos(
+                            hwnd,
+                            HWND_TOPMOST as *mut std::ffi::c_void,
+                            0,
+                            0,
+                            sw,
+                            sh,
+                            SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
+                        );
                     }
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true }));");
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: true } }));");

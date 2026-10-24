@@ -208,6 +208,7 @@ export interface AppSettings {
   autoImportItemSets?: boolean;
   soundAlerts: boolean;
   theme: string;
+  fontFamily?: 'plus-jakarta' | 'outfit' | 'inter';
   alwaysOnTop: boolean;
   closeToTray?: boolean;
   riotApiKey?: string;
@@ -238,8 +239,12 @@ declare global {
       checkClientStatus: () => Promise<{ connected: boolean; gameflowPhase: GameflowPhase; riotClient?: boolean }>;
       launchLeague?: () => Promise<any>;
       riotApiRequest?: (url: string, key?: string) => Promise<{ status: number; data: any }>;
+      resizeWindow?: (width: number, height: number) => Promise<any>;
+      snapOverlay?: (position: string, width?: number, height?: number) => Promise<any>;
       getLeagueWindowMode?: () => Promise<{ found: boolean; windowMode: number; path: string }>;
       setLeagueBorderless?: () => Promise<{ success: boolean }>;
+      setHudMode?: (mode: 'integrated' | 'card' | 'bar') => Promise<any>;
+      setClickThrough?: (enabled: boolean) => Promise<any>;
     };
   }
 }
