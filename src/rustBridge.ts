@@ -44,8 +44,8 @@ function sendRustIpc<T = any>(action: string, payload: Record<string, any> = {})
 
 const DEFAULT_SETTINGS: AppSettings = {
   autoAccept: true,
-  autoImportRunes: false,
-  autoImportSpells: false,
+  autoImportRunes: true,
+  autoImportSpells: true,
   autoImportItemSets: true,
   soundAlerts: true,
   theme: 'hextech',
@@ -233,6 +233,23 @@ export function initRustBridge() {
 
     setClickThrough: async (enabled: boolean) => {
       return sendRustIpc('set-click-through', { enabled });
+    },
+
+    checkForAppUpdate: async () => {
+      return sendRustIpc('check-app-update');
+    },
+
+    downloadAppUpdate: async (downloadUrl: string) => {
+      return sendRustIpc('download-app-update', { downloadUrl });
+    },
+
+    onUpdateProgress: (callback: (data: { stage: string; percent: number }) => void) => {
+      const handler = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        callback(detail);
+      };
+      window.addEventListener('rift-update-progress', handler);
+      return () => window.removeEventListener('rift-update-progress', handler);
     },
   };
 }

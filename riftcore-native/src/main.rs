@@ -270,7 +270,6 @@ const WS_EX_TOOLWINDOW: i32 = 0x00000080;
 const WS_EX_APPWINDOW: i32 = 0x00040000;
 const WS_EX_NOACTIVATE: i32 = 0x08000000;
 const WS_EX_TRANSPARENT: i32 = 0x00000020;
-const WS_EX_LAYERED: i32 = 0x00080000;
 
 const HWND_TOPMOST: isize = -1;
 const HWND_NOTOPMOST: isize = -2;
@@ -855,7 +854,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             if mode == "integrated" {
                                 // Fullscreen transparent click-through layer covering the game
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                 SetWindowPos(
                                     hwnd,
@@ -864,7 +863,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     SWP_NOACTIVATE | SWP_SHOWWINDOW,
                                 );
                             } else if mode == "card" {
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                 let w = 340;
                                 let h = 270;
@@ -877,7 +876,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     SWP_NOACTIVATE | SWP_SHOWWINDOW,
                                 );
                             } else if mode == "bar" {
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                 let w = 620;
                                 let h = 42;
@@ -901,7 +900,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                             let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                             let new_ex = if enable {
-                                ex | WS_EX_TRANSPARENT | WS_EX_LAYERED
+                                ex | WS_EX_TRANSPARENT
                             } else {
                                 ex & !WS_EX_TRANSPARENT
                             };
@@ -992,7 +991,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                                         SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                         SetWindowPos(
                                             hwnd,
@@ -1067,7 +1066,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                 let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                                 let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                 SetWindowPos(
                                     hwnd,
@@ -1566,6 +1565,136 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
                     }
+                    "check-app-update" => {
+                        let http_upd = http_clone.clone();
+                        let proxy_upd = proxy_ipc.clone();
+                        tokio::spawn(async move {
+                            let current_version = env!("CARGO_PKG_VERSION");
+                            match http_upd
+                                .get("https://api.github.com/repos/kotsioskl2/riftcore-companion/releases/latest")
+                                .header("User-Agent", "RiftCore-Updater")
+                                .header("Accept", "application/vnd.github+json")
+                                .send()
+                                .await
+                            {
+                                Ok(res) if res.status().is_success() => {
+                                    let text = res.text().await.unwrap_or_default();
+                                    if let Ok(release) = serde_json::from_str::<serde_json::Value>(&text) {
+                                        let tag = release.get("tag_name")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .trim_start_matches('v');
+                                        let body = release.get("body")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .replace('\\', "\\\\")
+                                            .replace('"', "\\\"")
+                                            .replace('\n', "\\n")
+                                            .replace('\r', "");
+                                        let has_update = tag != current_version && !tag.is_empty();
+
+                                        // Find the .exe installer asset download URL
+                                        let mut download_url = String::new();
+                                        let mut asset_size: u64 = 0;
+                                        if let Some(assets) = release.get("assets").and_then(|v| v.as_array()) {
+                                            for asset in assets {
+                                                let name = asset.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                                                if name.ends_with(".exe") && name.contains("Setup") {
+                                                    download_url = asset.get("browser_download_url")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    asset_size = asset.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        let script = format!(
+                                            "window.__riftIpcReply({}, null, {{ hasUpdate: {}, currentVersion: \"{}\", latestVersion: \"{}\", downloadUrl: \"{}\", assetSize: {}, releaseNotes: \"{}\" }});",
+                                            req_id, has_update, current_version, tag, download_url, asset_size, body
+                                        );
+                                        let _ = proxy_upd.send_event(AppUserEvent::EvalScript(script));
+                                    } else {
+                                        let script = format!("window.__riftIpcReply({}, null, {{ hasUpdate: false, currentVersion: \"{}\", latestVersion: \"{}\", downloadUrl: \"\", assetSize: 0, releaseNotes: \"\" }});", req_id, current_version, current_version);
+                                        let _ = proxy_upd.send_event(AppUserEvent::EvalScript(script));
+                                    }
+                                }
+                                _ => {
+                                    let current_version = env!("CARGO_PKG_VERSION");
+                                    let script = format!("window.__riftIpcReply({}, null, {{ hasUpdate: false, currentVersion: \"{}\", latestVersion: \"{}\", downloadUrl: \"\", assetSize: 0, releaseNotes: \"\" }});", req_id, current_version, current_version);
+                                    let _ = proxy_upd.send_event(AppUserEvent::EvalScript(script));
+                                }
+                            }
+                        });
+                    }
+                    "download-app-update" => {
+                        let url = json.get("downloadUrl").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let http_dl = http_clone.clone();
+                        let proxy_dl = proxy_ipc.clone();
+                        tokio::spawn(async move {
+                            if url.is_empty() {
+                                let script = format!("window.__riftIpcReply({}, \"No download URL provided\", null);", req_id);
+                                let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+                                return;
+                            }
+
+                            // Notify frontend: download started
+                            let script = format!(
+                                "window.dispatchEvent(new CustomEvent('rift-update-progress', {{ detail: {{ stage: 'downloading', percent: 0 }} }}));"
+                            );
+                            let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+
+                            match http_dl.get(&url)
+                                .header("User-Agent", "RiftCore-Updater")
+                                .send()
+                                .await
+                            {
+                                Ok(res) if res.status().is_success() => {
+                                    let total_size = res.content_length().unwrap_or(0);
+                                    let bytes = match res.bytes().await {
+                                        Ok(b) => b,
+                                        Err(e) => {
+                                            let script = format!("window.__riftIpcReply({}, \"{}\", null);", req_id, e);
+                                            let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+                                            return;
+                                        }
+                                    };
+
+                                    // Save to temp
+                                    let temp_dir = std::env::temp_dir();
+                                    let installer_path = temp_dir.join("RiftCore-Setup-latest.exe");
+                                    if let Err(e) = std::fs::write(&installer_path, &bytes) {
+                                        let script = format!("window.__riftIpcReply({}, \"Failed to save installer: {}\", null);", req_id, e);
+                                        let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+                                        return;
+                                    }
+
+                                    // Notify frontend: download complete, launching installer
+                                    let script = format!(
+                                        "window.dispatchEvent(new CustomEvent('rift-update-progress', {{ detail: {{ stage: 'installing', percent: 100 }} }}));"
+                                    );
+                                    let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+
+                                    // Launch the installer and exit
+                                    let _ = Command::new(&installer_path).spawn();
+
+                                    // Give it a moment then exit
+                                    std::thread::sleep(std::time::Duration::from_millis(500));
+                                    std::process::exit(0);
+                                }
+                                Ok(res) => {
+                                    let status = res.status();
+                                    let script = format!("window.__riftIpcReply({}, \"Download failed with HTTP {}\", null);", req_id, status);
+                                    let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+                                }
+                                Err(e) => {
+                                    let script = format!("window.__riftIpcReply({}, \"{}\", null);", req_id, e);
+                                    let _ = proxy_dl.send_event(AppUserEvent::EvalScript(script));
+                                }
+                            }
+                        });
+                    }
                     _ => {}
                 }
             }
@@ -1675,7 +1804,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                     let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                                     let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                                     SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                     SetWindowPos(
                                         hwnd,
@@ -1820,7 +1949,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                         SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                         SetWindowPos(
                             hwnd,

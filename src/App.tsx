@@ -9,6 +9,7 @@ import { AramHubView } from './components/AramHubView';
 import { LobbyScoutView } from './components/LobbyScoutView';
 import { LiveGameOverlay } from './components/LiveGameOverlay';
 import { RiftFloatingOverlay } from './components/RiftFloatingOverlay';
+import { OverlayErrorBoundary } from './components/OverlayErrorBoundary';
 import { SummonerProfileView } from './components/SummonerProfileView';
 import { ChampionTierListView } from './components/ChampionTierListView';
 import { SettingsModal } from './components/SettingsModal';
@@ -49,8 +50,8 @@ export const App: React.FC = () => {
   // App Settings
   const [settings, setSettings] = useState<AppSettings>({
     autoAccept: true,
-    autoImportRunes: false,
-    autoImportSpells: false,
+    autoImportRunes: true,
+    autoImportSpells: true,
     autoImportItemSets: true,
     soundAlerts: true,
     theme: 'hextech',
@@ -409,12 +410,14 @@ export const App: React.FC = () => {
   if (isCompactMode && isMatchLive) {
     return (
       <div className="app-container compact-mode" style={{ background: 'transparent' }}>
-        <RiftFloatingOverlay
-          liveData={liveData}
-          settings={settings}
-          onExpand={handleToggleCompact}
-          onMinimize={() => window.riftAPI?.windowControl('minimize')}
-        />
+        <OverlayErrorBoundary onExpand={handleToggleCompact}>
+          <RiftFloatingOverlay
+            liveData={liveData}
+            settings={settings}
+            onExpand={handleToggleCompact}
+            onMinimize={() => window.riftAPI?.windowControl('minimize')}
+          />
+        </OverlayErrorBoundary>
       </div>
     );
   }

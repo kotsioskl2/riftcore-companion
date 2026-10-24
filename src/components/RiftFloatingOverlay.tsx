@@ -159,11 +159,16 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
 
   const gameMinutes = Math.max(1, gameTime / 60);
 
-  // Active Player info
-  const activeSumm = liveData?.activePlayer?.summonerName?.toLowerCase() || '';
-  const myPlayer = liveData?.allPlayers?.find(
-    (p) => p.summonerName.toLowerCase() === activeSumm || p.championName.toLowerCase() === activeSumm
-  ) || liveData?.allPlayers?.[0];
+  // Active Player info (safe against Riot ID / undefined fields)
+  const activeSumm = (liveData?.activePlayer?.summonerName || (liveData?.activePlayer as any)?.riotIdGameName || '').toLowerCase();
+  const allPlayers = Array.isArray(liveData?.allPlayers) ? liveData.allPlayers : [];
+  const myPlayer = allPlayers.find(
+    (p) => {
+      const sName = (p?.summonerName || (p as any)?.riotIdGameName || '').toLowerCase();
+      const cName = (p?.championName || '').toLowerCase();
+      return (activeSumm && (sName === activeSumm || cName === activeSumm));
+    }
+  ) || allPlayers[0];
 
   const myTeam = myPlayer?.team || 'ORDER';
 
@@ -175,14 +180,14 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   // Detect Enemy Lane Opponent
   const enemyTeam = myTeam === 'ORDER' ? 'CHAOS' : 'ORDER';
   const enemyPlayers = isLive
-    ? (liveData?.allPlayers?.filter((p) => p.team === enemyTeam) || [])
+    ? allPlayers.filter((p) => p?.team === enemyTeam)
     : [];
 
   const laneOpponent = isLive
     ? (enemyPlayers[0] || { championName: myChampBuild.counters.weakAgainst[0]?.name || 'Darius' })
     : { championName: 'Darius' };
 
-  const opponentChampObj = CHAMPIONS_LIST.find((c) => c.name.toLowerCase() === laneOpponent.championName.toLowerCase()) || {
+  const opponentChampObj = CHAMPIONS_LIST.find((c) => c.name.toLowerCase() === (laneOpponent?.championName || '').toLowerCase()) || {
     id: 122,
     name: 'Darius',
     key: 'Darius',
@@ -277,18 +282,18 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   ]);
 
   // Separate camp timers positioned directly on the in-game minimap
+  // Separate camp timers positioned directly on the in-game minimap
   const [campTimers, setCampTimers] = useState([
-    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: { bottom: '72px', right: '78px' } },
-    { id: 'baron', name: 'Baron', icon: '👑', total: 1200, remaining: Math.max(0, 1200 - gameTime), color: '#c084fc', mapPos: { bottom: '162px', right: '166px' } },
-    { id: 'grubs', name: 'Grubs', icon: '👾', total: 360, remaining: 0, color: '#f43f5e', mapPos: { bottom: '168px', right: '176px' } },
-    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 105, color: '#3b82f6', mapPos: { bottom: '110px', right: '160px' } },
-    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 130, color: '#ef4444', mapPos: { bottom: '60px', right: '124px' } },
+    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: { bottom: '94px', right: '86px' }, alive: false },
+    { id: 'upper_pit', name: 'Grubs', icon: '👾', total: 300, remaining: Math.max(0, 300 - gameTime), color: '#f43f5e', mapPos: { bottom: '184px', right: '182px' }, alive: false },
+    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 90, color: '#3b82f6', mapPos: { bottom: '74px', right: '172px' }, alive: false },
+    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 90, color: '#ef4444', mapPos: { bottom: '48px', right: '114px' }, alive: false },
   ]);
 
   // Objective Timers
   const [objectives, setObjectives] = useState([
     { name: 'Dragon', icon: '🐲', total: 300, remaining: 0, color: 'var(--blue-primary)' },
-    { name: 'Voidgrubs', icon: '👾', total: 360, remaining: 0, color: 'var(--red-primary)' },
+    { name: 'Upper Pit', icon: '👾', total: 300, remaining: 0, color: 'var(--red-primary)' },
     { name: 'Baron', icon: '👑', total: 1200, remaining: 0, color: '#c084fc' },
   ]);
 
@@ -296,39 +301,90 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   useEffect(() => {
     if (!isLive || !liveData?.gameData) return;
     const gTime = Math.floor(liveData.gameData.gameTime);
-    const events = liveData.events?.Events || [];
+    const events: any[] = Array.isArray(liveData.events?.Events) ? liveData.events.Events : [];
 
-    // Dragon calculation
+    // Dragon calculation:
+    // First dragon spawns at 5:00 (300s).
+    // Subsequent dragons spawn 5:00 (300s) after kill, Elder spawns 6:00 (360s).
     let nextDragonTime = 300;
-    const dragonKills = events.filter((e) => e.EventName === 'DragonKill');
+    const dragonKills = events.filter((e) => e?.EventName === 'DragonKill');
     if (dragonKills.length > 0) {
       const lastKill = dragonKills[dragonKills.length - 1];
-      const cooldown = lastKill.DragonType === 'Elder' ? 360 : 300;
-      nextDragonTime = Math.floor(lastKill.EventTime) + cooldown;
+      const cooldown = lastKill?.DragonType === 'Elder' ? 360 : 300;
+      nextDragonTime = Math.floor(lastKill?.EventTime || 0) + cooldown;
     }
     const dragonRemaining = Math.max(0, nextDragonTime - gTime);
+    const isDragonAlive = gTime >= 300 && (dragonKills.length === 0 || gTime >= nextDragonTime);
 
-    // Baron calculation
-    let nextBaronTime = 1200;
-    const baronKills = events.filter((e) => e.EventName === 'BaronKill');
-    if (baronKills.length > 0) {
-      const lastBaron = baronKills[baronKills.length - 1];
-      nextBaronTime = Math.floor(lastBaron.EventTime) + 360;
-    }
-    const baronRemaining = Math.max(0, nextBaronTime - gTime);
+    // Upper River Pit:
+    // 0:00 - 5:00: Countdown to Voidgrubs spawn (300s)
+    // 5:00 - 14:00: Voidgrubs (or countdown to 2nd wave / Herald)
+    // 14:00 - 19:45: Rift Herald
+    // 19:45 - 20:00: Countdown to Baron Nashor spawn
+    // 20:00+: Baron Nashor
+    let upperPitName = 'Grubs';
+    let upperPitIcon = '👾';
+    let upperPitColor = '#f43f5e';
+    let upperPitRemaining = 0;
+    let isUpperPitAlive = false;
 
-    // Voidgrubs / Herald calculation
-    let grubsRemaining = 0;
     if (gTime < 300) {
-      grubsRemaining = 300 - gTime;
+      upperPitName = 'Grubs';
+      upperPitIcon = '👾';
+      upperPitColor = '#f43f5e';
+      upperPitRemaining = 300 - gTime;
     } else if (gTime < 840) {
-      const hordeKills = events.filter((e) => e.EventName === 'HordeKill');
-      grubsRemaining = hordeKills.length >= 6 ? Math.max(0, 840 - gTime) : 0;
+      const hordeKills = events.filter((e) => e?.EventName === 'HordeKill');
+      upperPitName = 'Grubs';
+      upperPitIcon = '👾';
+      upperPitColor = '#f43f5e';
+      if (hordeKills.length >= 6) {
+        upperPitName = 'Herald';
+        upperPitIcon = '👁️';
+        upperPitColor = '#a855f7';
+        upperPitRemaining = Math.max(0, 840 - gTime);
+      } else if (hordeKills.length >= 3 && hordeKills.length < 6) {
+        const lastHorde = hordeKills[hordeKills.length - 1];
+        const nextWave = Math.floor(lastHorde?.EventTime || 0) + 240;
+        if (nextWave <= 840 && gTime < nextWave) {
+          upperPitRemaining = Math.max(0, nextWave - gTime);
+        } else {
+          isUpperPitAlive = true;
+        }
+      } else {
+        isUpperPitAlive = true;
+      }
     } else if (gTime < 1185) {
-      const heraldKills = events.filter((e) => e.EventName === 'HeraldKill');
-      grubsRemaining = heraldKills.length > 0 ? Math.max(0, 1200 - gTime) : 0;
+      const heraldKills = events.filter((e) => e?.EventName === 'HeraldKill');
+      upperPitName = 'Herald';
+      upperPitIcon = '👁️';
+      upperPitColor = '#a855f7';
+      if (heraldKills.length > 0) {
+        upperPitName = 'Baron';
+        upperPitIcon = '👑';
+        upperPitColor = '#c084fc';
+        upperPitRemaining = Math.max(0, 1200 - gTime);
+      } else {
+        isUpperPitAlive = true;
+      }
     } else {
-      grubsRemaining = Math.max(0, 1200 - gTime);
+      upperPitName = 'Baron';
+      upperPitIcon = '👑';
+      upperPitColor = '#c084fc';
+      const baronKills = events.filter((e) => e?.EventName === 'BaronKill');
+      if (gTime < 1200) {
+        upperPitRemaining = Math.max(0, 1200 - gTime);
+      } else if (baronKills.length > 0) {
+        const lastBaron = baronKills[baronKills.length - 1];
+        const nextBaron = Math.floor(lastBaron?.EventTime || 0) + 360;
+        if (gTime < nextBaron) {
+          upperPitRemaining = Math.max(0, nextBaron - gTime);
+        } else {
+          isUpperPitAlive = true;
+        }
+      } else {
+        isUpperPitAlive = true;
+      }
     }
 
     // Buffs (first spawn at 1:30 = 90s)
@@ -336,17 +392,16 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     const redRemaining = gTime < 90 ? 90 - gTime : 0;
 
     setCampTimers([
-      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '72px', right: '78px' } },
-      { id: 'baron', name: 'Baron', icon: '👑', total: 1200, remaining: baronRemaining, color: '#c084fc', mapPos: { bottom: '162px', right: '166px' } },
-      { id: 'grubs', name: 'Grubs', icon: '👾', total: 360, remaining: grubsRemaining, color: '#f43f5e', mapPos: { bottom: '168px', right: '176px' } },
-      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '110px', right: '160px' } },
-      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '60px', right: '124px' } },
+      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '94px', right: '86px' }, alive: isDragonAlive },
+      { id: 'upper_pit', name: upperPitName, icon: upperPitIcon, total: upperPitName === 'Baron' ? 360 : 300, remaining: upperPitRemaining, color: upperPitColor, mapPos: { bottom: '184px', right: '182px' }, alive: isUpperPitAlive },
+      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '74px', right: '172px' }, alive: blueRemaining === 0 },
+      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '48px', right: '114px' }, alive: redRemaining === 0 },
     ]);
 
     setObjectives([
       { name: 'Dragon', icon: '🐲', total: 300, remaining: dragonRemaining, color: 'var(--blue-primary)' },
-      { name: 'Voidgrubs', icon: '👾', total: 360, remaining: grubsRemaining, color: 'var(--red-primary)' },
-      { name: 'Baron', icon: '👑', total: 1200, remaining: baronRemaining, color: '#c084fc' },
+      { name: upperPitName, icon: upperPitIcon, total: 300, remaining: upperPitRemaining, color: upperPitColor },
+      { name: 'Baron', icon: '👑', total: 1200, remaining: gTime < 1200 ? 1200 - gTime : (upperPitName === 'Baron' ? upperPitRemaining : 0), color: '#c084fc' },
     ]);
   }, [liveData, isLive]);
 
@@ -847,11 +902,71 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </div>
               )}
 
-              {/* 3. IN-MAP OBJECTIVE TIMERS (Pinned directly on minimap camp spawn pits) */}
+              {/* 3. IN-MAP OBJECTIVE TIMERS & TACTICAL MINIMAP HUD */}
               {settings?.hudObjectiveTimers !== false && (
                 <>
+                  {/* 3A. TACTICAL MINIMAP OBJECTIVE HUD (Unblockable Header Bar Docked Directly Above Minimap) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '272px',
+                      right: '10px',
+                      pointerEvents: 'none',
+                      zIndex: 9999,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: 'rgba(5, 10, 22, 0.94)',
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(0, 210, 255, 0.35)',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 210, 255, 0.15)',
+                      borderRadius: '8px',
+                      padding: '3px 8px',
+                    }}
+                  >
+                    {campTimers.map((camp) => (
+                      <div
+                        key={`hud-${camp.id}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 6px',
+                          borderRadius: '5px',
+                          background: camp.remaining > 0 && camp.remaining <= 30
+                            ? 'rgba(245, 158, 11, 0.18)'
+                            : 'rgba(255, 255, 255, 0.04)',
+                          border: `1px solid ${
+                            camp.remaining > 0 && camp.remaining <= 30
+                              ? 'rgba(245, 158, 11, 0.5)'
+                              : 'rgba(255, 255, 255, 0.08)'
+                          }`,
+                        }}
+                      >
+                        <span style={{ fontSize: '11px' }}>{camp.icon}</span>
+                        <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#cbd5e1' }}>{camp.name}</span>
+                        <span
+                          className="tabular-nums"
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 900,
+                            color: camp.remaining > 0
+                              ? (camp.remaining <= 30 ? '#f59e0b' : camp.color)
+                              : '#10b981',
+                          }}
+                        >
+                          {camp.remaining > 0
+                            ? (camp.remaining > 60 ? formatMinSec(camp.remaining) : `${camp.remaining}s`)
+                            : 'UP'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 3B. ON-MAP SPAWN PIT PINS (Pinpointed directly inside dragon, baron, and buff pits) */}
                   {campTimers.map((camp) => {
-                    // Only show countdown while dead/spawning (remaining > 0)
+                    // Only show on-map countdown while dead/spawning (remaining > 0)
                     if (camp.remaining <= 0) return null;
                     return (
                       <div

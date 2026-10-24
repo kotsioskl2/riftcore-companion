@@ -208,6 +208,22 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             setTimeout(() => setImportStatus('idle'), 2500);
           });
       }
+
+      // Auto-import optimal summoner spells (Flash, Smite, TP, Ignite, etc.) to client
+      const spellsToUse = customRunesByChamp[selectedChampId]?.spells || targetBuild.spells;
+      if (autoImport && window.riftAPI?.importSpells && spellsToUse && spellsToUse.length === 2) {
+        setSpellStatus('importing');
+        window.riftAPI
+          .importSpells(spellsToUse[0], spellsToUse[1])
+          .then(() => {
+            setSpellStatus('success');
+            setTimeout(() => setSpellStatus('idle'), 2500);
+          })
+          .catch(() => {
+            setSpellStatus('idle');
+          });
+      }
+
       itemSetService.exportItemSetToClient(targetBuild).catch(() => {});
     }
   }, [selectedChampId, autoImport]);
@@ -364,6 +380,19 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
     }));
     setActiveSpellSlot(null);
     soundService.playTimerTick();
+
+    if (autoImport && window.riftAPI?.importSpells) {
+      setSpellStatus('importing');
+      window.riftAPI
+        .importSpells(nextSpells[0], nextSpells[1])
+        .then(() => {
+          setSpellStatus('success');
+          setTimeout(() => setSpellStatus('idle'), 2500);
+        })
+        .catch(() => {
+          setSpellStatus('idle');
+        });
+    }
   };
 
   // Champion filtering
@@ -553,7 +582,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 transition: 'all 0.18s ease',
                 boxShadow: autoImport ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none',
               }}
-              title="Automatically apply optimal runes when you lock in a champion"
+              title="Automatically equip optimal runes & summoner spells in League client when you choose or lock in a champion"
             >
               <div
                 style={{

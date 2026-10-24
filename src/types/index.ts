@@ -225,6 +225,15 @@ export interface AppSettings {
   hudJunglePathing?: boolean;
 }
 
+export interface AppUpdateInfo {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  downloadUrl: string;
+  assetSize: number;
+  releaseNotes: string;
+}
+
 declare global {
   interface Window {
     riftAPI?: {
@@ -256,6 +265,9 @@ declare global {
       setLeagueBorderless?: () => Promise<{ success: boolean }>;
       setHudMode?: (mode: 'integrated' | 'card' | 'bar') => Promise<any>;
       setClickThrough?: (enabled: boolean) => Promise<any>;
+      checkForAppUpdate?: () => Promise<AppUpdateInfo>;
+      downloadAppUpdate?: (downloadUrl: string) => Promise<any>;
+      onUpdateProgress?: (callback: (data: { stage: string; percent: number }) => void) => () => void;
     };
   }
 }
