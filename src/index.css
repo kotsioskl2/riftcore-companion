@@ -545,6 +545,7 @@ html.compact-mode {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden !important;
+  overflow-anchor: none !important;
   border: none !important;
   outline: none !important;
   padding: 22px 26px;
@@ -562,7 +563,7 @@ html.compact-mode {
   border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow-card);
-  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   overflow: hidden;
 }
@@ -570,7 +571,17 @@ html.compact-mode {
 .glass-card:hover {
   border-color: rgba(0, 210, 255, 0.3);
   box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
+}
+
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .card-header {

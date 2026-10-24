@@ -347,7 +347,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
         className="glass-card"
         style={{
           position: 'relative',
-          padding: '22px 24px',
+          padding: '20px 24px',
           backgroundImage: `linear-gradient(90deg, rgba(5, 8, 16, 0.98) 0%, rgba(5, 8, 16, 0.88) 42%, rgba(5, 8, 16, 0.35) 100%), url(${getChampionSplash(champ.key)})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center 22%',
@@ -355,6 +355,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
           borderTop: '1px solid rgba(255, 255, 255, 0.2)',
           borderRadius: 'var(--radius-lg)',
           boxShadow: '0 12px 36px -4px rgba(0, 0, 0, 0.65), 0 0 24px rgba(0, 210, 255, 0.1)',
+          transform: 'none !important',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
@@ -621,7 +622,17 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
 
         {/* Quick Horizontal Champion Ribbon (Scrollable) */}
         {!showFullRosterModal && (
-          <div style={{ marginTop: '12px', display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
+          <div
+            className="no-scrollbar"
+            style={{
+              marginTop: '12px',
+              display: 'flex',
+              gap: '6px',
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              paddingBottom: '2px',
+            }}
+          >
             {filteredChampions.slice(0, 24).map((c) => {
               const isSelected = Number(selectedChampId) === Number(c.id);
               return (
@@ -1137,7 +1148,14 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             </div>
 
             {/* Visual Level 1 to 18 Matrix Grid */}
-            <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+            <div
+              className="no-scrollbar"
+              style={{
+                overflowX: 'auto',
+                scrollbarWidth: 'none',
+                paddingBottom: '2px',
+              }}
+            >
               <div style={{ minWidth: '460px' }}>
                 {/* Column Headers: Levels 1 to 18 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '32px repeat(18, 1fr)', gap: '3px', marginBottom: '6px', textAlign: 'center' }}>
