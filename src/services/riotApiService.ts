@@ -121,26 +121,67 @@ class RiotApiService {
     }
   }
 
-  // Look up Riot Account by GameName + TagLine (e.g. Faker#KR1)
+  // Look up Riot Account by GameName + TagLine (e.g. Faker#KR1 or Sry 4 TiTtering#1996)
+  // Smart multi-cluster lookup: if not found in primary cluster, checks other clusters
   public async getAccountByRiotId(
     gameName: string,
     tagLine: string,
     apiKey: string,
     platform: string = 'eun1'
-  ): Promise<RiotAccount | null> {
-    const cluster = this.getClusterForPlatform(platform);
+  ): Promise<(RiotAccount & { cluster: string }) | null> {
+    const primaryCluster = this.getClusterForPlatform(platform);
     const encName = encodeURIComponent(gameName.trim());
     const encTag = encodeURIComponent(tagLine.trim());
-    const url = `https://${cluster}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encName}/${encTag}`;
 
-    const res = await this.makeRequest(url, apiKey);
-    if (res.status === 200 && res.data?.puuid) {
-      return res.data as RiotAccount;
+    const clustersToTry = [
+      primaryCluster,
+      ...['europe', 'americas', 'asia', 'sea'].filter((c) => c !== primaryCluster),
+    ];
+
+    for (const cluster of clustersToTry) {
+      const url = `https://${cluster}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encName}/${encTag}`;
+      const res = await this.makeRequest(url, apiKey);
+      if (res.status === 200 && res.data?.puuid) {
+        return {
+          puuid: res.data.puuid,
+          gameName: res.data.gameName,
+          tagLine: res.data.tagLine,
+          cluster,
+        };
+      }
     }
     return null;
   }
 
-  // Look up Summoner profile by PUUID
+  // Resolve which platform (server) the account actually plays on within a cluster
+  public async resolvePlayerPlatform(
+    puuid: string,
+    cluster: string,
+    preferredPlatform: string,
+    apiKey: string
+  ): Promise<string> {
+    const clusterMap: Record<string, string[]> = {
+      europe: ['eun1', 'euw1', 'tr1', 'ru'],
+      americas: ['na1', 'br1', 'la1', 'la2'],
+      asia: ['kr', 'jp1'],
+      sea: ['oc1', 'sg2', 'ph2', 'tw2', 'vn2', 'th2'],
+    };
+
+    const candidates = clusterMap[cluster] || [preferredPlatform];
+    const ordered = [preferredPlatform, ...candidates.filter((c) => c !== preferredPlatform)];
+
+    for (const plat of ordered) {
+      const summonerUrl = `https://${plat}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`;
+      const res = await this.makeRequest(summonerUrl, apiKey);
+      if (res.status === 200 && res.data?.summonerLevel !== undefined) {
+        return plat;
+      }
+    }
+
+    return preferredPlatform;
+  }
+
+  // Look up Summoner profile by PUUID (modern Riot API v4)
   public async getSummonerByPuuid(
     puuid: string,
     apiKey: string,
@@ -148,23 +189,37 @@ class RiotApiService {
   ): Promise<RiotSummoner | null> {
     const url = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`;
     const res = await this.makeRequest(url, apiKey);
-    if (res.status === 200 && res.data?.id) {
+    if (res.status === 200 && (res.data?.puuid || res.data?.summonerLevel !== undefined)) {
       return res.data as RiotSummoner;
     }
     return null;
   }
 
-  // Look up Ranked stats (tier, division, lp, wins/losses)
+  // Look up Ranked stats (tier, division, lp, wins/losses) via modern by-puuid endpoint
   public async getRankedEntries(
-    summonerId: string,
+    puuidOrSummonerId: string,
     apiKey: string,
     platform: string = 'eun1'
   ): Promise<RiotLeagueEntry[]> {
-    const url = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}`;
-    const res = await this.makeRequest(url, apiKey);
-    if (res.status === 200 && Array.isArray(res.data)) {
-      return res.data as RiotLeagueEntry[];
+    // 1. Try modern Riot API by-puuid endpoint
+    const puuidUrl = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${puuidOrSummonerId}`;
+    const resPuuid = await this.makeRequest(puuidUrl, apiKey);
+    if (resPuuid.status === 200 && Array.isArray(resPuuid.data) && resPuuid.data.length > 0) {
+      return resPuuid.data as RiotLeagueEntry[];
     }
+
+    // 2. Fallback to legacy by-summoner endpoint if needed
+    const summonerUrl = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-summoner/${puuidOrSummonerId}`;
+    const resSumm = await this.makeRequest(summonerUrl, apiKey);
+    if (resSumm.status === 200 && Array.isArray(resSumm.data) && resSumm.data.length > 0) {
+      return resSumm.data as RiotLeagueEntry[];
+    }
+
+    // If by-puuid returned 200 with [] (e.g. unranked in all queues)
+    if (resPuuid.status === 200 && Array.isArray(resPuuid.data)) {
+      return resPuuid.data as RiotLeagueEntry[];
+    }
+
     return [];
   }
 

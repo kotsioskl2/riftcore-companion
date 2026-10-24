@@ -49,9 +49,11 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
 
   // Cloud Summoner Details
   const [cloudAccount, setCloudAccount] = useState<{ gameName: string; tagLine: string; puuid: string } | null>(null);
-  const [cloudProfile, setCloudProfile] = useState<{ summonerLevel: number; profileIconId: number; id: string } | null>(null);
+  const [cloudProfile, setCloudProfile] = useState<{ summonerLevel: number; profileIconId: number; id?: string } | null>(null);
   const [cloudRanked, setCloudRanked] = useState<RiotLeagueEntry[]>([]);
   const [cloudMasteries, setCloudMasteries] = useState<RiotChampionMastery[]>([]);
+  const [localSavedMatches, setLocalSavedMatches] = useState<MatchHistoryItem[]>([]);
+  const [localSavedMasteries, setLocalSavedMasteries] = useState<RiotChampionMastery[]>([]);
 
   // Load local match history
   useEffect(() => {
@@ -110,6 +112,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
             } as MatchHistoryItem;
           });
           setMatches(parsed);
+          setLocalSavedMatches(parsed);
         }
       } catch (err) {
         console.error('Error fetching match history:', err);
@@ -135,6 +138,7 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
         const masteries = await riotApiService.getTopChampionMasteries(puuid, apiKey, region, 5);
         if (masteries && masteries.length > 0) {
           setCloudMasteries(masteries);
+          setLocalSavedMasteries(masteries);
         }
       } catch (e) {
         console.warn('Could not load local champion masteries:', e);
@@ -164,29 +168,90 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
       const settings = await window.riftAPI?.getSettings?.();
       const apiKey = settings?.riotApiKey || 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9';
 
-      // 1. Fetch Riot Account
-      const account = await riotApiService.getAccountByRiotId(gameName, tagLine, apiKey, selectedRegion);
-      if (!account || !account.puuid) {
-        setCloudError(`Could not find Riot ID "${gameName}#${tagLine}". Please verify spelling and region.`);
+      // 1. Fetch Riot Account (Smart multi-cluster lookup across europe, americas, asia, sea)
+      const accountData = await riotApiService.getAccountByRiotId(gameName, tagLine, apiKey, selectedRegion);
+      if (!accountData || !accountData.puuid) {
+        setCloudError(`Could not find Riot ID "${gameName}#${tagLine}". Please verify spelling and tag.`);
         setCloudLoading(false);
         return;
       }
 
-      setCloudAccount(account);
-
-      // 2. Fetch Summoner Profile
-      const summonerRes = await riotApiService.getSummonerByPuuid(account.puuid, apiKey, selectedRegion);
-      if (summonerRes) {
-        setCloudProfile(summonerRes);
-
-        // 3. Fetch Ranked Entries
-        const rankedRes = await riotApiService.getRankedEntries(summonerRes.id, apiKey, selectedRegion);
-        setCloudRanked(rankedRes);
+      // Auto-detect player's active platform in cluster (e.g. eun1 vs euw1)
+      const effectivePlatform = await riotApiService.resolvePlayerPlatform(
+        accountData.puuid,
+        accountData.cluster,
+        selectedRegion,
+        apiKey
+      );
+      if (effectivePlatform !== selectedRegion) {
+        setSelectedRegion(effectivePlatform);
       }
 
+      setCloudAccount(accountData);
+
+      // 2. Fetch Summoner Profile (Level, ProfileIcon)
+      const summonerRes = await riotApiService.getSummonerByPuuid(accountData.puuid, apiKey, effectivePlatform);
+      if (summonerRes) {
+        setCloudProfile(summonerRes);
+      }
+
+      // 3. Fetch Ranked Entries (Emerald, Diamond, Gold, etc.)
+      const rankedRes = await riotApiService.getRankedEntries(accountData.puuid, apiKey, effectivePlatform);
+      setCloudRanked(rankedRes);
+
       // 4. Fetch Champion Masteries
-      const masteriesRes = await riotApiService.getTopChampionMasteries(account.puuid, apiKey, selectedRegion, 5);
+      const masteriesRes = await riotApiService.getTopChampionMasteries(accountData.puuid, apiKey, effectivePlatform, 5);
       setCloudMasteries(masteriesRes);
+
+      // 5. Fetch Scouted Player's REAL Match History via Match-v5!
+      const matchIds = await riotApiService.getRecentMatchIds(accountData.puuid, apiKey, effectivePlatform, 5);
+      if (matchIds && matchIds.length > 0) {
+        const detailsPromises = matchIds.slice(0, 5).map((id) => riotApiService.getMatchDetails(id, apiKey, effectivePlatform));
+        const detailsList = await Promise.all(detailsPromises);
+        const parsedMatches = detailsList.filter(Boolean).map((d: any, idx: number) => {
+          const participant = d.info?.participants?.find((p: any) => p.puuid === accountData.puuid) || d.info?.participants?.[0];
+          const stats = participant || {};
+          const win = stats.win || false;
+          const durationMin = Math.max(1, (d.info?.gameDuration || 1800) / 60);
+          const cs = (stats.totalMinionsKilled || 0) + (stats.neutralMinionsKilled || 0);
+          const csPerMin = Math.round((cs / durationMin) * 10) / 10;
+          const champ = CHAMPIONS_LIST.find((c) => c.name.toLowerCase() === (stats.championName || '').toLowerCase() || c.id === stats.championId);
+
+          return {
+            gameId: d.metadata?.matchId || idx,
+            gameDuration: d.info?.gameDuration || 1800,
+            gameCreationDate: new Date(d.info?.gameCreation || Date.now()).toISOString(),
+            queueId: d.info?.queueId || 420,
+            gameMode: d.info?.gameMode || 'CLASSIC',
+            championId: champ?.id || stats.championId || 420,
+            championName: stats.championName || champ?.name || 'Champion',
+            win,
+            kills: stats.kills || 0,
+            deaths: stats.deaths || 0,
+            assists: stats.assists || 0,
+            cs,
+            csPerMin,
+            goldEarned: stats.goldEarned || 0,
+            damageDealt: stats.totalDamageDealtToChampions || 0,
+            visionScore: stats.visionScore || 0,
+            spell1Id: stats.summoner1Id || 4,
+            spell2Id: stats.summoner2Id || 12,
+            items: [
+              stats.item0 || 0,
+              stats.item1 || 0,
+              stats.item2 || 0,
+              stats.item3 || 0,
+              stats.item4 || 0,
+              stats.item5 || 0,
+              stats.item6 || 0,
+            ],
+            badge: idx === 0 && win ? 'MVP' : win && stats.kills > 8 ? 'CARRY' : !win && stats.deaths > 7 ? 'UNLUCKY' : undefined,
+          } as MatchHistoryItem;
+        });
+        if (parsedMatches.length > 0) {
+          setMatches(parsedMatches);
+        }
+      }
 
       setIsCloudScout(true);
     } catch (err: any) {
@@ -200,6 +265,12 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
     setIsCloudScout(false);
     setCloudError(null);
     setSearchRiotId('');
+    if (localSavedMatches.length > 0) {
+      setMatches(localSavedMatches);
+    }
+    if (localSavedMasteries.length > 0) {
+      setCloudMasteries(localSavedMasteries);
+    }
   };
 
   // Determine active profile data (Cloud vs Local)
