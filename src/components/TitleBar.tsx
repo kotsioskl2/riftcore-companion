@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Square, X, Pin, RefreshCw, Zap, Sparkles } from 'lucide-react';
+import { Minus, Square, X, Pin, RefreshCw, Zap, Sparkles, Compass } from 'lucide-react';
 import { GameflowPhase } from '../types';
 import { patchService, PatchState } from '../services/patchService';
 
@@ -14,6 +14,7 @@ interface TitleBarProps {
   onLaunchLeague?: () => void;
   onCloseClick?: () => void;
   onOpenUpdateNotes?: () => void;
+  onOpenQuickTour?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
@@ -27,6 +28,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onLaunchLeague,
   onCloseClick,
   onOpenUpdateNotes,
+  onOpenQuickTour,
 }) => {
   const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
 
@@ -148,6 +150,32 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       </div>
 
       <div className="titlebar-controls">
+        {/* Quick Tour Button */}
+        {onOpenQuickTour && (
+          <button
+            onClick={onOpenQuickTour}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2.5px 8px',
+              borderRadius: 'var(--radius-xs)',
+              background: 'rgba(255, 170, 0, 0.12)',
+              border: '1px solid rgba(255, 170, 0, 0.35)',
+              fontSize: '10px',
+              fontWeight: 800,
+              color: '#ffbe3b',
+              cursor: 'pointer',
+              marginRight: '6px',
+              transition: 'all 0.18s ease',
+            }}
+            title="Open Interactive Quick Tour & Keybindings"
+          >
+            <Compass size={11} color="#ffbe3b" />
+            <span>Tour</span>
+          </button>
+        )}
+
         {/* What's New / Update Notes Button */}
         {onOpenUpdateNotes && (
           <button

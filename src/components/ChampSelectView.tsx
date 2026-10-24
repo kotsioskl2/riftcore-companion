@@ -18,7 +18,8 @@ import {
   ExternalLink,
   Target,
   Pin,
-  ShoppingBag
+  ShoppingBag,
+  TrendingUp,
 } from 'lucide-react';
 import { ChampSelectSession } from '../types';
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon, getChampionSplash } from '../services/championData';
@@ -27,6 +28,39 @@ import { RuneCustomizer } from './RuneCustomizer';
 import { soundService } from '../services/soundService';
 import { patchService, PatchState } from '../services/patchService';
 import { itemSetService } from '../services/itemSetService';
+
+// Helpers to enhance aesthetics and transform plain text into visual gamer chips
+const getChampKeyByName = (name: string, list: any[]): string => {
+  const found = list.find((c) => c.name.toLowerCase() === name.toLowerCase());
+  return found ? found.key : name.replace(/[^a-zA-Z]/g, '');
+};
+
+const getSituationalTag = (name: string): { label: string; color: string; bg: string; border: string } => {
+  const n = name.toLowerCase();
+  if (n.includes('mortal') || n.includes('thornmail') || n.includes('morello') || n.includes('chempunk') || n.includes('oblivion') || n.includes('executioner')) {
+    return { label: 'ANTI-HEAL', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.35)' };
+  }
+  if (n.includes('maw') || n.includes('force of nature') || n.includes('kaenic') || n.includes('banshee') || n.includes('wit') || n.includes('spirit visage') || n.includes('mercury') || n.includes('abyssal')) {
+    return { label: 'VS AP / BURST', color: '#00d2ff', bg: 'rgba(0, 210, 255, 0.15)', border: 'rgba(0, 210, 255, 0.35)' };
+  }
+  if (n.includes('dominik') || n.includes('serylda') || n.includes('cleaver') || n.includes('void') || n.includes('crypt') || n.includes('terminus')) {
+    return { label: 'ARMOR SHRED', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 0.35)' };
+  }
+  if (n.includes('frozen') || n.includes('randuin') || n.includes('steelcaps') || n.includes('dead man')) {
+    return { label: 'VS AD / CRIT', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.15)', border: 'rgba(236, 72, 153, 0.35)' };
+  }
+  return { label: 'COUNTER', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.15)', border: 'rgba(168, 85, 247, 0.35)' };
+};
+
+const getTipCategory = (index: number): { label: string; icon: string; color: string; bg: string; border: string } => {
+  if (index === 0) {
+    return { label: 'COMBAT COMBO', icon: '⚡', color: '#00d2ff', bg: 'rgba(0, 210, 255, 0.14)', border: 'rgba(0, 210, 255, 0.35)' };
+  }
+  if (index === 1) {
+    return { label: 'POWER SPIKE', icon: '🔥', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.14)', border: 'rgba(245, 158, 11, 0.35)' };
+  }
+  return { label: 'OBJECTIVE FOCUS', icon: '🎯', color: '#10b981', bg: 'rgba(16, 185, 129, 0.14)', border: 'rgba(16, 185, 129, 0.35)' };
+};
 
 interface ChampSelectViewProps {
   session: ChampSelectSession | null;
@@ -418,17 +452,57 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0, 210, 255, 0.07)', border: '1px solid rgba(0, 210, 255, 0.2)', padding: '2px 9px', borderRadius: '5px', fontSize: '11px' }}>
-                  <span style={{ color: '#94a3b8' }}>Win:</span>
-                  <strong className="tabular-nums" style={{ color: 'var(--blue-primary)', fontWeight: 800 }}>{initialBuild.winRate}%</strong>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    boxShadow: '0 0 10px rgba(16, 185, 129, 0.15)',
+                  }}
+                >
+                  <TrendingUp size={12} color="#10b981" />
+                  <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 800 }}>WIN</span>
+                  <strong className="tabular-nums" style={{ color: '#10b981', fontWeight: 900, fontSize: '12px' }}>
+                    {initialBuild.winRate}%
+                  </strong>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '2px 9px', borderRadius: '5px', fontSize: '11px' }}>
-                  <span style={{ color: '#94a3b8' }}>Pick:</span>
-                  <strong className="tabular-nums" style={{ color: '#fff', fontWeight: 800 }}>{initialBuild.pickRate}%</strong>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(0, 210, 255, 0.08)',
+                    border: '1px solid rgba(0, 210, 255, 0.25)',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  <Target size={12} color="#00d2ff" />
+                  <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 800 }}>PICK</span>
+                  <strong className="tabular-nums" style={{ color: '#fff', fontWeight: 900, fontSize: '12px' }}>
+                    {initialBuild.pickRate}%
+                  </strong>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(255, 42, 95, 0.07)', border: '1px solid rgba(255, 42, 95, 0.2)', padding: '2px 9px', borderRadius: '5px', fontSize: '11px' }}>
-                  <span style={{ color: '#94a3b8' }}>Ban:</span>
-                  <strong className="tabular-nums" style={{ color: 'var(--red-primary)', fontWeight: 800 }}>{initialBuild.banRate}%</strong>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(255, 42, 95, 0.08)',
+                    border: '1px solid rgba(255, 42, 95, 0.25)',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  <ShieldAlert size={12} color="#ff2a5f" />
+                  <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 800 }}>BAN</span>
+                  <strong className="tabular-nums" style={{ color: '#ff2a5f', fontWeight: 900, fontSize: '12px' }}>
+                    {initialBuild.banRate}%
+                  </strong>
                 </div>
               </div>
             </div>
@@ -467,21 +541,31 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               style={{
                 padding: '6px 12px',
                 borderRadius: 'var(--radius-sm)',
-                background: autoImport ? 'rgba(0, 210, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                border: autoImport ? '1px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
-                color: autoImport ? 'var(--blue-primary)' : '#94a3b8',
+                background: autoImport ? 'rgba(16, 185, 129, 0.14)' : 'rgba(255, 255, 255, 0.04)',
+                border: autoImport ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid var(--border-subtle)',
+                color: autoImport ? '#10b981' : '#94a3b8',
                 fontSize: '11px',
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '7px',
                 transition: 'all 0.18s ease',
+                boxShadow: autoImport ? '0 0 12px rgba(16, 185, 129, 0.2)' : 'none',
               }}
-              title="Automatically push optimal runes upon picking champion"
+              title="Automatically inject optimal runes when you lock in a champion"
             >
-              <Zap size={13} />
-              <span>Auto-Import: {autoImport ? 'ON' : 'OFF'}</span>
+              <div
+                style={{
+                  width: '7px',
+                  height: '7px',
+                  borderRadius: '50%',
+                  background: autoImport ? '#10b981' : '#64748b',
+                  boxShadow: autoImport ? '0 0 8px #10b981' : 'none',
+                }}
+              />
+              <Zap size={13} color={autoImport ? '#10b981' : '#64748b'} />
+              <span>Auto-Sync: {autoImport ? 'ON' : 'OFF'}</span>
             </button>
 
             {/* Push Runes */}
@@ -909,12 +993,12 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             </div>
 
             {/* Starting & Boots */}
-            <div style={{ display: 'flex', gap: '14px', marginBottom: '14px' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                  Starting Items & Potions
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '160px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.4px', marginBottom: '6px' }}>
+                  Starter Kit
                 </div>
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {initialBuild.startingItems.map((item) => (
                     <div
                       key={item.id}
@@ -923,7 +1007,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                         alignItems: 'center',
                         gap: '6px',
                         background: 'rgba(255, 255, 255, 0.04)',
-                        padding: '6px 10px',
+                        padding: '5px 8px',
                         borderRadius: '6px',
                         border: '1px solid var(--border-subtle)',
                         fontSize: '11px',
@@ -931,20 +1015,20 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                       }}
                     >
                       <img
-                        src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${item.id}.png`}
+                        src={patchService.getItemIconUrl(item.id)}
                         alt={item.name}
                         style={{ width: '22px', height: '22px', borderRadius: '4px' }}
                         onError={(e) => { (e.target as any).style.display = 'none'; }}
                       />
-                      <span>{item.name}</span>
+                      <span style={{ fontWeight: 600 }}>{item.name}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                  Completed Boots
+                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.4px', marginBottom: '6px' }}>
+                  Boots
                 </div>
                 <div
                   style={{
@@ -952,7 +1036,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                     alignItems: 'center',
                     gap: '6px',
                     background: 'rgba(255, 255, 255, 0.04)',
-                    padding: '6px 10px',
+                    padding: '5px 8px',
                     borderRadius: '6px',
                     border: '1px solid var(--border-subtle)',
                     fontSize: '11px',
@@ -960,125 +1044,150 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                   }}
                 >
                   <img
-                    src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${initialBuild.boots.id}.png`}
+                    src={patchService.getItemIconUrl(initialBuild.boots.id)}
                     alt={initialBuild.boots.name}
                     style={{ width: '22px', height: '22px', borderRadius: '4px' }}
                     onError={(e) => { (e.target as any).style.display = 'none'; }}
                   />
-                  <span>{initialBuild.boots.name}</span>
+                  <span style={{ fontWeight: 600 }}>{initialBuild.boots.name}</span>
                 </div>
               </div>
             </div>
 
-            {/* Core 3 Items */}
+            {/* Core 3 Items - Connected Flow */}
             <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                Core Rush (Build in Order)
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#00d2ff', letterSpacing: '0.5px' }}>
+                  ⚡ Core Rush (Build 1 ➔ 2 ➔ 3)
+                </div>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>Primary Power Spike</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {initialBuild.coreItems.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '4px',
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      padding: '8px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      textAlign: 'center',
-                    }}
-                  >
-                    <div style={{ position: 'relative' }}>
-                      <img
-                        src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${item.id}.png`}
-                        alt={item.name}
-                        style={{ width: '32px', height: '32px', borderRadius: '6px', border: '1px solid var(--border-blue)' }}
-                        onError={(e) => { (e.target as any).style.display = 'none'; }}
-                      />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          bottom: '-4px',
-                          right: '-4px',
-                          background: 'var(--blue-primary)',
-                          color: '#000',
-                          fontSize: '9px',
-                          fontWeight: 900,
-                          borderRadius: '50%',
-                          width: '14px',
-                          height: '14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        {idx + 1}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#fff' }}>
-                      {item.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Situational Counter Items */}
-            <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                Situational Counter Items
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {initialBuild.situationalItems.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '6px 10px',
-                      borderRadius: '6px',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid var(--border-subtle)',
-                    }}
-                  >
-                    <img
-                      src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${item.id}.png`}
-                      alt={item.name}
-                      style={{ width: '24px', height: '24px', borderRadius: '4px' }}
-                      onError={(e) => { (e.target as any).style.display = 'none'; }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{item.name}</div>
-                    </div>
-                    <span
+                  <React.Fragment key={item.id}>
+                    <div
                       style={{
-                        fontSize: '9px',
-                        fontWeight: 700,
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        background: 'rgba(255, 42, 95, 0.15)',
-                        color: 'var(--red-primary)',
-                        border: '1px solid rgba(255, 42, 95, 0.3)',
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        padding: '10px 8px',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(0, 210, 255, 0.25)',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+                        textAlign: 'center',
+                        position: 'relative',
                       }}
                     >
-                      Counter
-                    </span>
-                  </div>
+                      <div style={{ position: 'relative' }}>
+                        <img
+                          src={patchService.getItemIconUrl(item.id)}
+                          alt={item.name}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '8px',
+                            border: '1.5px solid var(--blue-primary)',
+                            boxShadow: '0 0 10px rgba(0, 210, 255, 0.3)',
+                          }}
+                          onError={(e) => { (e.target as any).style.display = 'none'; }}
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            bottom: '-4px',
+                            right: '-4px',
+                            background: 'var(--blue-primary)',
+                            color: '#000',
+                            fontSize: '9px',
+                            fontWeight: 900,
+                            borderRadius: '50%',
+                            width: '15px',
+                            height: '15px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 0 6px rgba(0, 210, 255, 0.5)',
+                          }}
+                        >
+                          {idx + 1}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
+                        {item.name}
+                      </span>
+                    </div>
+                    {idx < initialBuild.coreItems.length - 1 && (
+                      <span style={{ color: 'var(--blue-primary)', fontSize: '14px', fontWeight: 900, opacity: 0.6 }}>➔</span>
+                    )}
+                  </React.Fragment>
                 ))}
               </div>
             </div>
 
-            {/* Consumables & In-Game Shop Hotkey Bar */}
+            {/* Situational Counter Items - Visual Badges */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.4px', marginBottom: '8px' }}>
+                Situational Counter Adaptations
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {initialBuild.situationalItems.map((item) => {
+                  const tag = getSituationalTag(item.name);
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.025)',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      <img
+                        src={patchService.getItemIconUrl(item.id)}
+                        alt={item.name}
+                        style={{ width: '26px', height: '26px', borderRadius: '6px' }}
+                        onError={(e) => { (e.target as any).style.display = 'none'; }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.name}
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '8.5px',
+                            fontWeight: 800,
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            background: tag.bg,
+                            color: tag.color,
+                            border: `1px solid ${tag.border}`,
+                            letterSpacing: '0.3px',
+                            display: 'inline-block',
+                            marginTop: '2px',
+                          }}
+                        >
+                          {tag.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* In-Game Shop Hotkey Bar */}
             <div
               style={{
-                padding: '10px 12px',
+                padding: '8px 12px',
                 borderRadius: '8px',
-                background: 'rgba(0, 200, 255, 0.04)',
-                border: '1px dashed rgba(0, 200, 255, 0.25)',
+                background: 'rgba(0, 210, 255, 0.05)',
+                border: '1px dashed rgba(0, 210, 255, 0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -1087,24 +1196,37 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShoppingBag size={14} color="var(--blue-primary)" />
+                <span
+                  style={{
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    background: '#00d2ff',
+                    color: '#000',
+                    fontSize: '11px',
+                    fontWeight: 900,
+                    fontFamily: 'monospace',
+                    boxShadow: '0 0 10px rgba(0, 210, 255, 0.4)',
+                  }}
+                >
+                  P
+                </span>
                 <span style={{ fontSize: '11px', color: '#cbd5e1' }}>
-                  In-game shop set synced. Press <strong style={{ color: '#fff', background: 'rgba(255,255,255,0.1)', padding: '2px 5px', borderRadius: '4px' }}>P</strong> in game to open this build.
+                  Press <strong style={{ color: '#fff' }}>P</strong> in League shop to buy this build instantly.
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {/* Control Ward & Elixir Preview */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
-                  <img src="https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/2055.png" alt="Control Ward" style={{ width: '16px', height: '16px', borderRadius: '3px' }} />
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Control Ward</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                  <img src={patchService.getItemIconUrl(2055)} alt="Control Ward" style={{ width: '15px', height: '15px', borderRadius: '3px' }} onError={(e) => { (e.target as any).style.display = 'none'; }} />
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Pink Ward</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
                   <img
-                    src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${initialBuild.role === 'MID' ? '2139' : initialBuild.role === 'ADC' ? '2140' : '2138'}.png`}
+                    src={patchService.getItemIconUrl(initialBuild.role === 'MID' ? 2139 : initialBuild.role === 'ADC' ? 2140 : 2138)}
                     alt="Elixir"
-                    style={{ width: '16px', height: '16px', borderRadius: '3px' }}
+                    style={{ width: '15px', height: '15px', borderRadius: '3px' }}
+                    onError={(e) => { (e.target as any).style.display = 'none'; }}
                   />
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Late Elixir</span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Elixir</span>
                 </div>
               </div>
             </div>
@@ -1248,51 +1370,116 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
             </div>
           </div>
 
-          {/* Matchups & Coaching Tips */}
+          {/* Matchups & Combat Intelligence */}
           <div className="glass-card" style={{ padding: '18px 20px' }}>
-            <div className="card-header" style={{ marginBottom: '12px' }}>
-              <div className="card-title">
+            <div className="card-header" style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Swords size={16} color="var(--red-primary)" />
-                <span>Matchups & Power Spikes</span>
+                <span>Matchups & Combat Intelligence</span>
               </div>
+              <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 600 }}>
+                Diamond+ Win Rates
+              </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
               {/* Strong Against */}
-              <div style={{ background: 'rgba(34, 197, 94, 0.06)', borderRadius: '8px', padding: '10px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#22c55e', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Favorable Matchups
+              <div style={{ background: 'rgba(34, 197, 94, 0.05)', borderRadius: '10px', padding: '12px', border: '1px solid rgba(34, 197, 94, 0.22)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>⚔️ Favorable Matchups</span>
                 </div>
-                {initialBuild.counters.strongAgainst.map((c) => (
-                  <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '2px 0' }}>
-                    <span style={{ color: '#fff', fontWeight: 600 }}>{c.name}</span>
-                    <span style={{ color: '#22c55e', fontWeight: 700 }}>{c.winRate}%</span>
-                  </div>
-                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {initialBuild.counters.strongAgainst.map((c) => {
+                    const champKey = getChampKeyByName(c.name, currentChampions);
+                    return (
+                      <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.025)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <img
+                            src={getChampionIcon(champKey)}
+                            alt={c.name}
+                            style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1.5px solid #22c55e' }}
+                            onError={(e) => { (e.target as any).style.display = 'none'; }}
+                          />
+                          <span style={{ color: '#fff', fontWeight: 700, fontSize: '11.5px' }}>{c.name}</span>
+                        </div>
+                        <span style={{ color: '#22c55e', fontWeight: 900, fontSize: '11.5px', background: 'rgba(34, 197, 94, 0.15)', padding: '1.5px 6px', borderRadius: '4px' }}>
+                          {c.winRate}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Weak Against */}
-              <div style={{ background: 'rgba(255, 42, 95, 0.06)', borderRadius: '8px', padding: '10px', border: '1px solid rgba(255, 42, 95, 0.2)' }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red-primary)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Tough Counters
+              <div style={{ background: 'rgba(255, 42, 95, 0.05)', borderRadius: '10px', padding: '12px', border: '1px solid rgba(255, 42, 95, 0.22)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, color: 'var(--red-primary)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>⚠️ Tough Counters</span>
                 </div>
-                {initialBuild.counters.weakAgainst.map((c) => (
-                  <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '2px 0' }}>
-                    <span style={{ color: '#fff', fontWeight: 600 }}>{c.name}</span>
-                    <span style={{ color: 'var(--red-primary)', fontWeight: 700 }}>{c.winRate}%</span>
-                  </div>
-                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {initialBuild.counters.weakAgainst.map((c) => {
+                    const champKey = getChampKeyByName(c.name, currentChampions);
+                    return (
+                      <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.025)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <img
+                            src={getChampionIcon(champKey)}
+                            alt={c.name}
+                            style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1.5px solid var(--red-primary)' }}
+                            onError={(e) => { (e.target as any).style.display = 'none'; }}
+                          />
+                          <span style={{ color: '#fff', fontWeight: 700, fontSize: '11.5px' }}>{c.name}</span>
+                        </div>
+                        <span style={{ color: 'var(--red-primary)', fontWeight: 900, fontSize: '11.5px', background: 'rgba(255, 42, 95, 0.15)', padding: '1.5px 6px', borderRadius: '4px' }}>
+                          {c.winRate}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Pro Coaching Tips */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {initialBuild.tips.map((tip, idx) => (
-                <div key={idx} style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', gap: '6px' }}>
-                  <span style={{ color: 'var(--blue-primary)', fontWeight: 800 }}>•</span>
-                  <span>{tip}</span>
-                </div>
-              ))}
+            {/* Tactical Combat Intelligence (Categorized Chips instead of wall of text) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {initialBuild.tips.map((tip, idx) => {
+                const cat = getTipCategory(idx);
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 900,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.6px',
+                        padding: '2.5px 7px',
+                        borderRadius: '4px',
+                        background: cat.bg,
+                        border: `1px solid ${cat.border}`,
+                        color: cat.color,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {cat.icon} {cat.label}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#cbd5e1', lineHeight: 1.4 }}>
+                      {tip}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

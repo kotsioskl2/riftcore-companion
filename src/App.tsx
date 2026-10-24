@@ -23,6 +23,7 @@ import {
 import { soundService } from './services/soundService';
 import { CloseConfirmationModal } from './components/CloseConfirmationModal';
 import { UpdateNotesModal } from './components/UpdateNotesModal';
+import { QuickTourModal } from './components/QuickTourModal';
 import { Check, Flame, ShieldAlert, Sparkles, Zap } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -34,6 +35,7 @@ export const App: React.FC = () => {
   const [isPinned, setIsPinned] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showUpdateNotes, setShowUpdateNotes] = useState(false);
+  const [showQuickTour, setShowQuickTour] = useState(false);
 
   // League Data
   const [summoner, setSummoner] = useState<SummonerProfile | null>(null);
@@ -115,6 +117,11 @@ export const App: React.FC = () => {
       if (seenVer !== '1.1.0') {
         setShowUpdateNotes(true);
         localStorage.setItem('riftcore_seen_version', '1.1.0');
+      } else {
+        const tourSeen = localStorage.getItem('riftcore_tour_seen');
+        if (!tourSeen) {
+          setShowQuickTour(true);
+        }
       }
     } catch {}
 
@@ -425,6 +432,13 @@ export const App: React.FC = () => {
         onLaunchLeague={handleLaunchLeague}
         onCloseClick={handleTitleBarClose}
         onOpenUpdateNotes={() => setShowUpdateNotes(true)}
+        onOpenQuickTour={() => setShowQuickTour(true)}
+      />
+
+      {/* Quick Tour Modal */}
+      <QuickTourModal
+        isOpen={showQuickTour}
+        onClose={() => setShowQuickTour(false)}
       />
 
       {/* Update Notes / What's New Modal */}
