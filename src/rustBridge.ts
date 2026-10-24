@@ -203,8 +203,12 @@ export function initRustBridge() {
       return sendRustIpc('get-league-window-mode');
     },
 
+    setLeagueFullscreen: async () => {
+      return sendRustIpc('set-league-fullscreen');
+    },
+
     setLeagueBorderless: async () => {
-      return sendRustIpc('set-league-borderless');
+      return sendRustIpc('set-league-fullscreen');
     },
 
     resizeWindow: async (width: number, height: number) => {

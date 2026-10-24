@@ -242,6 +242,7 @@ declare global {
       resizeWindow?: (width: number, height: number) => Promise<any>;
       snapOverlay?: (position: string, width?: number, height?: number) => Promise<any>;
       getLeagueWindowMode?: () => Promise<{ found: boolean; windowMode: number; path: string }>;
+      setLeagueFullscreen?: () => Promise<{ success: boolean }>;
       setLeagueBorderless?: () => Promise<{ success: boolean }>;
       setHudMode?: (mode: 'integrated' | 'card' | 'bar') => Promise<any>;
       setClickThrough?: (enabled: boolean) => Promise<any>;

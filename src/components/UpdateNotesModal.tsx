@@ -283,7 +283,7 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
         >
           <ShieldCheck size={16} color="var(--blue-primary)" style={{ flexShrink: 0 }} />
           <span>
-            <strong>Pro Tip:</strong> Set League to <strong style={{ color: '#fff' }}>Borderless</strong> in video settings so the overlay stays smoothly on top of your screen.
+            <strong>In-Game Hotkey:</strong> Press <strong style={{ color: '#00c8ff' }}>Ctrl + Space</strong> or <strong style={{ color: '#00c8ff' }}>Alt + ~</strong> anytime to bring up the tactical overlay directly over Fullscreen League.
           </span>
         </div>
 

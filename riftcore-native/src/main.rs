@@ -490,6 +490,11 @@ fn maintain_overlay_topmost(overlay_hwnd: *mut std::ffi::c_void) {
         let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
         let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
         if !league_hwnd.is_null() {
+            let ex = GetWindowLongW(overlay_hwnd, GWL_EXSTYLE);
+            if (ex & WS_EX_TOPMOST) == 0 {
+                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
+                SetWindowLongW(overlay_hwnd, GWL_EXSTYLE, new_ex);
+            }
             // Only update Z-order if the overlay has actually been covered by another window
             let prev_wnd = GetWindow(overlay_hwnd, 3 /* GW_HWNDPREV */);
             if !prev_wnd.is_null() {
@@ -510,7 +515,7 @@ fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
         if enable {
             // In-Game Overlay Mode:
-            // 1. WS_EX_TOPMOST: Stays layered on top of borderless League
+            // 1. WS_EX_TOPMOST: Stays layered on top of Fullscreen League
             // 2. WS_EX_NOACTIVATE: Never steals mouse/keyboard focus from League
             // 3. WS_EX_TOOLWINDOW: Hides from Windows Taskbar and Alt-Tab
             let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
@@ -1358,7 +1363,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
                     }
-                    "set-league-borderless" => {
+                    "set-league-fullscreen" | "set-league-borderless" => {
                         let mut success = false;
                         if let Some(cfg_path) = find_league_game_cfg() {
                             if let Ok(content) = std::fs::read_to_string(&cfg_path) {
@@ -1366,14 +1371,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let mut replaced = false;
                                 for line in content.lines() {
                                     if line.trim().starts_with("WindowMode=") {
-                                        new_lines.push("WindowMode=2".to_string());
+                                        new_lines.push("WindowMode=0".to_string());
                                         replaced = true;
                                     } else {
                                         new_lines.push(line.to_string());
                                     }
                                 }
                                 if !replaced {
-                                    new_lines.push("WindowMode=2".to_string());
+                                    new_lines.push("WindowMode=0".to_string());
                                 }
                                 if std::fs::write(&cfg_path, new_lines.join("\r\n")).is_ok() {
                                     success = true;
@@ -1509,6 +1514,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                                 let script = "window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true })); window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
                                 let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
+                            } else {
+                                #[cfg(target_os = "windows")]
+                                {
+                                    let is_compact_or_pinned = {
+                                        let st = bg_state.lock().unwrap();
+                                        st.is_compact || st.is_pinned
+                                    };
+                                    if is_compact_or_pinned {
+                                        maintain_overlay_topmost(window_bg.hwnd() as *mut std::ffi::c_void);
+                                    }
+                                }
                             }
 
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&live_json) {
