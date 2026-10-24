@@ -134,10 +134,14 @@ fn is_riot_client_open() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+#[link(name = "kernel32")]
 #[link(name = "shell32")]
 #[link(name = "user32")]
 extern "system" {
     fn CreateMutexW(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u16) -> *mut std::ffi::c_void;
+    fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut std::ffi::c_void;
+    fn WaitForSingleObject(hHandle: *mut std::ffi::c_void, dwMilliseconds: u32) -> u32;
+    fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
     fn GetLastError() -> u32;
     fn GetModuleFileNameW(hModule: *mut std::ffi::c_void, lpFilename: *mut u16, nSize: u32) -> u32;
     fn ExtractIconExW(
@@ -568,13 +572,42 @@ fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
     }
 }
 
+#[cfg(target_os = "windows")]
+static SINGLETON_MUTEX: std::sync::atomic::AtomicPtr<std::ffi::c_void> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+#[cfg(target_os = "windows")]
+fn wait_for_parent_exit_if_requested() {
+    let args: Vec<String> = std::env::args().collect();
+    for i in 0..args.len() {
+        if args[i] == "--wait-for-pid" {
+            if let Some(pid_str) = args.get(i + 1) {
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    unsafe {
+                        const SYNCHRONIZE: u32 = 0x00100000;
+                        let h_proc = OpenProcess(SYNCHRONIZE, 0, pid);
+                        if !h_proc.is_null() {
+                            // Wait up to 6 seconds for previous updating process to cleanly exit
+                            WaitForSingleObject(h_proc, 6000);
+                            CloseHandle(h_proc);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn is_already_running() -> bool {
     #[cfg(target_os = "windows")]
     unsafe {
         let name: Vec<u16> = "Local\\RiftCoreCompanion_SingleInstance\0".encode_utf16().collect();
         let handle = CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr());
-        if !handle.is_null() && GetLastError() == ERROR_ALREADY_EXISTS {
-            return true;
+        if !handle.is_null() {
+            if GetLastError() == ERROR_ALREADY_EXISTS {
+                CloseHandle(handle);
+                return true;
+            }
+            SINGLETON_MUTEX.store(handle, std::sync::atomic::Ordering::SeqCst);
         }
     }
     false
@@ -582,6 +615,9 @@ fn is_already_running() -> bool {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "windows")]
+    wait_for_parent_exit_if_requested();
+
     // Register explicit AppUserModelID so Windows Taskbar binds to RiftCore branding rather than generic host
     #[cfg(target_os = "windows")]
     unsafe {
@@ -1716,17 +1752,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         }
                                     }
 
+                                    // 1. Release our singleton mutex BEFORE spawning so the new instance doesn't think it's already running
+                                    #[cfg(target_os = "windows")]
+                                    unsafe {
+                                        let h = SINGLETON_MUTEX.swap(std::ptr::null_mut(), std::sync::atomic::Ordering::SeqCst);
+                                        if !h.is_null() {
+                                            CloseHandle(h);
+                                        }
+                                    }
+
+                                    let my_pid = std::process::id();
+
                                     if direct_swapped {
-                                        let _ = Command::new(&current_exe).spawn();
-                                        std::thread::sleep(std::time::Duration::from_millis(300));
+                                        let mut child = Command::new(&current_exe);
+                                        child.arg("--wait-for-pid").arg(my_pid.to_string());
+                                        #[cfg(target_os = "windows")]
+                                        {
+                                            const DETACHED_PROCESS: u32 = 0x00000008;
+                                            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+                                            child.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+                                        }
+                                        let _ = child.spawn();
                                         std::process::exit(0);
                                     } else {
-                                        // Fallback: spawn silent background cmd to swap after exit
+                                        // Fallback: spawn background cmd to swap after exit
                                         let cmd_line = format!(
-                                            "ping 127.0.0.1 -n 2 > nul & move /Y \"{}\" \"{}\" & start \"\" \"{}\"",
+                                            "ping 127.0.0.1 -n 2 > nul & move /Y \"{}\" \"{}\" & start \"\" \"{}\" --wait-for-pid {}",
                                             new_exe.display(),
                                             current_exe.display(),
-                                            current_exe.display()
+                                            current_exe.display(),
+                                            my_pid
                                         );
                                         #[cfg(target_os = "windows")]
                                         let _ = Command::new("cmd")
@@ -1739,7 +1794,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             .args(["-c", &format!("sleep 1 && mv \"{}\" \"{}\" && \"{}\"", new_exe.display(), current_exe.display(), current_exe.display())])
                                             .spawn();
 
-                                        std::thread::sleep(std::time::Duration::from_millis(300));
                                         std::process::exit(0);
                                     }
                                 }
