@@ -21,6 +21,7 @@ import {
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon } from '../services/championData';
 import { soundService } from '../services/soundService';
 import { itemSetService } from '../services/itemSetService';
+import { MAYHEM_CARDS, searchMayhemCards, CardTier } from '../services/mayhemCardsData';
 
 interface RiftFloatingOverlayProps {
   liveData: LiveGameData | null;
@@ -28,7 +29,7 @@ interface RiftFloatingOverlayProps {
   onMinimize?: () => void;
 }
 
-type OverlayTab = 'skills' | 'build' | 'matchup' | 'stats' | 'timers';
+type OverlayTab = 'skills' | 'build' | 'cards' | 'matchup' | 'stats' | 'timers';
 type OverlayHudMode = 'integrated' | 'card' | 'bar' | 'pill';
 
 export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
@@ -47,6 +48,9 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const [copiedChat, setCopiedChat] = useState(false);
   const [shopExportStatus, setShopExportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [overlayOpacity, setOverlayOpacity] = useState<number>(0.92);
+  const [showCardsSheet, setShowCardsSheet] = useState<boolean>(false);
+  const [hudCardSearch, setHudCardSearch] = useState<string>('');
+  const [hudCardTierFilter, setHudCardTierFilter] = useState<CardTier | 'ALL'>('ALL');
 
   // Keyboard shortcut listener: ESC returns to full app
   useEffect(() => {
@@ -669,6 +673,28 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
 
                 {/* Return / Exit Controls */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
+                  {/* Mayhem & Arena Cards Drawer Toggle */}
+                  <button
+                    onClick={() => setShowCardsSheet(!showCardsSheet)}
+                    style={{
+                      background: showCardsSheet ? 'rgba(192, 132, 252, 0.35)' : 'rgba(192, 132, 252, 0.15)',
+                      border: '1px solid rgba(192, 132, 252, 0.5)',
+                      color: '#c084fc',
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    title="Toggle ARAM Mayhem & Arena Cards Drawer"
+                  >
+                    <Sparkles size={9} />
+                    <span>Cards</span>
+                  </button>
+
                   {isPreviewMode && (
                     <button
                       onClick={() => setIsPreviewMode(false)}
@@ -713,6 +739,108 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* 1b. FLOATING IN-GAME CARDS DRAWER (When toggled during Mayhem or Arena rounds) */}
+              {showCardsSheet && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '48px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '380px',
+                    maxHeight: '340px',
+                    background: 'rgba(6, 11, 22, 0.96)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                    border: '1px solid rgba(192, 132, 252, 0.4)',
+                    boxShadow: '0 12px 36px rgba(0,0,0,0.9), 0 0 20px rgba(192, 132, 252, 0.2)',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    pointerEvents: 'auto',
+                    zIndex: 10000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Sparkles size={13} color="#c084fc" />
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>Mayhem & Arena Cards Advice</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '3px' }}>
+                      {(['ALL', 'Prismatic', 'Gold', 'Silver'] as const).map((tier) => (
+                        <button
+                          key={tier}
+                          onClick={() => setHudCardTierFilter(tier)}
+                          style={{
+                            fontSize: '8px',
+                            fontWeight: 800,
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            background: hudCardTierFilter === tier ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.04)',
+                            border: hudCardTierFilter === tier ? '1px solid rgba(255,255,255,0.4)' : '1px solid transparent',
+                            color: tier === 'Prismatic' ? '#c084fc' : tier === 'Gold' ? '#f59e0b' : tier === 'Silver' ? '#94a3b8' : '#fff',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {tier === 'Prismatic' ? 'Prism' : tier}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Search Mayhem cards (e.g. Crit, Haste, Bleed)..."
+                    value={hudCardSearch}
+                    onChange={(e) => setHudCardSearch(e.target.value)}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '5px',
+                      background: 'rgba(0,0,0,0.5)',
+                      border: '1px solid var(--border-subtle)',
+                      color: '#fff',
+                      fontSize: '11px',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+
+                  <div style={{ overflowY: 'auto', maxHeight: '220px', display: 'flex', flexDirection: 'column', gap: '5px', paddingRight: '2px' }}>
+                    {searchMayhemCards(hudCardSearch, hudCardTierFilter, 'Both').map((card) => (
+                      <div
+                        key={card.id}
+                        style={{
+                          background: 'rgba(255,255,255,0.03)',
+                          border: `1px solid ${card.color}33`,
+                          borderLeft: `3px solid ${card.color}`,
+                          borderRadius: '5px',
+                          padding: '6px 8px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>{card.name}</span>
+                            <span style={{ fontSize: '8px', fontWeight: 800, padding: '0 4px', borderRadius: '2px', background: `${card.color}20`, color: card.color }}>
+                              {card.tier}
+                            </span>
+                            <span style={{ fontSize: '8px', fontWeight: 900, padding: '0 4px', borderRadius: '2px', background: card.rank === 'S+' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)', color: card.rank === 'S+' ? '#ef4444' : '#22c55e' }}>
+                              {card.rank}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '8px', color: '#64748b' }}>{card.tag}</span>
+                        </div>
+                        <div style={{ fontSize: '9.5px', color: '#cbd5e1', lineHeight: '1.3' }}>{card.description}</div>
+                        <div style={{ fontSize: '8.5px', color: '#94a3b8', marginTop: '2px' }}>
+                          <span style={{ color: 'var(--blue-primary)', fontWeight: 700 }}>Best:</span> {card.archetype}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 2. SMALL CS SCORE UP (Top Right, beside game clock) */}
               <div
@@ -1289,6 +1417,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
             {[
               { id: 'skills', label: 'Skills', icon: Zap },
               { id: 'build', label: 'Build', icon: ShoppingBag },
+              { id: 'cards', label: 'Cards', icon: Sparkles },
               { id: 'matchup', label: 'Matchup', icon: Swords },
               { id: 'stats', label: 'CS / Gold', icon: TrendingUp },
               { id: 'timers', label: 'Timers', icon: Timer },
@@ -1568,6 +1697,112 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     <span style={{ color: '#cbd5e1' }}>{myChampBuild.boots.name}</span>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: MAYHEM & ARENA CARDS ADVICE */}
+          {activeTab === 'cards' && (
+            <div style={{ flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Sparkles size={11} color="#c084fc" />
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#fff' }}>Mayhem Cards</span>
+                </div>
+                <div style={{ display: 'flex', gap: '2px' }}>
+                  {(['ALL', 'Prismatic', 'Gold', 'Silver'] as const).map((tier) => (
+                    <button
+                      key={tier}
+                      onClick={() => setHudCardTierFilter(tier)}
+                      style={{
+                        fontSize: '7.5px',
+                        fontWeight: 800,
+                        padding: '1px 5px',
+                        borderRadius: '3px',
+                        background: hudCardTierFilter === tier ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.03)',
+                        border: hudCardTierFilter === tier ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent',
+                        color: tier === 'Prismatic' ? '#c084fc' : tier === 'Gold' ? '#f59e0b' : tier === 'Silver' ? '#94a3b8' : '#fff',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {tier === 'Prismatic' ? 'Prism' : tier}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Compact Search */}
+              <input
+                type="text"
+                placeholder="Search Mayhem cards (Crit, Haste, Bleed)..."
+                value={hudCardSearch}
+                onChange={(e) => setHudCardSearch(e.target.value)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid var(--border-subtle)',
+                  color: '#fff',
+                  fontSize: '10px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              />
+
+              {/* Card List */}
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', paddingRight: '2px' }}>
+                {searchMayhemCards(hudCardSearch, hudCardTierFilter, 'Both').map((card) => (
+                  <div
+                    key={card.id}
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${card.color}33`,
+                      borderLeft: `3px solid ${card.color}`,
+                      borderRadius: '5px',
+                      padding: '5px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#fff' }}>{card.name}</span>
+                        <span
+                          style={{
+                            fontSize: '7.5px',
+                            fontWeight: 800,
+                            padding: '0 4px',
+                            borderRadius: '2px',
+                            background: `${card.color}20`,
+                            color: card.color,
+                          }}
+                        >
+                          {card.tier}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '7.5px',
+                            fontWeight: 900,
+                            padding: '0 4px',
+                            borderRadius: '2px',
+                            background: card.rank === 'S+' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)',
+                            color: card.rank === 'S+' ? '#ef4444' : '#22c55e',
+                          }}
+                        >
+                          {card.rank}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '7.5px', color: '#64748b' }}>{card.tag}</span>
+                    </div>
+                    <div style={{ fontSize: '9px', color: '#cbd5e1', lineHeight: '1.25' }}>
+                      {card.description}
+                    </div>
+                    <div style={{ fontSize: '8px', color: '#94a3b8' }}>
+                      <span style={{ color: 'var(--blue-primary)', fontWeight: 700 }}>Best:</span> {card.archetype}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

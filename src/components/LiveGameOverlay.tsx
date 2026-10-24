@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { LiveGameData } from '../types';
 import { soundService } from '../services/soundService';
+import { MAYHEM_CARDS, searchMayhemCards, CardTier } from '../services/mayhemCardsData';
 
 interface LiveGameOverlayProps {
   liveData: LiveGameData | null;
@@ -86,6 +87,8 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
   const [activeMode, setActiveMode] = useState<ActiveGameMode>('CLASSIC');
   const [augmentSearch, setAugmentSearch] = useState('');
   const [auraSearch, setAuraSearch] = useState('');
+  const [aramCardSearch, setAramCardSearch] = useState('');
+  const [aramCardTierFilter, setAramCardTierFilter] = useState<CardTier | 'ALL'>('ALL');
   const [srActiveTab, setSrActiveTab] = useState<'epics' | 'jungle'>('epics');
   const [jungleStart, setJungleStart] = useState<'bot' | 'top' | 'solo'>('bot');
 
@@ -1583,6 +1586,119 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                     </div>
                   </div>
                 ))}
+            </div>
+          </div>
+
+          {/* ARAM Mayhem Augment Cards & In-Round Selector */}
+          <div className="glass-card" style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={16} color="#c084fc" />
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
+                  ARAM Mayhem Cards & Instant Tier Advice
+                </span>
+                <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                  (Draft Rounds)
+                </span>
+              </div>
+
+              {/* Filters */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '3px' }}>
+                  {(['ALL', 'Prismatic', 'Gold', 'Silver'] as const).map((tier) => (
+                    <button
+                      key={tier}
+                      onClick={() => setAramCardTierFilter(tier)}
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        padding: '2px 7px',
+                        borderRadius: '4px',
+                        background: aramCardTierFilter === tier ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.03)',
+                        border: aramCardTierFilter === tier ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid transparent',
+                        color: tier === 'Prismatic' ? '#c084fc' : tier === 'Gold' ? '#f59e0b' : tier === 'Silver' ? '#94a3b8' : '#fff',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {tier}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Search size={12} color="#94a3b8" />
+                  <input
+                    type="text"
+                    placeholder="Search Mayhem card..."
+                    value={aramCardSearch}
+                    onChange={(e) => setAramCardSearch(e.target.value)}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      background: 'rgba(0, 0, 0, 0.35)',
+                      border: '1px solid var(--border-subtle)',
+                      color: '#fff',
+                      fontSize: '11px',
+                      width: '140px',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+              {searchMayhemCards(aramCardSearch, aramCardTierFilter, 'ARAM').map((card) => (
+                <div
+                  key={card.id}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: `1px solid ${card.color}33`,
+                    borderLeft: `3px solid ${card.color}`,
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{card.name}</span>
+                      <span
+                        style={{
+                          fontSize: '8.5px',
+                          fontWeight: 800,
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          background: `${card.color}18`,
+                          color: card.color,
+                        }}
+                      >
+                        {card.tier}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '8.5px',
+                          fontWeight: 900,
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          background: card.rank === 'S+' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                          color: card.rank === 'S+' ? '#ef4444' : '#22c55e',
+                        }}
+                      >
+                        {card.rank} Tier
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '8.5px', color: '#64748b', fontWeight: 700 }}>{card.tag}</span>
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#cbd5e1', lineHeight: '1.35' }}>
+                    {card.description}
+                  </div>
+                  <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>
+                    <strong style={{ color: 'var(--blue-primary)' }}>Best For:</strong> {card.archetype}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
