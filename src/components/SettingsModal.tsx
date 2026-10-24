@@ -32,6 +32,7 @@ import {
 import { AppSettings, AppUpdateInfo } from '../types';
 import { soundService } from '../services/soundService';
 import { riotApiService, RIOT_REGIONS } from '../services/riotApiService';
+import { APP_VERSION } from '../version';
 
 export type SettingsTab = 'automation' | 'hud' | 'appearance' | 'system' | 'updates';
 
@@ -110,7 +111,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (res && res.hasUpdate) {
         setUpdateCheckMsg(`Update available: v${res.latestVersion}!`);
       } else {
-        setUpdateCheckMsg(`You are on the latest version! (v${res?.currentVersion || '1.1.2'})`);
+        setUpdateCheckMsg(`You are on the latest version! (v${res?.currentVersion || APP_VERSION})`);
       }
     } catch {
       setUpdateCheckMsg('Could not reach GitHub Releases.');
@@ -966,7 +967,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   border: '1px solid rgba(0, 210, 255, 0.25)',
                 }}
               >
-                v{appUpdate?.currentVersion || '1.1.2'}
+                v{appUpdate?.currentVersion || APP_VERSION}
               </span>
             </div>
 

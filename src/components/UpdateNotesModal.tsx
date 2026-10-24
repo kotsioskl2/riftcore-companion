@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Check,
 } from 'lucide-react';
+import { APP_VERSION } from '../version';
 
 interface UpdateNotesModalProps {
   isOpen: boolean;
@@ -96,7 +97,7 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-                Hey! Welcome to v1.1.2
+                Hey! Welcome to v{APP_VERSION}
               </span>
               <span
                 style={{
@@ -110,7 +111,7 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
                   letterSpacing: '0.4px',
                 }}
               >
-                UPDATE v1.1.2
+                UPDATE v{APP_VERSION}
               </span>
             </div>
             <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>

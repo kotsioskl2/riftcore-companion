@@ -8,7 +8,10 @@
     "build": "vite build",
     "build:renderer": "vite build",
     "build:rust": "build_rust.bat",
-    "build:all": "build_all.bat"
+    "build:all": "build_all.bat",
+    "bump": "node scripts/bump_version.mjs",
+    "publish:release": "powershell -ExecutionPolicy Bypass -File scripts/publish_release.ps1",
+    "release": "call build_all.bat && powershell -ExecutionPolicy Bypass -File scripts/publish_release.ps1"
   },
   "dependencies": {
     "lucide-react": "^1.16.0",

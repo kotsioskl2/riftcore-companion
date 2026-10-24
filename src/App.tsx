@@ -28,6 +28,7 @@ import { UpdateNotesModal } from './components/UpdateNotesModal';
 import { QuickTourModal } from './components/QuickTourModal';
 import { AppUpdateBanner } from './components/AppUpdateBanner';
 import { AppUpdateInfo } from './types';
+import { APP_VERSION } from './version';
 import { Check, Flame, ShieldAlert, Sparkles, Zap } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -116,12 +117,12 @@ export const App: React.FC = () => {
       }
     });
 
-    // Check if app was updated to v1.1.2
+    // Check if app was updated
     try {
       const seenVer = localStorage.getItem('riftcore_seen_version');
-      if (seenVer !== '1.1.2') {
+      if (seenVer !== APP_VERSION) {
         setShowUpdateNotes(true);
-        localStorage.setItem('riftcore_seen_version', '1.1.2');
+        localStorage.setItem('riftcore_seen_version', APP_VERSION);
       } else {
         const tourSeen = localStorage.getItem('riftcore_tour_seen');
         if (!tourSeen) {

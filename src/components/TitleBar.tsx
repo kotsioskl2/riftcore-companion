@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Minus, Square, X, Pin, RefreshCw, Zap, Sparkles, Compass } from 'lucide-react';
 import { GameflowPhase } from '../types';
 import { patchService, PatchState } from '../services/patchService';
+import { APP_VERSION } from '../version';
 
 interface TitleBarProps {
   isConnected: boolean;
@@ -195,7 +196,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
               marginRight: '6px',
               transition: 'all 0.18s ease',
             }}
-            title="View What's New & v1.1.2 Update Notes"
+            title={`View What's New & v${APP_VERSION} Update Notes`}
           >
             <Sparkles size={10} color="var(--blue-primary)" />
             <span>What's New</span>

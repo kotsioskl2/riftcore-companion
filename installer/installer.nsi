@@ -11,8 +11,9 @@ SetCompressor /SOLID lzma
 !include "FileFunc.nsh"
 !include "LogicLib.nsh"
 
-!define PRODUCT_NAME "RiftCore Companion"
-!define PRODUCT_VERSION "1.1.2"
+!ifndef PRODUCT_VERSION
+  !define PRODUCT_VERSION "1.1.2"
+!endif
 !define PRODUCT_PUBLISHER "RiftCore Team"
 !define PRODUCT_WEB_SITE "https://github.com/kotsioskl2/riftcore-companion"
 !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\RiftCore.exe"
@@ -20,7 +21,7 @@ SetCompressor /SOLID lzma
 !define PRODUCT_UNINST_ROOT_KEY "HKCU"
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "..\installer_output\RiftCore-Setup-1.1.2.exe"
+OutFile "..\installer_output\RiftCore-Setup-${PRODUCT_VERSION}.exe"
 InstallDir "$LOCALAPPDATA\Programs\RiftCore"
 InstallDirRegKey ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_DIR_REGKEY}" ""
 ShowInstDetails show
