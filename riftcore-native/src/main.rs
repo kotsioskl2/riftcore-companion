@@ -188,6 +188,17 @@ extern "system" {
 }
 
 #[cfg(target_os = "windows")]
+#[link(name = "dwmapi")]
+extern "system" {
+    fn DwmSetWindowAttribute(
+        hwnd: *mut std::ffi::c_void,
+        dwAttribute: u32,
+        pvAttribute: *const std::ffi::c_void,
+        cbAttribute: u32,
+    ) -> i32;
+}
+
+#[cfg(target_os = "windows")]
 #[repr(C)]
 struct POINT {
     x: i32,
@@ -604,6 +615,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     tray_icon_handle = h_large;
                 }
+
+                // Apply Windows 11 DWM theme: Dark mode + Hextech Cyan border (#00c8ff)
+                // COLORREF: 0x00BBGGRR -> 0x00FFC800 (RGB: 0, 200, 255)
+                const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
+                const DWMWA_BORDER_COLOR: u32 = 34;
+                let dark_mode: i32 = 1;
+                let border_color: u32 = 0x00FFC800;
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_USE_IMMERSIVE_DARK_MODE,
+                    &dark_mode as *const _ as *const std::ffi::c_void,
+                    std::mem::size_of::<i32>() as u32,
+                );
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_BORDER_COLOR,
+                    &border_color as *const _ as *const std::ffi::c_void,
+                    std::mem::size_of::<u32>() as u32,
+                );
             }
         }
     }
