@@ -79,10 +79,10 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-font', font);
   }, [settings.fontFamily]);
 
-  // Initialize and register electron event listeners
+  // Initialize and register native event listeners
   useEffect(() => {
     if (!window.riftAPI) {
-      console.warn('Running outside Electron environment');
+      console.warn('Running outside native desktop environment');
       return;
     }
 

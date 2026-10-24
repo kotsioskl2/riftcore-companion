@@ -2,16 +2,13 @@
   "name": "riftcore-companion",
   "version": "1.1.1",
   "description": "Minimalist Red & Blue League of Legends companion & overlay",
-  "main": "electron/main.js",
   "author": "RiftCore Team",
   "scripts": {
-    "dev:renderer": "vite",
+    "dev": "vite",
+    "build": "vite build",
     "build:renderer": "vite build",
-    "dev:electron": "electron .",
-    "dev": "concurrently -k \"npm run dev:renderer\" \"wait-on tcp:5173 && npm run dev:electron\"",
-    "build:dir": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false vite build && electron-builder --win --dir -c.win.sign=null",
-    "build:installer": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false vite build && electron-builder --win nsis -c.win.sign=null",
-    "start": "electron ."
+    "build:rust": "build_rust.bat",
+    "build:all": "build_all.bat"
   },
   "dependencies": {
     "lucide-react": "^1.16.0",
@@ -19,53 +16,11 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@tauri-apps/api": "^2.12.4",
-    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^22.13.0",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.2",
-    "cross-env": "^7.0.3",
-    "electron": "^34.1.0",
-    "electron-builder": "^25.1.8",
     "typescript": "^5.7.3",
-    "vite": "^6.1.0",
-    "wait-on": "^8.0.2",
-    "ws": "^8.18.0"
-  },
-  "build": {
-    "appId": "com.riftcore.companion",
-    "productName": "RiftCore Companion",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "public/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "RiftCore Companion",
-      "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico",
-      "installerHeader": "installer/installerHeader.bmp",
-      "installerHeaderIcon": "public/icon.ico",
-      "installerSidebar": "installer/installerSidebar.bmp",
-      "uninstallerSidebar": "installer/installerSidebar.bmp",
-      "license": "installer/UPDATE_NOTES.txt",
-      "artifactName": "${productName}-Setup-${version}.${ext}",
-      "runAfterFinish": true
-    }
+    "vite": "^6.1.0"
   }
 }
