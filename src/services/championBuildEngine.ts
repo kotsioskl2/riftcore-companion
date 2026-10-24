@@ -427,8 +427,8 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Precision';
       subStyleId = 8200;
       subStyleName = 'Sorcery';
-      selectedPerkIds = [8004, 9101, 9104, 8014, 8210, 8236, 5005, 5008, 5001];
-      keystoneId = 8004;
+      selectedPerkIds = [8008, 9101, 9104, 8014, 8210, 8236, 5005, 5008, 5001];
+      keystoneId = 8008;
       keystoneName = 'Lethal Tempo';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png';
       spells = [4, 7]; // Flash, Heal
@@ -475,8 +475,8 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Precision';
       subStyleId = 8400;
       subStyleName = 'Resolve';
-      selectedPerkIds = [8004, 9111, 9104, 8299, 8429, 8451, 5005, 5008, 5001];
-      keystoneId = 8004;
+      selectedPerkIds = [8008, 9111, 9104, 8299, 8429, 8451, 5005, 5008, 5001];
+      keystoneId = 8008;
       keystoneName = 'Lethal Tempo';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png';
       spells = [4, 14]; // Flash, Ignite

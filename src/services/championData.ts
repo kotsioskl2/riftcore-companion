@@ -1842,8 +1842,8 @@ export const CHAMPION_BUILDS: Record<number, ChampionBuild> = {
       primaryStyleName: 'Precision',
       subStyleId: 8200,
       subStyleName: 'Sorcery',
-      selectedPerkIds: [8004, 9101, 9104, 8014, 8210, 8236, 5005, 5008, 5001],
-      keystoneId: 8004,
+      selectedPerkIds: [8008, 9101, 9104, 8014, 8210, 8236, 5005, 5008, 5001],
+      keystoneId: 8008,
       keystoneName: 'Lethal Tempo',
       keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png'
     },
@@ -1852,8 +1852,8 @@ export const CHAMPION_BUILDS: Record<number, ChampionBuild> = {
       primaryStyleName: 'Precision',
       subStyleId: 8300,
       subStyleName: 'Inspiration',
-      selectedPerkIds: [8008, 9101, 9104, 8017, 8304, 8345, 5005, 5008, 5001],
-      keystoneId: 8008,
+      selectedPerkIds: [8021, 9101, 9104, 8017, 8304, 8345, 5005, 5008, 5001],
+      keystoneId: 8021,
       keystoneName: 'Fleet Footwork',
       keystoneIcon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/FleetFootwork/FleetFootwork.png'
     },

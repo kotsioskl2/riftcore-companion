@@ -21,8 +21,8 @@ export const RUNE_TREES: Record<number, RuneTree> = {
     keystones: [
       { id: 8010, name: 'Conqueror', desc: 'Gain stacking AD/AP and heal at max stacks.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/Conqueror/Conqueror.png' },
       { id: 8005, name: 'Press the Attack', desc: 'Hitting an enemy 3 times makes them vulnerable.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/PressTheAttack/PressTheAttack.png' },
-      { id: 8008, name: 'Fleet Footwork', desc: 'Attacking and moving builds energy to heal and grant MS.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/FleetFootwork/FleetFootwork.png' },
-      { id: 8004, name: 'Lethal Tempo', desc: 'Attacking enemy champions increases your attack speed.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png' }
+      { id: 8021, name: 'Fleet Footwork', desc: 'Attacking and moving builds energy to heal and grant MS.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/FleetFootwork/FleetFootwork.png' },
+      { id: 8008, name: 'Lethal Tempo', desc: 'Attacking enemy champions increases your attack speed.', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png' }
     ],
     slots: [
       [
