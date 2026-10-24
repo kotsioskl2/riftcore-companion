@@ -868,10 +868,10 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 background: 'rgba(0, 210, 255, 0.04)',
                 border: '1px solid rgba(0, 210, 255, 0.22)',
                 borderRadius: '8px',
-                padding: '10px 12px',
+                padding: '9px 12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '5px',
+                gap: '8px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -879,40 +879,48 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                   <Monitor size={14} color="#00d2ff" />
                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Native Fullscreen</span>
                 </div>
-                <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(0, 210, 255, 0.15)', color: '#00d2ff' }}>
-                  Zero Lag
+                <span style={{ fontSize: '9px', fontWeight: 900, padding: '1px 6px', borderRadius: '3px', background: 'rgba(0, 210, 255, 0.15)', color: '#00d2ff', border: '1px solid rgba(0, 210, 255, 0.3)' }}>
+                  ACTIVE
                 </span>
               </div>
-              <div style={{ fontSize: '10.5px', color: '#94a3b8', lineHeight: 1.35 }}>
-                Direct transparent overlay over <strong style={{ color: '#cbd5e1' }}>WindowMode=0</strong> with zero frame drops.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  ⚡ Hardware DWM
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(0, 210, 255, 0.1)', color: '#00d2ff', border: '1px solid rgba(0, 210, 255, 0.2)' }}>
+                  WindowMode=0
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  0 FPS Drop
+                </span>
               </div>
             </div>
 
             {/* Card 2: Hotkeys */}
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'rgba(250, 204, 21, 0.04)',
+                border: '1px solid rgba(250, 204, 21, 0.22)',
                 borderRadius: '8px',
-                padding: '10px 12px',
+                padding: '9px 12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '5px',
+                gap: '8px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Keyboard size={14} color="#facc15" />
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>In-Game Hotkeys</span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Overlay Hotkeys</span>
                 </div>
-                <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(250, 204, 21, 0.15)', color: '#facc15' }}>
-                  Instant Toggle
+                <span style={{ fontSize: '9px', fontWeight: 900, padding: '1px 6px', borderRadius: '3px', background: 'rgba(250, 204, 21, 0.15)', color: '#facc15', border: '1px solid rgba(250, 204, 21, 0.3)' }}>
+                  INSTANT
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: '3px', color: '#00d2ff', fontSize: '9.5px', fontFamily: 'monospace' }}>Ctrl+Space</kbd>
-                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: '3px', color: '#00d2ff', fontSize: '9.5px', fontFamily: 'monospace' }}>Alt+~</kbd>
-                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: '3px', color: '#00d2ff', fontSize: '9.5px', fontFamily: 'monospace' }}>Alt+X</kbd>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(250,204,21,0.35)', padding: '2px 7px', borderRadius: '4px', color: '#facc15', fontSize: '10px', fontFamily: 'monospace', fontWeight: 800 }}>Ctrl + Space</kbd>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '2px 7px', borderRadius: '4px', color: '#cbd5e1', fontSize: '10px', fontFamily: 'monospace', fontWeight: 700 }}>Alt + ~</kbd>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)', padding: '2px 7px', borderRadius: '4px', color: '#cbd5e1', fontSize: '10px', fontFamily: 'monospace', fontWeight: 700 }}>Alt + X</kbd>
               </div>
             </div>
 
@@ -922,10 +930,10 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 background: 'rgba(16, 185, 129, 0.04)',
                 border: '1px solid rgba(16, 185, 129, 0.22)',
                 borderRadius: '8px',
-                padding: '10px 12px',
+                padding: '9px 12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '5px',
+                gap: '8px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -933,12 +941,20 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                   <Maximize2 size={14} color="#10b981" />
                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Mini HUD Mode</span>
                 </div>
-                <kbd style={{ background: '#1e293b', border: '1px solid rgba(16,185,129,0.3)', padding: '1px 5px', borderRadius: '3px', color: '#10b981', fontSize: '9.5px', fontFamily: 'monospace' }}>
+                <kbd style={{ background: '#1e293b', border: '1px solid rgba(16,185,129,0.35)', padding: '1px 6px', borderRadius: '4px', color: '#10b981', fontSize: '10px', fontFamily: 'monospace', fontWeight: 800 }}>
                   Alt + G
                 </kbd>
               </div>
-              <div style={{ fontSize: '10.5px', color: '#94a3b8', lineHeight: 1.35 }}>
-                Floats transparent CS pace, gold lead, and objective timers over your game.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  📊 CS Pacing
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  💰 Gold Lead
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  🐉 Pit Timers
+                </span>
               </div>
             </div>
 
@@ -948,10 +964,10 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                 background: 'rgba(168, 85, 247, 0.04)',
                 border: '1px solid rgba(168, 85, 247, 0.22)',
                 borderRadius: '8px',
-                padding: '10px 12px',
+                padding: '9px 12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '5px',
+                gap: '8px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -959,12 +975,20 @@ export const LiveGameOverlay: React.FC<LiveGameOverlayProps> = ({
                   <ShieldCheck size={14} color="#c084fc" />
                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>Vanguard Safe</span>
                 </div>
-                <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
-                  100% Compliant
+                <span style={{ fontSize: '9px', fontWeight: 900, padding: '1px 6px', borderRadius: '3px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                  100% COMPLIANT
                 </span>
               </div>
-              <div style={{ fontSize: '10.5px', color: '#94a3b8', lineHeight: 1.35 }}>
-                Official local Live Client Data API (port 2999). Zero DLL injection or memory hooks.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.1)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                  🔒 Port 2999 Read-Only
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  🚫 Zero DLL Injection
+                </span>
+                <span style={{ fontSize: '9.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  ✓ Riot TOS Safe
+                </span>
               </div>
             </div>
           </div>
