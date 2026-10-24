@@ -161,17 +161,17 @@ export const STAT_SHARDS: Record<number, { id: number; name: string; icon: strin
   5007: { id: 5007, name: 'Ability Haste (+8 AH)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsCDRScalingIcon.png' },
   5010: { id: 5010, name: 'Move Speed (+2% MS)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsMovementSpeedIcon.png' },
   5001: { id: 5001, name: 'Scaling Health (+10-180 HP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthScalingIcon.png' },
-  5011: { id: 5011, name: 'Tenacity (+Tenacity)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsTenacityIcon.png' },
-  5013: { id: 5013, name: 'Flat Health (+65 HP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthPlusIcon.png' }
+  5011: { id: 5011, name: 'Flat Health (+65 HP)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthPlusIcon.png' },
+  5013: { id: 5013, name: 'Tenacity & Slow Resist (+10%)', icon: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsTenacityIcon.png' }
 };
 
 export const STAT_SHARD_ROWS = [
-  // Row 1: Offense
+  // Row 1: Offense (Adaptive Force, Attack Speed, Ability Haste)
   [5008, 5005, 5007],
-  // Row 2: Flex
+  // Row 2: Flex (Adaptive Force, Movement Speed, Scaling Health)
   [5008, 5010, 5001],
-  // Row 3: Defense
-  [5013, 5011, 5001],
+  // Row 3: Defense (Flat Health, Tenacity, Scaling Health)
+  [5011, 5013, 5001],
 ];
 
 export const SUMMONER_SPELLS: Record<number, { id: number; name: string; cooldown: number; icon: string }> = {

@@ -107,11 +107,23 @@ export const RuneCustomizer: React.FC<RuneCustomizerProps> = ({
     emitUpdate(primaryStyleId, subStyleId, keystoneId, nextSlots, secondarySlotIds, shardIds);
   };
 
-  // Switch Secondary Perk
+  // Switch Secondary Perk (guarantee two distinct rows in secondary tree)
   const handleToggleSecondaryPerk = (perkId: number) => {
     if (secondarySlotIds.includes(perkId)) return;
-    // Replace the oldest or second slot
-    const nextSec = [secondarySlotIds[1], perkId];
+
+    // Find row index of the newly clicked perk
+    const newRowIdx = subTree.slots.findIndex((row) => row.some((r) => r.id === perkId));
+    const rowIdx0 = subTree.slots.findIndex((row) => row.some((r) => r.id === secondarySlotIds[0]));
+    const rowIdx1 = subTree.slots.findIndex((row) => row.some((r) => r.id === secondarySlotIds[1]));
+
+    let nextSec: number[];
+    if (newRowIdx === rowIdx0) {
+      nextSec = [perkId, secondarySlotIds[1]];
+    } else if (newRowIdx === rowIdx1) {
+      nextSec = [secondarySlotIds[0], perkId];
+    } else {
+      nextSec = [secondarySlotIds[1], perkId];
+    }
     emitUpdate(primaryStyleId, subStyleId, keystoneId, primarySlotIds, nextSec, shardIds);
   };
 

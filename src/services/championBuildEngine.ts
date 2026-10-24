@@ -491,7 +491,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Resolve';
       subStyleId = 8000;
       subStyleName = 'Precision';
-      selectedPerkIds = [8437, 8446, 8429, 8451, 9111, 9105, 5008, 5011, 5001];
+      selectedPerkIds = [8437, 8446, 8429, 8451, 9111, 9105, 5008, 5001, 5011];
       keystoneId = 8437;
       keystoneName = 'Grasp of the Undying';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Resolve/GraspOfTheUndying/GraspOfTheUndying.png';
@@ -523,7 +523,7 @@ export function buildChampionProfile(championId: number, championName: string, c
       primaryStyleName = 'Resolve';
       subStyleId = 8300;
       subStyleName = 'Inspiration';
-      selectedPerkIds = [8439, 8463, 8473, 8451, 8306, 8347, 5007, 5011, 5001];
+      selectedPerkIds = [8439, 8463, 8473, 8451, 8306, 8347, 5007, 5001, 5011];
       keystoneId = 8439;
       keystoneName = 'Aftershock';
       keystoneIcon = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Resolve/VeteranAftershock/VeteranAftershock.png';

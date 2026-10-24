@@ -1262,9 +1262,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
 
                                     let mut applied = false;
+                                    let mut final_pid = editable_pid;
+
                                     // 1. Try updating existing page directly via PUT
                                     if let Some(pid) = editable_pid {
                                         let put_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
+                                        if let Some(obj) = pd.as_object_mut() {
+                                            obj.insert("id".to_string(), serde_json::Value::Number(serde_json::Number::from(pid)));
+                                        }
                                         if let Ok(put_res) = client.put(&put_url).header("Authorization", &auth).json(&pd).send().await {
                                             if put_res.status().is_success() {
                                                 applied = true;
@@ -1274,16 +1279,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                     // 2. If no editable page exists or PUT failed, create via POST
                                     if !applied {
+                                        if let Some(obj) = pd.as_object_mut() {
+                                            obj.remove("id");
+                                        }
                                         let create_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", c.port);
                                         let post_res = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
                                         if let Ok(res) = post_res {
-                                            if !res.status().is_success() && editable_pid.is_some() {
+                                            if res.status().is_success() {
+                                                applied = true;
+                                                if let Ok(created_page) = res.json::<serde_json::Value>().await {
+                                                    if let Some(nid) = created_page.get("id").and_then(|v| v.as_i64()) {
+                                                        final_pid = Some(nid);
+                                                    }
+                                                }
+                                            } else if let Some(pid) = editable_pid {
                                                 // Page limit hit: delete editable page and retry POST
-                                                let pid = editable_pid.unwrap();
                                                 let p_del = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", c.port, pid);
                                                 let _ = client.delete(&p_del).header("Authorization", &auth).send().await;
-                                                let _ = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
+                                                let retry = client.post(&create_url).header("Authorization", &auth).json(&pd).send().await;
+                                                if let Ok(r) = retry {
+                                                    if r.status().is_success() {
+                                                        applied = true;
+                                                        if let Ok(created_page) = r.json::<serde_json::Value>().await {
+                                                            if let Some(nid) = created_page.get("id").and_then(|v| v.as_i64()) {
+                                                                final_pid = Some(nid);
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
+                                        }
+                                    }
+
+                                    // 3. Ensure the page is marked current in the LCU
+                                    if applied {
+                                        if let Some(pid) = final_pid {
+                                            let set_current_url = format!("https://127.0.0.1:{}/lol-perks/v1/currentpage", c.port);
+                                            let _ = client.put(&set_current_url).header("Authorization", &auth).json(&serde_json::Value::Number(serde_json::Number::from(pid))).send().await;
                                         }
                                     }
                                 }
