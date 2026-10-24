@@ -975,6 +975,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         let app_h = 820;
                                         let app_x = ((sw - app_w) / 2).max(0);
                                         let app_y = ((sh - app_h) / 2).max(0);
+                                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+                                        SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
                                         SetWindowPos(
                                             hwnd,
                                             HWND_NOTOPMOST as *mut std::ffi::c_void,
@@ -982,9 +985,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             app_y,
                                             app_w,
                                             app_h,
-                                            SWP_SHOWWINDOW,
+                                            SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                         );
                                         apply_fullscreen_topmost(hwnd, false);
+                                        SetForegroundWindow(hwnd);
                                     }
                                 }
                                 let is_compact = st.is_compact;
@@ -1582,19 +1586,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 #[cfg(target_os = "windows")]
                 let hwnd = window.hwnd() as *mut std::ffi::c_void;
 
-                #[cfg(target_os = "windows")]
-                {
-                    maintain_overlay_topmost(hwnd);
-                }
-
-                if window.is_minimized() || !st.is_compact {
+                if st.is_compact {
+                    // Restore to full desktop companion app
+                    st.is_compact = false;
+                    st.is_pinned = false;
                     window.set_visible(true);
                     window.set_minimized(false);
 
-                    st.is_compact = true;
-                    st.is_pinned = true;
                     #[cfg(target_os = "windows")]
                     unsafe {
+                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                        let app_w = 1240;
+                        let app_h = 820;
+                        let app_x = ((sw - app_w) / 2).max(0);
+                        let app_y = ((sh - app_h) / 2).max(0);
+                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+                        SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
+                        SetWindowPos(
+                            hwnd,
+                            HWND_NOTOPMOST as *mut std::ffi::c_void,
+                            app_x,
+                            app_y,
+                            app_w,
+                            app_h,
+                            SWP_SHOWWINDOW | SWP_FRAMECHANGED,
+                        );
+                        apply_fullscreen_topmost(hwnd, false);
+                        SetForegroundWindow(hwnd);
+                    }
+                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: false }));");
+                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: false } }));");
+                } else {
+                    // Switch to fullscreen in-game overlay
+                    window.set_visible(true);
+                    window.set_minimized(false);
+                    st.is_compact = true;
+                    st.is_pinned = true;
+
+                    #[cfg(target_os = "windows")]
+                    unsafe {
+                        maintain_overlay_topmost(hwnd);
                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -1612,9 +1645,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true }));");
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: true } }));");
-                } else {
-                    window.set_minimized(true);
-                    let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: false } }));");
                 }
             }
             Event::UserEvent(AppUserEvent::ApplyTopmost(on_top)) => {

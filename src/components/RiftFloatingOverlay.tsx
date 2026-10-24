@@ -39,12 +39,29 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const isLive = liveData !== null && liveData.gameData !== undefined;
   const [hudMode, setHudMode] = useState<OverlayHudMode>('integrated');
   const [activeTab, setActiveTab] = useState<OverlayTab>('skills');
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(!isLive);
+  const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
+  const showInGameHud = isLive || isPreviewMode;
+  const isDemoMode = !isLive && isPreviewMode;
   const [demoClock, setDemoClock] = useState<number>(765); // 12:45
   const [isPinned, setIsPinned] = useState(true);
   const [copiedChat, setCopiedChat] = useState(false);
   const [shopExportStatus, setShopExportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [overlayOpacity, setOverlayOpacity] = useState<number>(0.92);
+
+  // Keyboard shortcut listener: ESC returns to full app
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isPreviewMode) {
+          setIsPreviewMode(false);
+        } else {
+          onExpand();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPreviewMode, onExpand]);
 
   // Helper to dynamically resize the native window
   const resizeHud = (w: number, h: number) => {
@@ -433,393 +450,416 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
         margin: 0,
       }}
     >
-      {/* MODE 0: TRUE IN-GAME INTEGRATED HUD (Anchored directly over League's in-game elements) */}
+      {/* MODE 0: TRUE IN-GAME INTEGRATED HUD */}
       {hudMode === 'integrated' && (
-        <div
-          style={{
-            position: 'relative',
-            width: '100vw',
-            height: '100vh',
-            background: 'transparent',
-            pointerEvents: 'none',
-            userSelect: 'none',
-            overflow: 'hidden',
-          }}
-        >
-          {/* 1. GOLD DIFFERENCE IN TAB SECTION (Top Center Scoreboard) */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '8px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              pointerEvents: 'auto',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              background: 'rgba(5, 10, 20, 0.92)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              padding: '5px 14px',
-              borderRadius: '24px',
-              border: `1.5px solid ${isTeamGoldAhead ? 'rgba(16, 185, 129, 0.55)' : 'rgba(239, 68, 68, 0.55)'}`,
-              boxShadow: `0 6px 24px rgba(0,0,0,0.85), 0 0 16px ${isTeamGoldAhead ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
-              zIndex: 9999,
-            }}
-            onMouseEnter={() => window.riftAPI?.setClickThrough?.(false)}
-            onMouseLeave={() => window.riftAPI?.setClickThrough?.(true)}
-          >
-            {/* Team Gold Difference */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '13px' }}>💰</span>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '8.5px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Team Gold
-                </span>
-                <span
-                  style={{
-                    fontSize: '12.5px',
-                    fontWeight: 900,
-                    color: isTeamGoldAhead ? '#10b981' : '#f43f5e',
-                    textShadow: `0 0 8px ${isTeamGoldAhead ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}`,
-                  }}
-                >
-                  {isTeamGoldAhead ? `+${(teamGoldDiff / 1000).toFixed(1)}k Lead` : `-${(Math.abs(teamGoldDiff) / 1000).toFixed(1)}k Deficit`}
-                </span>
-              </div>
-            </div>
-
-            {/* Split Visual Ratio Bar */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '90px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', fontWeight: 800 }}>
-                <span style={{ color: '#38bdf8' }}>{(myTeamTotalGold / 1000).toFixed(1)}k</span>
-                <span style={{ color: '#f43f5e' }}>{(enemyTeamTotalGold / 1000).toFixed(1)}k</span>
-              </div>
-              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden', display: 'flex' }}>
+        <>
+          {!showInGameHud ? (
+            /* Standby Card (Active when NOT in an active League match) */
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(2, 6, 14, 0.78)',
+                backdropFilter: 'blur(12px)',
+                pointerEvents: 'auto',
+                userSelect: 'none',
+                zIndex: 99999,
+              }}
+            >
+              <div
+                className="glass-card"
+                style={{
+                  width: '420px',
+                  padding: '24px 26px',
+                  border: '1px solid rgba(0, 210, 255, 0.35)',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.3)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.85), 0 0 35px rgba(0,210,255,0.18)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  textAlign: 'center',
+                  alignItems: 'center',
+                }}
+              >
                 <div
                   style={{
-                    width: `${Math.min(75, Math.max(25, (myTeamTotalGold / (myTeamTotalGold + enemyTeamTotalGold)) * 100))}%`,
-                    background: isTeamGoldAhead ? '#10b981' : '#38bdf8',
-                    height: '100%',
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '14px',
+                    background: 'rgba(0, 210, 255, 0.12)',
+                    border: '1px solid rgba(0, 210, 255, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 0 20px rgba(0, 210, 255, 0.25)',
+                  }}
+                >
+                  <Zap size={22} color="var(--blue-primary)" />
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '16px', fontWeight: 800, color: '#fff' }}>
+                      RiftCore In-Game Overlay
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '9.5px',
+                        fontWeight: 800,
+                        padding: '2px 7px',
+                        borderRadius: '4px',
+                        background: 'rgba(234, 179, 8, 0.15)',
+                        border: '1px solid rgba(234, 179, 8, 0.4)',
+                        color: '#facc15',
+                        letterSpacing: '0.4px',
+                      }}
+                    >
+                      STANDBY
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', lineHeight: '1.45' }}>
+                    Tactical HUD (Gold Lead, CS Tracker, Objective Timers & Skill Level-Up Indicator) will automatically anchor over League when your match starts.
+                  </div>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div style={{ display: 'flex', gap: '10px', width: '100%', marginTop: '4px' }}>
+                  <button
+                    onClick={onExpand}
+                    className="btn-primary"
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Maximize2 size={14} />
+                    <span>Return to Full App</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsPreviewMode(true)}
+                    style={{
+                      padding: '10px 14px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      color: '#cbd5e1',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                    }}
+                    title="Preview In-Game HUD Layout"
+                  >
+                    <Eye size={14} />
+                    <span>Preview HUD</span>
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  In-Game Hotkey: <strong style={{ color: '#00c8ff' }}>Alt + G</strong> anytime
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Live / Preview Fullscreen HUD Layer */
+            <div
+              style={{
+                position: 'relative',
+                width: '100vw',
+                height: '100vh',
+                background: 'transparent',
+                pointerEvents: 'none',
+                userSelect: 'none',
+                overflow: 'hidden',
+              }}
+            >
+              {/* 1. GOLD DIFFERENCE IN TAB SECTION (Top Center Scoreboard) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  pointerEvents: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  background: 'rgba(5, 10, 20, 0.92)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  padding: '5px 14px',
+                  borderRadius: '24px',
+                  border: `1.5px solid ${isTeamGoldAhead ? 'rgba(16, 185, 129, 0.55)' : 'rgba(239, 68, 68, 0.55)'}`,
+                  boxShadow: `0 6px 24px rgba(0,0,0,0.85), 0 0 16px ${isTeamGoldAhead ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+                  zIndex: 9999,
+                }}
+              >
+                {/* Team Gold Difference */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '13px' }}>💰</span>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '8.5px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Team Gold
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 900,
+                        color: isTeamGoldAhead ? '#10b981' : '#f43f5e',
+                        textShadow: `0 0 8px ${isTeamGoldAhead ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}`,
+                      }}
+                    >
+                      {isTeamGoldAhead ? `+${(teamGoldDiff / 1000).toFixed(1)}k Lead` : `-${(Math.abs(teamGoldDiff) / 1000).toFixed(1)}k Deficit`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Split Visual Ratio Bar */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '80px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', fontWeight: 800 }}>
+                    <span style={{ color: '#38bdf8' }}>{(myTeamTotalGold / 1000).toFixed(1)}k</span>
+                    <span style={{ color: '#f43f5e' }}>{(enemyTeamTotalGold / 1000).toFixed(1)}k</span>
+                  </div>
+                  <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden', display: 'flex' }}>
+                    <div
+                      style={{
+                        width: `${Math.min(75, Math.max(25, (myTeamTotalGold / (myTeamTotalGold + enemyTeamTotalGold)) * 100))}%`,
+                        background: isTeamGoldAhead ? '#10b981' : '#38bdf8',
+                        height: '100%',
+                      }}
+                    />
+                    <div style={{ flex: 1, background: '#f43f5e', height: '100%' }} />
+                  </div>
+                </div>
+
+                <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.15)' }} />
+
+                {/* Lane Matchup Gold Difference */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '11px' }}>⚔️</span>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '8.5px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Lane vs {laneOpponent.championName}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 900,
+                        color: isLaneGoldAhead ? '#38bdf8' : '#fb923c',
+                      }}
+                    >
+                      {isLaneGoldAhead ? `+${laneGoldDiff}g` : `-${Math.abs(laneGoldDiff)}g`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Return / Exit Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
+                  {isPreviewMode && (
+                    <button
+                      onClick={() => setIsPreviewMode(false)}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        color: '#f87171',
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        padding: '2px 7px',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                      }}
+                      title="Exit Preview Mode"
+                    >
+                      Exit Preview
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setIsPreviewMode(false);
+                      onExpand();
+                    }}
+                    style={{
+                      background: 'rgba(0, 210, 255, 0.15)',
+                      border: '1px solid var(--border-blue)',
+                      color: 'var(--blue-primary)',
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      padding: '2px 7px',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                    }}
+                    title="Return to Full Desktop App"
+                  >
+                    <Maximize2 size={9} />
+                    <span>Full App</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. SMALL CS SCORE UP (Top Right, beside game clock) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '270px',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(5, 10, 20, 0.90)',
+                  backdropFilter: 'blur(14px)',
+                  WebkitBackdropFilter: 'blur(14px)',
+                  border: '1px solid rgba(0, 210, 255, 0.4)',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.8), 0 0 10px rgba(0,210,255,0.15)',
+                }}
+              >
+                <span style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>
+                  🎯 {currentCs} CS
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--blue-primary)', fontWeight: 800 }}>
+                  {csm}/m
+                </span>
+                <span
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 900,
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    background: csDiffVsOpponent >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                    color: csDiffVsOpponent >= 0 ? '#10b981' : '#f43f5e',
+                    border: `1px solid ${csDiffVsOpponent >= 0 ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'}`,
+                  }}
+                >
+                  {csDiffVsOpponent >= 0 ? `▲ +${csDiffVsOpponent}` : `▼ ${csDiffVsOpponent}`} vs {laneOpponent.championName}
+                </span>
+              </div>
+
+              {/* 3. MINIMAP OBJECTIVE DOCK BAR (Pinned cleanly above the minimap) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '235px',
+                  right: '16px',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(5, 10, 20, 0.92)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid var(--border-subtle)',
+                  padding: '5px 8px',
+                  borderRadius: '10px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.85)',
+                }}
+              >
+                {campTimers.map((camp) => (
+                  <div
+                    key={camp.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: `1px solid ${camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : 'rgba(255,255,255,0.1)'}`,
+                      padding: '3px 7px',
+                      borderRadius: '6px',
+                      boxShadow: camp.remaining <= 30 ? `0 0 10px ${camp.color}` : 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: '11px' }}>{camp.icon}</span>
+                    <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#94a3b8' }}>
+                      {camp.name}:
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 900,
+                        color: camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : camp.color,
+                      }}
+                    >
+                      {camp.remaining === 0 ? 'UP' : camp.remaining > 60 ? formatMinSec(camp.remaining) : `${camp.remaining}s`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 4. SKILL BAR LEVEL-UP ANCHOR (Hovering directly over ability bar at bottom center) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '95px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  animation: 'pulse-blue 2s infinite',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'linear-gradient(135deg, rgba(8, 15, 30, 0.95) 0%, rgba(14, 25, 45, 0.95) 100%)',
+                    border: '1.5px solid var(--blue-primary)',
+                    boxShadow: '0 0 20px rgba(0, 210, 255, 0.4), inset 0 0 12px rgba(0, 210, 255, 0.2)',
+                    padding: '5px 12px',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <div style={{ fontSize: '11px', fontWeight: 900, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '9.5px', textTransform: 'uppercase' }}>Next Level {Math.min(18, myLevel + 1)}:</span>
+                    <span style={{ color: '#000', background: 'var(--blue-primary)', padding: '1px 7px', borderRadius: '4px', fontWeight: 900, fontSize: '12px', boxShadow: '0 0 10px var(--blue-glow)' }}>
+                      {nextSkillKey}
+                    </span>
+                    <span style={{ color: 'var(--blue-primary)', fontWeight: 800 }}>Upgrade {nextSkillKey}</span>
+                  </div>
+                  <div style={{ height: '12px', width: '1px', background: 'rgba(255,255,255,0.2)', margin: '0 3px' }} />
+                  <div style={{ fontSize: '9.5px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span>Max:</span>
+                    <span style={{ color: '#cbd5e1', fontWeight: 800 }}>{myChampBuild.skillPriority}</span>
+                  </div>
+                </div>
+
+                {/* Glowing downward pointer arrow */}
+                <div
+                  style={{
+                    width: 0,
+                    height: 0,
+                    borderLeft: '6px solid transparent',
+                    borderRight: '6px solid transparent',
+                    borderTop: '6px solid var(--blue-primary)',
+                    filter: 'drop-shadow(0 2px 4px rgba(0,210,255,0.6))',
+                    marginTop: '-1px',
                   }}
                 />
-                <div style={{ flex: 1, background: '#f43f5e', height: '100%' }} />
               </div>
             </div>
-
-            <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.15)' }} />
-
-            {/* Lane Matchup Gold Difference */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px' }}>⚔️</span>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '8.5px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Lane vs {laneOpponent.championName}
-                </span>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: 900,
-                    color: isLaneGoldAhead ? '#38bdf8' : '#fb923c',
-                  }}
-                >
-                  {isLaneGoldAhead ? `+${laneGoldDiff}g` : `-${Math.abs(laneGoldDiff)}g`}
-                </span>
-              </div>
-            </div>
-
-            {/* Compact Window View Switchers */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
-              <button
-                onClick={handleSwitchToCard}
-                style={{
-                  background: 'rgba(0, 210, 255, 0.15)',
-                  border: '1px solid var(--border-blue)',
-                  color: 'var(--blue-primary)',
-                  fontSize: '9px',
-                  fontWeight: 800,
-                  padding: '2px 7px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                }}
-                title="Switch to Card Window"
-              >
-                <Columns size={9} />
-                <span>Card</span>
-              </button>
-
-              <button
-                onClick={handleSwitchToBar}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid var(--border-subtle)',
-                  color: '#cbd5e1',
-                  fontSize: '9px',
-                  fontWeight: 800,
-                  padding: '2px 7px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                }}
-                title="Switch to Top HUD Bar"
-              >
-                <PanelTop size={9} />
-                <span>Bar</span>
-              </button>
-
-              <button
-                onClick={onExpand}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#94a3b8',
-                  padding: '2px 3px',
-                  cursor: 'pointer',
-                }}
-                title="Expand Full App"
-              >
-                <Maximize2 size={11} />
-              </button>
-            </div>
-          </div>
-
-          {/* 2. SMALL CS SCORE UP (Top Right, beside game clock) */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '10px',
-              right: '255px',
-              pointerEvents: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(5, 10, 20, 0.90)',
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-              border: '1px solid rgba(0, 210, 255, 0.4)',
-              padding: '4px 10px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.8), 0 0 10px rgba(0,210,255,0.15)',
-            }}
-          >
-            <span style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>
-              🎯 {currentCs} CS
-            </span>
-            <span style={{ fontSize: '10px', color: 'var(--blue-primary)', fontWeight: 800 }}>
-              {csm}/m
-            </span>
-            <span
-              style={{
-                fontSize: '9px',
-                fontWeight: 900,
-                padding: '1px 5px',
-                borderRadius: '4px',
-                background: csDiffVsOpponent >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                color: csDiffVsOpponent >= 0 ? '#10b981' : '#f43f5e',
-                border: `1px solid ${csDiffVsOpponent >= 0 ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'}`,
-              }}
-            >
-              {csDiffVsOpponent >= 0 ? `▲ +${csDiffVsOpponent}` : `▼ ${csDiffVsOpponent}`} vs {laneOpponent.championName}
-            </span>
-          </div>
-
-          {/* 3. SEPARATE CAMP TIMERS ON THE MAP */}
-          {/* 3A. Minimap Objective Dock Bar (Pinned right above the minimap) */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '246px',
-              right: '16px',
-              pointerEvents: 'auto',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(5, 10, 20, 0.88)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              border: '1px solid var(--border-subtle)',
-              padding: '5px 8px',
-              borderRadius: '10px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.85)',
-            }}
-            onMouseEnter={() => window.riftAPI?.setClickThrough?.(false)}
-            onMouseLeave={() => window.riftAPI?.setClickThrough?.(true)}
-          >
-            {campTimers.map((camp) => (
-              <div
-                key={camp.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : 'rgba(255,255,255,0.1)'}`,
-                  padding: '3px 7px',
-                  borderRadius: '6px',
-                  boxShadow: camp.remaining <= 30 ? `0 0 10px ${camp.color}` : 'none',
-                }}
-              >
-                <span style={{ fontSize: '11px' }}>{camp.icon}</span>
-                <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#94a3b8' }}>
-                  {camp.name}:
-                </span>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 900,
-                    color: camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : camp.color,
-                  }}
-                >
-                  {camp.remaining === 0 ? 'UP' : camp.remaining > 60 ? formatMinSec(camp.remaining) : `${camp.remaining}s`}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* 3B. Individual Minimap Camp Floating Pins (Positioned directly over map camp pits) */}
-          {campTimers.map((camp) => (
-            <div
-              key={`pin-${camp.id}`}
-              style={{
-                position: 'absolute',
-                bottom: camp.mapPos.bottom,
-                right: camp.mapPos.right,
-                pointerEvents: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '1px',
-                zIndex: 9990,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '50%',
-                  background: 'rgba(5, 10, 22, 0.92)',
-                  border: `1.5px solid ${camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : camp.color}`,
-                  boxShadow: `0 0 12px ${camp.remaining === 0 ? '#10b981' : camp.remaining <= 30 ? '#f59e0b' : camp.color}`,
-                  fontSize: '12px',
-                  animation: camp.remaining <= 30 && camp.remaining > 0 ? 'pulse-blue 1.5s infinite' : 'none',
-                }}
-              >
-                {camp.icon}
-              </div>
-              <div
-                style={{
-                  background: 'rgba(4, 8, 16, 0.92)',
-                  border: `1px solid ${camp.remaining === 0 ? '#10b981' : 'rgba(255,255,255,0.2)'}`,
-                  borderRadius: '4px',
-                  padding: '1px 4px',
-                  fontSize: '8.5px',
-                  fontWeight: 900,
-                  color: camp.remaining === 0 ? '#10b981' : '#f8fafc',
-                  lineHeight: '1',
-                  marginTop: '-3px',
-                }}
-              >
-                {camp.remaining === 0 ? 'UP' : camp.remaining > 60 ? formatMinSec(camp.remaining) : `${camp.remaining}s`}
-              </div>
-            </div>
-          ))}
-
-          {/* 4. SKILL BAR LEVEL-UP ANCHOR (Hovering directly over Q/W/E/R ability bar at bottom center) */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '120px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              pointerEvents: 'none',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              animation: 'pulse-blue 2s infinite',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'linear-gradient(135deg, rgba(8, 15, 30, 0.95) 0%, rgba(14, 25, 45, 0.95) 100%)',
-                border: '1.5px solid var(--blue-primary)',
-                boxShadow: '0 0 20px rgba(0, 210, 255, 0.4), inset 0 0 12px rgba(0, 210, 255, 0.2)',
-                padding: '6px 14px',
-                borderRadius: '8px',
-              }}
-            >
-              <div style={{ fontSize: '11px', fontWeight: 900, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase' }}>Next Level {Math.min(18, myLevel + 1)}:</span>
-                <span style={{ color: '#000', background: 'var(--blue-primary)', padding: '1px 8px', borderRadius: '4px', fontWeight: 900, fontSize: '13px', boxShadow: '0 0 10px var(--blue-glow)' }}>
-                  {nextSkillKey}
-                </span>
-                <span style={{ color: 'var(--blue-primary)', fontWeight: 800 }}>Upgrade {nextSkillKey}</span>
-              </div>
-              <div style={{ height: '14px', width: '1px', background: 'rgba(255,255,255,0.2)', margin: '0 4px' }} />
-              <div style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>Max:</span>
-                <span style={{ color: '#cbd5e1', fontWeight: 800 }}>{myChampBuild.skillPriority}</span>
-              </div>
-            </div>
-
-            {/* Glowing downward pointer arrow */}
-            <div
-              style={{
-                width: 0,
-                height: 0,
-                borderLeft: '7px solid transparent',
-                borderRight: '7px solid transparent',
-                borderTop: '7px solid var(--blue-primary)',
-                filter: 'drop-shadow(0 2px 4px rgba(0,210,255,0.6))',
-                marginTop: '-1px',
-              }}
-            />
-          </div>
-
-          {/* 5. ITEM GOAL TRACKER ANCHOR (Bottom Left, beside Shop button) */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '120px',
-              left: '24px',
-              pointerEvents: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'rgba(6, 12, 24, 0.9)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(16, 185, 129, 0.4)',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.7)',
-            }}
-          >
-            <img
-              src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${targetCoreItem.id}.png`}
-              alt={targetCoreItem.name}
-              style={{ width: '24px', height: '24px', borderRadius: '4px', border: '1px solid #10b981' }}
-              onError={(e) => { (e.target as any).style.display = 'none'; }}
-            />
-            <div>
-              <div style={{ fontSize: '9px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>
-                Next Core: {targetCoreItem.name}
-              </div>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: goldRemaining === 0 ? '#10b981' : '#cbd5e1' }}>
-                {goldRemaining === 0 ? '✓ Ready in Base!' : `Need ${goldRemaining}g (${currentGold}/${targetCost}g)`}
-              </div>
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       {/* MODE 1: ULTRA-SLIM HORIZONTAL IN-GAME HUD BAR (Takes 0 vertical space) */}
