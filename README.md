@@ -49,8 +49,14 @@ Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heav
 - Live rank, division, and LP tracking.
 - Win-rate statistics, recent match performances, and MVP/ACE badges.
 
-### 5. 🪟 Compact Overlay Mode
-- Toggle between full dashboard mode (1240x820) and a sleek pinned HUD mode (420x720) that floats unobtrusively beside or on top of your League client.
+### 5. 🖥️ Full Screen Native In-Game HUD (Alt + G)
+- **True Exclusive Full Screen Support:** Works natively over League of Legends in Full Screen mode (`WindowMode=0`) with zero mouse lag and click-through transparency.
+- **Scoreboard Team Gold Lead:** Shows real-time team gold lead/deficit and lane matchup difference right at the top center scoreboard.
+- **Objective & Camp Timers:** Clean dock bar pinned above the minimap for Dragon, Baron, Voidgrubs, Blue Buff, and Red Buff.
+- **Small CS Score Tracker:** Discreet CS score and CS/min pill beside your game clock with live matchup comparison.
+- **Skill Level-Up Indicator:** Arrow directly above your ability bar showing your optimal skill upgrade for the next level.
+- **Standby Mode Guard:** Automatically stays idle in standby mode when League is not in a match so your Windows desktop remains completely clean.
+- **Instant Hotkey:** Hit <kbd>Alt + G</kbd> anytime in-game to toggle HUD on/off.
 
 ---
 
@@ -68,21 +74,21 @@ Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heav
 
 ## 📦 Downloads & Installation
 
-### Direct Downloads
+### Direct Downloads (Latest Release v1.1.1)
 | Package | Type | Download Link | Size |
 | :--- | :--- | :--- | :--- |
-| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.1.0.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.1.0.exe) | ~4.9 MB |
-| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.1.0.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.1.0.zip) | ~5.9 MB |
+| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.1.1.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.1.1.exe) | ~4.9 MB |
+| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.1.1.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.1.1.zip) | ~13.8 MB |
 | **Portable Folder** | Extracted Directory | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Ready to Run |
 
 ### Option A: Windows Installer (Recommended)
-1. Download [**RiftCore-Setup-1.1.0.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.1.0.exe).
+1. Download [**RiftCore-Setup-1.1.1.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.1.1.exe).
 2. Run the setup and choose your installation directory.
 3. Desktop and Start Menu shortcuts with the custom RiftCore emblem will be created automatically.
 
 ### Option B: Standalone Portable `.exe`
-1. Download [**RiftCore-Portable-1.1.0.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.1.0.zip) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
-2. Double-click `RiftCore.exe` (or `Launch_RiftCore.bat`) to launch instantly with zero installation required.
+1. Download [**RiftCore-Portable-1.1.1.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.1.1.zip) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
+2. Double-click `RiftCore.exe` to launch instantly with zero installation required.
 
 ---
 
