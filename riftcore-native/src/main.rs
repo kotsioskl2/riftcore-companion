@@ -127,33 +127,23 @@ fn detect_league_client() -> Option<LcuCredentials> {
         }
     }
 
-    // 2. Query process path of LeagueClientUx if installed elsewhere
-    if let Ok(output) = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            "(Get-Process LeagueClientUx -ErrorAction SilentlyContinue).Path",
-        ])
-        .output()
-    {
-        let exe_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !exe_path.is_empty() {
-            if let Some(parent) = Path::new(&exe_path).parent() {
-                let lockfile = parent.join("lockfile");
-                if let Ok(content) = std::fs::read_to_string(&lockfile) {
-                    let parts: Vec<&str> = content.trim().split(':').collect();
-                    if parts.len() >= 5 {
-                        let pid_str = parts[1];
-                        let port = parts[2].to_string();
-                        let token = parts[3].to_string();
-                        if let Ok(pid) = pid_str.parse::<u32>() {
-                            if !is_process_running(pid) {
-                                return None;
-                            }
+    // 2. Query process path of LeagueClientUx if installed elsewhere via native Win32 API (Zero overhead, no PowerShell)
+    if let Some(exe_path) = find_league_client_ux_path() {
+        if let Some(parent) = exe_path.parent() {
+            let lockfile = parent.join("lockfile");
+            if let Ok(content) = std::fs::read_to_string(&lockfile) {
+                let parts: Vec<&str> = content.trim().split(':').collect();
+                if parts.len() >= 5 {
+                    let pid_str = parts[1];
+                    let port = parts[2].to_string();
+                    let token = parts[3].to_string();
+                    if let Ok(pid) = pid_str.parse::<u32>() {
+                        if !is_process_running(pid) {
+                            return None;
                         }
-                        if !port.is_empty() && !token.is_empty() {
-                            return Some(LcuCredentials { port, token, install_dir: Some(parent.to_path_buf()) });
-                        }
+                    }
+                    if !port.is_empty() && !token.is_empty() {
+                        return Some(LcuCredentials { port, token, install_dir: Some(parent.to_path_buf()) });
                     }
                 }
             }
@@ -178,10 +168,77 @@ fn is_riot_client_open() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct PROCESSENTRY32W {
+    dwSize: u32,
+    cntUsage: u32,
+    th32ProcessID: u32,
+    th32DefaultHeapID: usize,
+    th32ModuleID: u32,
+    cntThreads: u32,
+    th32ParentProcessID: u32,
+    pcPriClassBase: i32,
+    dwFlags: u32,
+    szExeFile: [u16; 260],
+}
+
+#[cfg(target_os = "windows")]
+fn find_league_client_ux_path() -> Option<PathBuf> {
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(0x00000002 /* TH32CS_SNAPPROCESS */, 0);
+        if snapshot.is_null() || snapshot as isize == -1 {
+            return None;
+        }
+
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+
+        if Process32FirstW(snapshot, &mut entry) != 0 {
+            loop {
+                let name = String::from_utf16_lossy(&entry.szExeFile);
+                let name = name.trim_matches('\0');
+                if name.eq_ignore_ascii_case("LeagueClientUx.exe") {
+                    let pid = entry.th32ProcessID;
+                    let h_proc = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, 0, pid);
+                    if !h_proc.is_null() {
+                        let mut buf = [0u16; 1024];
+                        let mut size = buf.len() as u32;
+                        if QueryFullProcessImageNameW(h_proc, 0, buf.as_mut_ptr(), &mut size) != 0 {
+                            CloseHandle(h_proc);
+                            CloseHandle(snapshot);
+                            let path_str = String::from_utf16_lossy(&buf[..size as usize]);
+                            return Some(PathBuf::from(path_str));
+                        }
+                        CloseHandle(h_proc);
+                    }
+                }
+
+                if Process32NextW(snapshot, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+
+        CloseHandle(snapshot);
+    }
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn find_league_client_ux_path() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_os = "windows")]
 #[link(name = "kernel32")]
 #[link(name = "shell32")]
 #[link(name = "user32")]
 extern "system" {
+    fn CreateToolhelp32Snapshot(dwFlags: u32, th32ProcessID: u32) -> *mut std::ffi::c_void;
+    fn Process32FirstW(hSnapshot: *mut std::ffi::c_void, lppe: *mut PROCESSENTRY32W) -> i32;
+    fn Process32NextW(hSnapshot: *mut std::ffi::c_void, lppe: *mut PROCESSENTRY32W) -> i32;
+    fn QueryFullProcessImageNameW(hProcess: *mut std::ffi::c_void, dwFlags: u32, lpExeName: *mut u16, lpdwSize: *mut u32) -> i32;
     fn CreateMutexW(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u16) -> *mut std::ffi::c_void;
     fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut std::ffi::c_void;
     fn GetExitCodeProcess(hProcess: *mut std::ffi::c_void, lpExitCode: *mut u32) -> i32;
@@ -1244,9 +1301,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ];
                         for path in &league_paths {
                             if Path::new(path).exists() {
-                                let _ = Command::new("cmd")
-                                    .args(["/c", "start", "", path])
-                                    .spawn();
+                                #[cfg(target_os = "windows")]
+                                {
+                                    use std::os::windows::process::CommandExt;
+                                    const CREATE_NO_WINDOW: u32 = 0x08000000;
+                                    const DETACHED_PROCESS: u32 = 0x00000008;
+                                    let _ = Command::new(path)
+                                        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+                                        .spawn();
+                                }
+                                #[cfg(not(target_os = "windows"))]
+                                {
+                                    let _ = Command::new(path).spawn();
+                                }
                                 break;
                             }
                         }
