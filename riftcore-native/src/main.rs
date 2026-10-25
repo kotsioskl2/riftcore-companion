@@ -874,6 +874,21 @@ fn apply_hud_window_mode(window: &Window, webview: &WebView, mode: &str) {
             let _ = webview.evaluate_script(
                 "document.documentElement.classList.add('compact-mode'); document.body.classList.add('compact-mode'); document.documentElement.style.background='transparent'; document.body.style.background='transparent';",
             );
+
+            // Creating/showing the desktop window can make RiftCore the foreground
+            // process before the no-activate overlay styles are applied. Hand keyboard
+            // focus back to League when that happens; otherwise the game can look live
+            // but ignore input until the player switches windows manually.
+            let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
+            let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
+            if !league_hwnd.is_null() {
+                let foreground = GetForegroundWindow();
+                let foreground_root = GetAncestor(foreground, GA_ROOT);
+                let overlay_root = GetAncestor(hwnd, GA_ROOT);
+                if foreground == hwnd || foreground_root == overlay_root {
+                    SetForegroundWindow(league_hwnd);
+                }
+            }
         }
 
         maintain_overlay_topmost(hwnd);

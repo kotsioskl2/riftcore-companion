@@ -1,8 +1,8 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v1.2.11
+       RIFTCORE COMPANION - UPDATE v1.2.13
 --------------------------------------------------
 
-Hey! Welcome to v1.2.11 Here is what is new:
+Hey! Welcome to v1.2.13 Here is what is new:
 
 * Fixed the fullscreen overlay interaction:
   The integrated HUD now stays click-through while a match is active,
@@ -11,6 +11,10 @@ Hey! Welcome to v1.2.11 Here is what is new:
 * Improved live overlay positioning and transitions:
   The HUD uses the game display bounds reliably and switches out of
   preview mode as soon as live match data arrives.
+
+* Fixed focus handoff when opening the in-game HUD:
+  League receives keyboard focus again after RiftCore changes into
+  integrated overlay mode.
 
 * In-App Automatic Updates:
   Never miss a patch! RiftCore now checks GitHub

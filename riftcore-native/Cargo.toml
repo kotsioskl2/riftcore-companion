@@ -1,6 +1,6 @@
 [package]
 name = "riftcore-native"
-version = "1.2.11"
+version = "1.2.13"
 edition = "2021"
 
 [dependencies]
