@@ -91,7 +91,7 @@ export const App: React.FC = () => {
     window.riftAPI.checkClientStatus().then((res) => {
       setIsConnected(res.connected);
       if (res.riotClient !== undefined) setIsRiotClientReady(res.riotClient);
-      if (res.gameflowPhase) {
+      if (res.connected && res.gameflowPhase && res.gameflowPhase !== 'None') {
         setGameflowPhase(res.gameflowPhase);
         if (res.gameflowPhase === 'ChampSelect') {
           setActiveTab('champ-select');
@@ -105,6 +105,10 @@ export const App: React.FC = () => {
             });
           }
         }
+      } else {
+        setGameflowPhase('None');
+        setChampSelectSession(null);
+        setIsCompactMode(false);
       }
       if (res.connected) fetchInitialData();
     });

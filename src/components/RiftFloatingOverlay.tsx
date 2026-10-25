@@ -282,12 +282,13 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   ]);
 
   // Separate camp timers positioned directly on the in-game minimap
-  // Separate camp timers positioned directly on the in-game minimap
+  // Using viewport-relative units (vw/vh) for resolution-independent placement
+  // Minimap is ~13.5vw × 24vh at bottom-right corner on standard 16:9 displays
   const [campTimers, setCampTimers] = useState([
-    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: { bottom: '94px', right: '86px' }, alive: false },
-    { id: 'upper_pit', name: 'Grubs', icon: '👾', total: 300, remaining: Math.max(0, 300 - gameTime), color: '#f43f5e', mapPos: { bottom: '184px', right: '182px' }, alive: false },
-    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 90, color: '#3b82f6', mapPos: { bottom: '74px', right: '172px' }, alive: false },
-    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 90, color: '#ef4444', mapPos: { bottom: '48px', right: '114px' }, alive: false },
+    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: { bottom: '8.8vh', right: '4.8vw' }, alive: false },
+    { id: 'upper_pit', name: 'Grubs', icon: '👾', total: 300, remaining: Math.max(0, 300 - gameTime), color: '#f43f5e', mapPos: { bottom: '17.2vh', right: '9.5vw' }, alive: false },
+    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 90, color: '#3b82f6', mapPos: { bottom: '12.5vh', right: '9.9vw' }, alive: false },
+    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 90, color: '#ef4444', mapPos: { bottom: '8.0vh', right: '7.0vw' }, alive: false },
   ]);
 
   // Objective Timers
@@ -392,10 +393,10 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     const redRemaining = gTime < 90 ? 90 - gTime : 0;
 
     setCampTimers([
-      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '94px', right: '86px' }, alive: isDragonAlive },
-      { id: 'upper_pit', name: upperPitName, icon: upperPitIcon, total: upperPitName === 'Baron' ? 360 : 300, remaining: upperPitRemaining, color: upperPitColor, mapPos: { bottom: '184px', right: '182px' }, alive: isUpperPitAlive },
-      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '74px', right: '172px' }, alive: blueRemaining === 0 },
-      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '48px', right: '114px' }, alive: redRemaining === 0 },
+      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '8.8vh', right: '4.8vw' }, alive: isDragonAlive },
+      { id: 'upper_pit', name: upperPitName, icon: upperPitIcon, total: upperPitName === 'Baron' ? 360 : 300, remaining: upperPitRemaining, color: upperPitColor, mapPos: { bottom: '17.2vh', right: '9.5vw' }, alive: isUpperPitAlive },
+      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '12.5vh', right: '9.9vw' }, alive: blueRemaining === 0 },
+      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '8.0vh', right: '7.0vw' }, alive: redRemaining === 0 },
     ]);
 
     setObjectives([
@@ -909,8 +910,8 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   <div
                     style={{
                       position: 'absolute',
-                      bottom: '272px',
-                      right: '10px',
+                      bottom: '26.2vh',
+                      right: '0.8vw',
                       pointerEvents: 'none',
                       zIndex: 9999,
                       display: 'flex',

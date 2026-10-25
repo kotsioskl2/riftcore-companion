@@ -74,6 +74,28 @@ enum AppUserEvent {
     ShowAndFocus,
 }
 
+#[cfg(target_os = "windows")]
+fn is_process_running(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    unsafe {
+        let handle = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let mut exit_code: u32 = 0;
+        let res = GetExitCodeProcess(handle, &mut exit_code);
+        CloseHandle(handle);
+        res != 0 && exit_code == 259 /* STILL_ACTIVE */
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_process_running(_pid: u32) -> bool {
+    true
+}
+
 fn detect_league_client() -> Option<LcuCredentials> {
     // 1. Direct lockfile check in standard and installed directories (Fastest, 0ms, zero CPU)
     let candidates = [
@@ -87,8 +109,16 @@ fn detect_league_client() -> Option<LcuCredentials> {
         if let Ok(content) = std::fs::read_to_string(path) {
             let parts: Vec<&str> = content.trim().split(':').collect();
             if parts.len() >= 5 {
+                let pid_str = parts[1];
                 let port = parts[2].to_string();
                 let token = parts[3].to_string();
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    // Check if the process recorded in the lockfile is actually alive!
+                    if !is_process_running(pid) {
+                        // Stale lockfile left behind by previously terminated client
+                        continue;
+                    }
+                }
                 if !port.is_empty() && !token.is_empty() {
                     let parent_dir = Path::new(path).parent().map(|p| p.to_path_buf());
                     return Some(LcuCredentials { port, token, install_dir: parent_dir });
@@ -113,8 +143,14 @@ fn detect_league_client() -> Option<LcuCredentials> {
                 if let Ok(content) = std::fs::read_to_string(&lockfile) {
                     let parts: Vec<&str> = content.trim().split(':').collect();
                     if parts.len() >= 5 {
+                        let pid_str = parts[1];
                         let port = parts[2].to_string();
                         let token = parts[3].to_string();
+                        if let Ok(pid) = pid_str.parse::<u32>() {
+                            if !is_process_running(pid) {
+                                return None;
+                            }
+                        }
                         if !port.is_empty() && !token.is_empty() {
                             return Some(LcuCredentials { port, token, install_dir: Some(parent.to_path_buf()) });
                         }
@@ -130,7 +166,15 @@ fn detect_league_client() -> Option<LcuCredentials> {
 fn is_riot_client_open() -> bool {
     let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
     let lockfile = format!("{}\\Riot Games\\Riot Client\\Config\\lockfile", local_appdata);
-    Path::new(&lockfile).exists()
+    if let Ok(content) = std::fs::read_to_string(&lockfile) {
+        let parts: Vec<&str> = content.trim().split(':').collect();
+        if parts.len() >= 2 {
+            if let Ok(pid) = parts[1].parse::<u32>() {
+                return is_process_running(pid);
+            }
+        }
+    }
+    false
 }
 
 #[cfg(target_os = "windows")]
@@ -140,6 +184,7 @@ fn is_riot_client_open() -> bool {
 extern "system" {
     fn CreateMutexW(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u16) -> *mut std::ffi::c_void;
     fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut std::ffi::c_void;
+    fn GetExitCodeProcess(hProcess: *mut std::ffi::c_void, lpExitCode: *mut u32) -> i32;
     fn WaitForSingleObject(hHandle: *mut std::ffi::c_void, dwMilliseconds: u32) -> u32;
     fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
     fn GetLastError() -> u32;
@@ -634,6 +679,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Ensure League of Legends remains in true Full Screen mode (never forced to borderless)
     ensure_league_fullscreen_cfg();
 
+    // Force WebView2 to use a transparent background from the very first frame.
+    // Without this, the WebView2 control defaults to an opaque white surface,
+    // causing a white flash/screen in the overlay before the page CSS loads.
+    // Format: AARRGGBB hex string where AA=00 means fully transparent.
+    std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "00000000");
+
     // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
@@ -774,7 +825,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dist_dir_protocol = dist_dir.clone();
 
     let builder = WebViewBuilder::new()
-        .with_transparent(true);
+        .with_transparent(true)
+        .with_background_color((0, 0, 0, 0));
 
     #[cfg(target_os = "windows")]
     let builder = builder
@@ -1169,8 +1221,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
                     }
                     "check-client-status" => {
-                        let st = state_clone.lock().unwrap();
+                        let mut st = state_clone.lock().unwrap();
+                        st.credentials = detect_league_client();
                         let connected = st.credentials.is_some();
+                        if !connected {
+                            st.gameflow_phase = "None".to_string();
+                        }
                         let phase = st.gameflow_phase.clone();
                         let riot_ready = is_riot_client_open();
                         let reply_script = format!(
@@ -1851,16 +1907,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // 1. Check Gameflow Phase
                 let phase_url = format!("https://127.0.0.1:{}/lol-gameflow/v1/gameflow-phase", creds.port);
-                if let Ok(res) = bg_http.get(&phase_url).header("Authorization", &auth).send().await {
-                    if let Ok(phase) = res.json::<String>().await {
-                        if phase != last_phase {
-                            last_phase = phase.clone();
-                            let mut st = bg_state.lock().unwrap();
-                            st.gameflow_phase = phase.clone();
+                let phase_res = bg_http.get(&phase_url).header("Authorization", &auth).send().await;
+                match phase_res {
+                    Ok(res) if res.status().is_success() => {
+                        if let Ok(phase) = res.json::<String>().await {
+                            if phase != last_phase {
+                                last_phase = phase.clone();
+                                let mut st = bg_state.lock().unwrap();
+                                st.gameflow_phase = phase.clone();
 
+                                let script = format!(
+                                    "window.dispatchEvent(new CustomEvent('rift-phase', {{ detail: '{}' }}));",
+                                    phase
+                                );
+                                let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script));
+                            }
+                        }
+                    }
+                    _ => {
+                        // LCU API connection failed / League closed
+                        let mut st = bg_state.lock().unwrap();
+                        st.credentials = None;
+                        st.gameflow_phase = "None".to_string();
+                        if last_connected {
+                            last_connected = false;
+                            last_phase.clear();
+                            let riot_ready = is_riot_client_open();
                             let script = format!(
-                                "window.dispatchEvent(new CustomEvent('rift-phase', {{ detail: '{}' }}));",
-                                phase
+                                "window.dispatchEvent(new CustomEvent('rift-lcu-status', {{ detail: {{ connected: false, riotClient: {} }} }})); window.dispatchEvent(new CustomEvent('rift-phase', {{ detail: 'None' }}));",
+                                riot_ready
                             );
                             let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script));
                         }
