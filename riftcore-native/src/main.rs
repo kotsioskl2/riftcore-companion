@@ -1,23 +1,23 @@
 #![windows_subsystem = "windows"]
 
-use std::sync::{Arc, Mutex};
-use std::process::Command;
+use base64::prelude::*;
+use rust_embed::RustEmbed;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::{Arc, Mutex};
 use tao::{
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
-    window::WindowBuilder,
+    window::{Window, WindowBuilder},
 };
 use wry::{
     http::{header::CONTENT_TYPE, Request, Response},
-    WebViewBuilder, WebViewBuilderExtWindows,
+    WebView, WebViewBuilder, WebViewBuilderExtWindows,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use base64::prelude::*;
-use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
 #[folder = "../dist/"]
@@ -37,9 +37,9 @@ fn ensure_webview2_loader() {
 }
 
 #[cfg(target_os = "windows")]
-use tao::platform::windows::WindowExtWindows;
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+use tao::platform::windows::WindowExtWindows;
 
 #[cfg(target_os = "windows")]
 fn cleanup_old_update_files() {
@@ -64,14 +64,18 @@ struct AppState {
     gameflow_phase: String,
     is_compact: bool,
     is_pinned: bool,
+    native_compact: bool,
+    native_hud_mode: String,
 }
 
 enum AppUserEvent {
     Exit,
     EvalScript(String),
     ToggleOverlay,
-    ApplyTopmost(bool),
     ShowAndFocus,
+    SetCompactHud(bool),
+    SetHudMode(String),
+    MaintainOverlayTopmost,
 }
 
 #[cfg(target_os = "windows")]
@@ -121,7 +125,11 @@ fn detect_league_client() -> Option<LcuCredentials> {
                 }
                 if !port.is_empty() && !token.is_empty() {
                     let parent_dir = Path::new(path).parent().map(|p| p.to_path_buf());
-                    return Some(LcuCredentials { port, token, install_dir: parent_dir });
+                    return Some(LcuCredentials {
+                        port,
+                        token,
+                        install_dir: parent_dir,
+                    });
                 }
             }
         }
@@ -143,7 +151,11 @@ fn detect_league_client() -> Option<LcuCredentials> {
                         }
                     }
                     if !port.is_empty() && !token.is_empty() {
-                        return Some(LcuCredentials { port, token, install_dir: Some(parent.to_path_buf()) });
+                        return Some(LcuCredentials {
+                            port,
+                            token,
+                            install_dir: Some(parent.to_path_buf()),
+                        });
                     }
                 }
             }
@@ -155,7 +167,10 @@ fn detect_league_client() -> Option<LcuCredentials> {
 
 fn is_riot_client_open() -> bool {
     let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
-    let lockfile = format!("{}\\Riot Games\\Riot Client\\Config\\lockfile", local_appdata);
+    let lockfile = format!(
+        "{}\\Riot Games\\Riot Client\\Config\\lockfile",
+        local_appdata
+    );
     if let Ok(content) = std::fs::read_to_string(&lockfile) {
         let parts: Vec<&str> = content.trim().split(':').collect();
         if parts.len() >= 2 {
@@ -200,7 +215,8 @@ fn find_league_client_ux_path() -> Option<PathBuf> {
                 let name = name.trim_matches('\0');
                 if name.eq_ignore_ascii_case("LeagueClientUx.exe") {
                     let pid = entry.th32ProcessID;
-                    let h_proc = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, 0, pid);
+                    let h_proc =
+                        OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, 0, pid);
                     if !h_proc.is_null() {
                         let mut buf = [0u16; 1024];
                         let mut size = buf.len() as u32;
@@ -238,9 +254,22 @@ extern "system" {
     fn CreateToolhelp32Snapshot(dwFlags: u32, th32ProcessID: u32) -> *mut std::ffi::c_void;
     fn Process32FirstW(hSnapshot: *mut std::ffi::c_void, lppe: *mut PROCESSENTRY32W) -> i32;
     fn Process32NextW(hSnapshot: *mut std::ffi::c_void, lppe: *mut PROCESSENTRY32W) -> i32;
-    fn QueryFullProcessImageNameW(hProcess: *mut std::ffi::c_void, dwFlags: u32, lpExeName: *mut u16, lpdwSize: *mut u32) -> i32;
-    fn CreateMutexW(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u16) -> *mut std::ffi::c_void;
-    fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut std::ffi::c_void;
+    fn QueryFullProcessImageNameW(
+        hProcess: *mut std::ffi::c_void,
+        dwFlags: u32,
+        lpExeName: *mut u16,
+        lpdwSize: *mut u32,
+    ) -> i32;
+    fn CreateMutexW(
+        lpMutexAttributes: *mut std::ffi::c_void,
+        bInitialOwner: i32,
+        lpName: *const u16,
+    ) -> *mut std::ffi::c_void;
+    fn OpenProcess(
+        dwDesiredAccess: u32,
+        bInheritHandle: i32,
+        dwProcessId: u32,
+    ) -> *mut std::ffi::c_void;
     fn GetExitCodeProcess(hProcess: *mut std::ffi::c_void, lpExitCode: *mut u32) -> i32;
     fn WaitForSingleObject(hHandle: *mut std::ffi::c_void, dwMilliseconds: u32) -> u32;
     fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
@@ -253,12 +282,14 @@ extern "system" {
         phiconSmall: *mut *mut std::ffi::c_void,
         nIcons: u32,
     ) -> u32;
-    fn LoadIconW(hInstance: *mut std::ffi::c_void, lpIconName: *const u16) -> *mut std::ffi::c_void;
+    fn LoadIconW(hInstance: *mut std::ffi::c_void, lpIconName: *const u16)
+        -> *mut std::ffi::c_void;
     fn SendMessageW(hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize) -> isize;
     fn SetClassLongPtrW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: isize) -> isize;
     fn SetCurrentProcessExplicitAppUserModelID(AppID: *const u16) -> i32;
     fn GetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32) -> i32;
     fn SetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: i32) -> i32;
+    fn GetAncestor(hwnd: *mut std::ffi::c_void, gaFlags: u32) -> *mut std::ffi::c_void;
     fn SetLayeredWindowAttributes(
         hwnd: *mut std::ffi::c_void,
         crKey: u32,
@@ -276,7 +307,12 @@ extern "system" {
     ) -> i32;
     #[allow(dead_code)]
     fn RegisterHotKey(hWnd: *mut std::ffi::c_void, id: i32, fsModifiers: u32, vk: u32) -> i32;
-    fn GetMessageW(lpMsg: *mut MSG, hWnd: *mut std::ffi::c_void, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
+    fn GetMessageW(
+        lpMsg: *mut MSG,
+        hWnd: *mut std::ffi::c_void,
+        wMsgFilterMin: u32,
+        wMsgFilterMax: u32,
+    ) -> i32;
     fn TranslateMessage(lpMsg: *const MSG) -> i32;
     fn DispatchMessageW(lpMsg: *const MSG) -> isize;
     fn PostQuitMessage(nExitCode: i32);
@@ -296,10 +332,24 @@ extern "system" {
         hInstance: *mut std::ffi::c_void,
         lpParam: *mut std::ffi::c_void,
     ) -> *mut std::ffi::c_void;
-    fn DefWindowProcW(hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize) -> isize;
+    fn DefWindowProcW(hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize)
+        -> isize;
     fn CreatePopupMenu() -> *mut std::ffi::c_void;
-    fn AppendMenuW(hMenu: *mut std::ffi::c_void, uFlags: u32, uIDNewItem: usize, lpNewItem: *const u16) -> i32;
-    fn TrackPopupMenu(hMenu: *mut std::ffi::c_void, uFlags: u32, x: i32, y: i32, nReserved: i32, hWnd: *mut std::ffi::c_void, prcRect: *const std::ffi::c_void) -> i32;
+    fn AppendMenuW(
+        hMenu: *mut std::ffi::c_void,
+        uFlags: u32,
+        uIDNewItem: usize,
+        lpNewItem: *const u16,
+    ) -> i32;
+    fn TrackPopupMenu(
+        hMenu: *mut std::ffi::c_void,
+        uFlags: u32,
+        x: i32,
+        y: i32,
+        nReserved: i32,
+        hWnd: *mut std::ffi::c_void,
+        prcRect: *const std::ffi::c_void,
+    ) -> i32;
     fn DestroyMenu(hMenu: *mut std::ffi::c_void) -> i32;
     fn GetCursorPos(lpPoint: *mut POINT) -> i32;
     fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
@@ -361,7 +411,8 @@ struct MSG {
 struct WNDCLASSEXW {
     cbSize: u32,
     style: u32,
-    lpfnWndProc: Option<unsafe extern "system" fn(*mut std::ffi::c_void, u32, usize, isize) -> isize>,
+    lpfnWndProc:
+        Option<unsafe extern "system" fn(*mut std::ffi::c_void, u32, usize, isize) -> isize>,
     cbClsExtra: i32,
     cbWndExtra: i32,
     hInstance: *mut std::ffi::c_void,
@@ -422,8 +473,7 @@ unsafe fn set_overlay_extended_style(hwnd: *mut std::ffi::c_void, style: i32) {
 #[cfg(target_os = "windows")]
 unsafe fn scale_px_for_dpi(dpi: u32, value: i32) -> i32 {
     let dpi = if dpi == 0 { 96 } else { dpi as i64 };
-    ((value as i64 * dpi + 48) / 96)
-        .clamp(i32::MIN as i64, i32::MAX as i64) as i32
+    ((value as i64 * dpi + 48) / 96).clamp(i32::MIN as i64, i32::MAX as i64) as i32
 }
 
 #[cfg(target_os = "windows")]
@@ -452,15 +502,22 @@ unsafe fn scale_for_primary_monitor(value: i32) -> i32 {
 unsafe fn game_or_primary_bounds() -> RECT {
     let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
     let game_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
-    let mut bounds = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    let mut bounds = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
     if !game_hwnd.is_null()
         && GetWindowRect(game_hwnd, &mut bounds) != 0
-        && bounds.right > bounds.left
-        && bounds.bottom > bounds.top
+        && bounds.right - bounds.left >= 320
+        && bounds.bottom - bounds.top >= 240
     {
         return bounds;
     }
 
+    // Exclusive-fullscreen game HWNDs can temporarily report a 1x1 rectangle even
+    // while the game is visibly covering the display. Never size the overlay from it.
     RECT {
         left: 0,
         top: 0,
@@ -480,6 +537,7 @@ const SWP_FRAMECHANGED: u32 = 0x0020;
 const SWP_SHOWWINDOW: u32 = 0x0040;
 const SW_HIDE: i32 = 0;
 const SW_SHOWNA: i32 = 8;
+const GA_ROOT: u32 = 2;
 
 #[allow(dead_code)]
 const WM_HOTKEY: u32 = 0x0312;
@@ -502,8 +560,10 @@ const IDM_OPEN: usize = 2001;
 const IDM_TOGGLE_HUD: usize = 2002;
 const IDM_EXIT: usize = 2003;
 
-static TRAY_PROXY: std::sync::OnceLock<tao::event_loop::EventLoopProxy<AppUserEvent>> = std::sync::OnceLock::new();
-static TRAY_HWND: std::sync::atomic::AtomicPtr<std::ffi::c_void> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+static TRAY_PROXY: std::sync::OnceLock<tao::event_loop::EventLoopProxy<AppUserEvent>> =
+    std::sync::OnceLock::new();
+static TRAY_HWND: std::sync::atomic::AtomicPtr<std::ffi::c_void> =
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn tray_wnd_proc(
@@ -610,7 +670,10 @@ fn start_system_tray(
             class_name.as_ptr(),
             window_title.as_ptr(),
             0,
-            0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             std::ptr::null_mut(),
@@ -691,34 +754,172 @@ fn maintain_overlay_topmost(overlay_hwnd: *mut std::ffi::c_void) {
     unsafe {
         let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
         let league_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
-        if !league_hwnd.is_null() {
-            let fg = GetForegroundWindow();
-            let is_league_active = (fg == league_hwnd) || (fg == overlay_hwnd);
+        let foreground = GetForegroundWindow();
+        let foreground_root = GetAncestor(foreground, GA_ROOT);
+        let league_root = GetAncestor(league_hwnd, GA_ROOT);
+        let overlay_root = GetAncestor(overlay_hwnd, GA_ROOT);
+        let is_league_active = !league_hwnd.is_null()
+            && (foreground == league_hwnd
+                || foreground_root == league_root
+                || foreground == overlay_hwnd
+                || foreground_root == overlay_root);
 
-            if is_league_active {
-                // League of Legends is the active foreground window:
-                // Ensure overlay is shown and stays layered directly over League
-                ShowWindow(overlay_hwnd, SW_SHOWNA);
-                let ex = GetWindowLongW(overlay_hwnd, GWL_EXSTYLE);
-                if (ex & WS_EX_TOPMOST) == 0 {
-                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
-                    set_overlay_extended_style(overlay_hwnd, new_ex);
-                }
-                // Only update Z-order if the overlay has actually been covered by another window
-                let prev_wnd = GetWindow(overlay_hwnd, 3 /* GW_HWNDPREV */);
-                if !prev_wnd.is_null() {
-                    SetWindowPos(
-                        overlay_hwnd,
-                        HWND_TOPMOST as *mut std::ffi::c_void,
-                        0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                    );
-                }
-            } else {
-                // User has Alt-Tabbed out of League (Desktop, File Explorer, Chrome, Discord):
-                // Hide overlay immediately so it never traps or covers Windows desktop!
-                ShowWindow(overlay_hwnd, SW_HIDE);
+        if is_league_active {
+            // Only show the full-screen overlay while League owns the foreground.
+            ShowWindow(overlay_hwnd, SW_SHOWNA);
+            let ex = GetWindowLongW(overlay_hwnd, GWL_EXSTYLE);
+            if (ex & WS_EX_TOPMOST) == 0 {
+                let new_ex =
+                    (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
+                set_overlay_extended_style(overlay_hwnd, new_ex);
             }
+            let prev_wnd = GetWindow(overlay_hwnd, 3 /* GW_HWNDPREV */);
+            if !prev_wnd.is_null() {
+                SetWindowPos(
+                    overlay_hwnd,
+                    HWND_TOPMOST as *mut std::ffi::c_void,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                );
+            }
+        } else {
+            // Hide if League is not active or its game window is unavailable.
+            ShowWindow(overlay_hwnd, SW_HIDE);
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn apply_hud_window_mode(window: &Window, webview: &WebView, mode: &str) {
+    unsafe {
+        let hwnd = window.hwnd() as *mut std::ffi::c_void;
+        let bounds = game_or_primary_bounds();
+        let screen_w = bounds.right - bounds.left;
+        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+
+        let (x, y, width, height, click_through) = match mode {
+            "integrated" => (
+                bounds.left,
+                bounds.top,
+                screen_w,
+                bounds.bottom - bounds.top,
+                true,
+            ),
+            "card" => {
+                let width = scale_for_game_monitor(hwnd, 340);
+                let height = scale_for_game_monitor(hwnd, 270);
+                (
+                    bounds.left + (screen_w - width - scale_for_game_monitor(hwnd, 24)).max(0),
+                    bounds.top + scale_for_game_monitor(hwnd, 60),
+                    width,
+                    height,
+                    false,
+                )
+            }
+            "bar" => {
+                let width = scale_for_game_monitor(hwnd, 620);
+                let height = scale_for_game_monitor(hwnd, 42);
+                (
+                    bounds.left + ((screen_w - width) / 2).max(0),
+                    bounds.top + scale_for_game_monitor(hwnd, 12),
+                    width,
+                    height,
+                    false,
+                )
+            }
+            "pill" => {
+                let width = scale_for_game_monitor(hwnd, 280);
+                let height = scale_for_game_monitor(hwnd, 38);
+                let margin = scale_for_game_monitor(hwnd, 24);
+                (
+                    bounds.left + (screen_w - width - margin).max(0),
+                    bounds.top + scale_for_game_monitor(hwnd, 60),
+                    width,
+                    height,
+                    false,
+                )
+            }
+            _ => return,
+        };
+
+        let mut new_ex = ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED;
+        new_ex &= !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+        if click_through {
+            new_ex |= WS_EX_TRANSPARENT;
+        }
+        set_overlay_extended_style(hwnd, new_ex);
+
+        // Keep Wry/Tao's cached size and the WebView2 controller in sync. The one-pixel
+        // nudge forces a fresh WebView2 surface after switching from the desktop window.
+        window.set_outer_position(PhysicalPosition::new(x, y));
+        if mode == "integrated" && width > 1 {
+            window.set_inner_size(PhysicalSize::new(width - 1, height));
+        }
+        window.set_inner_size(PhysicalSize::new(width, height));
+        SetWindowPos(
+            hwnd,
+            HWND_TOPMOST as *mut std::ffi::c_void,
+            x,
+            y,
+            width,
+            height,
+            SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+
+        if mode == "integrated" {
+            let _ = webview.set_background_color((0, 0, 0, 0));
+            let _ = webview.evaluate_script(
+                "document.documentElement.classList.add('compact-mode'); document.body.classList.add('compact-mode'); document.documentElement.style.background='transparent'; document.body.style.background='transparent';",
+            );
+        }
+
+        maintain_overlay_topmost(hwnd);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn restore_desktop_window(window: &Window, webview: &WebView, focus: bool) {
+    unsafe {
+        let hwnd = window.hwnd() as *mut std::ffi::c_void;
+        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+        let app_w = scale_for_primary_monitor(1240);
+        let app_h = scale_for_primary_monitor(820);
+        let app_x = ((sw - app_w) / 2).max(0);
+        let app_y = ((sh - app_h) / 2).max(0);
+        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+        let normal_ex = (ex | WS_EX_APPWINDOW)
+            & !(WS_EX_TRANSPARENT
+                | WS_EX_LAYERED
+                | WS_EX_TOOLWINDOW
+                | WS_EX_NOACTIVATE
+                | WS_EX_TOPMOST);
+        SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
+        window.set_outer_position(PhysicalPosition::new(app_x, app_y));
+        window.set_inner_size(PhysicalSize::new(app_w, app_h));
+        SetWindowPos(
+            hwnd,
+            HWND_NOTOPMOST as *mut std::ffi::c_void,
+            app_x,
+            app_y,
+            app_w,
+            app_h,
+            SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+        apply_fullscreen_topmost(hwnd, false);
+
+        let _ = webview.evaluate_script(
+            "document.documentElement.classList.remove('compact-mode'); document.body.classList.remove('compact-mode'); document.documentElement.style.background=''; document.body.style.background='';",
+        );
+
+        if focus {
+            window.set_visible(true);
+            window.set_minimized(false);
+            window.set_focus();
+            SetForegroundWindow(hwnd);
         }
     }
 }
@@ -732,22 +933,30 @@ fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
             // 1. WS_EX_TOPMOST: Stays layered on top of Fullscreen League
             // 2. WS_EX_NOACTIVATE: Never steals mouse/keyboard focus from League
             // 3. WS_EX_TOOLWINDOW: Hides from Windows Taskbar and Alt-Tab
-            let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
+            let new_ex =
+                (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
             SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
             SetWindowPos(
                 hwnd,
                 HWND_TOPMOST as *mut std::ffi::c_void,
-                0, 0, 0, 0,
+                0,
+                0,
+                0,
+                0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
             );
         } else {
             // Full Desktop Client Mode: Standard window with taskbar presence
-            let new_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
+            let new_ex =
+                (ex | WS_EX_APPWINDOW) & !(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
             SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
             SetWindowPos(
                 hwnd,
                 HWND_NOTOPMOST as *mut std::ffi::c_void,
-                0, 0, 0, 0,
+                0,
+                0,
+                0,
+                0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
             );
         }
@@ -755,7 +964,8 @@ fn apply_fullscreen_topmost(hwnd: *mut std::ffi::c_void, enable: bool) {
 }
 
 #[cfg(target_os = "windows")]
-static SINGLETON_MUTEX: std::sync::atomic::AtomicPtr<std::ffi::c_void> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+static SINGLETON_MUTEX: std::sync::atomic::AtomicPtr<std::ffi::c_void> =
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 #[cfg(target_os = "windows")]
 fn wait_for_parent_exit_if_requested() {
@@ -782,7 +992,9 @@ fn wait_for_parent_exit_if_requested() {
 fn is_already_running() -> bool {
     #[cfg(target_os = "windows")]
     unsafe {
-        let name: Vec<u16> = "Local\\RiftCoreCompanion_SingleInstance\0".encode_utf16().collect();
+        let name: Vec<u16> = "Local\\RiftCoreCompanion_SingleInstance\0"
+            .encode_utf16()
+            .collect();
         let handle = CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr());
         if !handle.is_null() {
             if GetLastError() == ERROR_ALREADY_EXISTS {
@@ -836,6 +1048,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         gameflow_phase: "None".to_string(),
         is_compact: false,
         is_pinned: false,
+        native_compact: false,
+        native_hud_mode: String::new(),
     }));
 
     let event_loop = EventLoopBuilder::<AppUserEvent>::with_user_event().build();
@@ -910,86 +1124,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let hotkey_window = Arc::clone(&window);
         std::thread::spawn(move || {
             let mut was_pressed = false;
-            let mut was_transparent = true;
 
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(20));
 
-                let ctrl = unsafe { (GetAsyncKeyState(0x11 /* VK_CONTROL */) as u16 & 0x8000) != 0 };
-                let alt = unsafe { (GetAsyncKeyState(0x12 /* VK_MENU / Alt */) as u16 & 0x8000) != 0 };
-                let space = unsafe { (GetAsyncKeyState(0x20 /* VK_SPACE */) as u16 & 0x8000) != 0 };
-                let tilde = unsafe { (GetAsyncKeyState(0xC0 /* VK_OEM_3 / ~ */) as u16 & 0x8000) != 0 };
-                let x_key = unsafe { (GetAsyncKeyState(0x58 /* X */) as u16 & 0x8000) != 0 };
-                let f10 = unsafe { (GetAsyncKeyState(0x79 /* VK_F10 */) as u16 & 0x8000) != 0 };
+                let ctrl = unsafe {
+                    (GetAsyncKeyState(0x11 /* VK_CONTROL */) as u16 & 0x8000) != 0
+                };
+                let alt = unsafe {
+                    (GetAsyncKeyState(0x12 /* VK_MENU / Alt */) as u16 & 0x8000) != 0
+                };
+                let space = unsafe {
+                    (GetAsyncKeyState(0x20 /* VK_SPACE */) as u16 & 0x8000) != 0
+                };
+                let tilde = unsafe {
+                    (GetAsyncKeyState(0xC0 /* VK_OEM_3 / ~ */) as u16 & 0x8000) != 0
+                };
+                let x_key = unsafe {
+                    (GetAsyncKeyState(0x58 /* X */) as u16 & 0x8000) != 0
+                };
+                let f10 = unsafe {
+                    (GetAsyncKeyState(0x79 /* VK_F10 */) as u16 & 0x8000) != 0
+                };
 
-                let is_combo_down = (ctrl && space) || (alt && tilde) || (alt && x_key) || (ctrl && tilde) || f10;
+                let is_combo_down =
+                    (ctrl && space) || (alt && tilde) || (alt && x_key) || (ctrl && tilde) || f10;
 
                 if is_combo_down && !was_pressed {
                     let _ = hotkey_proxy.send_event(AppUserEvent::ToggleOverlay);
                 }
                 was_pressed = is_combo_down;
 
-                // Smart In-Game Click-Through / Interactive Hit-Testing
-                let is_compact = {
+                // The integrated HUD must never steal gameplay input. Its full-screen
+                // window remains click-through; interactive controls are available
+                // after expanding back to the regular RiftCore window.
+                let (is_compact, is_integrated) = {
                     let st = hotkey_state.lock().unwrap();
-                    st.is_compact
+                    (st.is_compact, st.native_hud_mode == "integrated")
                 };
 
-                if is_compact {
-                    let mut pt: POINT = POINT { x: 0, y: 0 };
+                if is_compact && is_integrated {
                     unsafe {
                         let hwnd = hotkey_window.hwnd() as *mut std::ffi::c_void;
-                        GetCursorPos(&mut pt);
-                        let mut bounds = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-                        if GetWindowRect(hwnd, &mut bounds) == 0 {
-                            bounds = game_or_primary_bounds();
-                        }
-                        let sw = bounds.right - bounds.left;
-                        let sh = bounds.bottom - bounds.top;
-                        let cursor_x = pt.x - bounds.left;
-                        let cursor_y = pt.y - bounds.top;
-                        let top_hud_half_width = scale_logical_px(hwnd, 280);
-                        let top_hud_height = scale_logical_px(hwnd, 65);
-                        let cards_half_width = scale_logical_px(hwnd, 230);
-                        let cards_top = scale_logical_px(hwnd, 45);
-                        let cards_bottom = scale_logical_px(hwnd, 450);
-                        let spell_dock_width = scale_logical_px(hwnd, 200);
-                        let minimap_dock_width = scale_logical_px(hwnd, 360);
-
-                        // Screen hit zones use physical pixels, so scale CSS-pixel dimensions to this monitor's DPI.
-                        let in_top_hud = cursor_y >= 0 && cursor_y <= top_hud_height && cursor_x >= (sw / 2 - top_hud_half_width) && cursor_x <= (sw / 2 + top_hud_half_width);
-                        let in_cards_drawer = cursor_y >= cards_top && cursor_y <= cards_bottom && cursor_x >= (sw / 2 - cards_half_width) && cursor_x <= (sw / 2 + cards_half_width);
-                        // 2. Enemy Spells & Teammate Ults Dock: left margin x 0..200, y 20%..75%
-                        let in_spell_dock = cursor_x >= 0 && cursor_x <= spell_dock_width && cursor_y >= (sh * 20 / 100) && cursor_y <= (sh * 75 / 100);
-                        // 3. Minimap Header Dock (ARAM Relics / Camp timers): bottom-right margin
-                        let in_minimap_dock = cursor_x >= (sw - minimap_dock_width) && cursor_x <= sw && cursor_y >= (sh - (sh * 30 / 100)) && cursor_y <= (sh - (sh * 22 / 100));
-
-                        let should_interact = in_top_hud || in_cards_drawer || in_spell_dock || in_minimap_dock;
-
-                        if should_interact && was_transparent {
-                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                            set_overlay_extended_style(hwnd, ex & !WS_EX_TRANSPARENT);
-                            SetWindowPos(
-                                hwnd,
-                                std::ptr::null_mut(),
-                                0, 0, 0, 0,
-                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                            );
-                            was_transparent = false;
-                        } else if !should_interact && !was_transparent {
-                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                        if (ex & WS_EX_TRANSPARENT) == 0 {
                             set_overlay_extended_style(hwnd, ex | WS_EX_TRANSPARENT);
                             SetWindowPos(
                                 hwnd,
                                 std::ptr::null_mut(),
-                                0, 0, 0, 0,
-                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                                0,
+                                0,
+                                0,
+                                0,
+                                SWP_NOMOVE
+                                    | SWP_NOSIZE
+                                    | SWP_NOZORDER
+                                    | SWP_NOACTIVATE
+                                    | SWP_FRAMECHANGED,
                             );
-                            was_transparent = true;
                         }
                     }
-                } else {
-                    was_transparent = true;
                 }
             }
         });
@@ -1181,71 +1375,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     "set-hud-mode" => {
                         let mode = json.get("mode").and_then(|v| v.as_str()).unwrap_or("card");
-                        #[cfg(target_os = "windows")]
-                        unsafe {
-                            let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
-                            let bounds = game_or_primary_bounds();
-                            let sw = bounds.right - bounds.left;
-                            let sh = bounds.bottom - bounds.top;
-                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-
-                            if mode == "integrated" {
-                                // Fullscreen transparent click-through layer covering the game
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
-                                set_overlay_extended_style(hwnd, new_ex);
-                                SetWindowPos(
-                                    hwnd,
-                                    HWND_TOPMOST as *mut std::ffi::c_void,
-                                    bounds.left, bounds.top, sw, sh,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                );
-                            } else if mode == "card" {
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
-                                set_overlay_extended_style(hwnd, new_ex);
-                                let w = scale_for_game_monitor(hwnd, 340);
-                                let h = scale_for_game_monitor(hwnd, 270);
-                                let x = bounds.left + (sw - w - scale_for_game_monitor(hwnd, 24)).max(0);
-                                let y = bounds.top + scale_for_game_monitor(hwnd, 60);
-                                SetWindowPos(
-                                    hwnd,
-                                    HWND_TOPMOST as *mut std::ffi::c_void,
-                                    x, y, w, h,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                );
-                            } else if mode == "bar" {
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
-                                set_overlay_extended_style(hwnd, new_ex);
-                                let w = scale_for_game_monitor(hwnd, 620);
-                                let h = scale_for_game_monitor(hwnd, 42);
-                                let x = bounds.left + ((sw - w) / 2).max(0);
-                                let y = bounds.top + scale_for_game_monitor(hwnd, 12);
-                                SetWindowPos(
-                                    hwnd,
-                                    HWND_TOPMOST as *mut std::ffi::c_void,
-                                    x, y, w, h,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                );
-                            } else if mode == "pill" {
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
-                                set_overlay_extended_style(hwnd, new_ex);
-                                let w = scale_for_game_monitor(hwnd, 280);
-                                let h = scale_for_game_monitor(hwnd, 38);
-                                let margin = scale_for_game_monitor(hwnd, 24);
-                                let x = bounds.left + (sw - w - margin).max(0);
-                                let y = bounds.top + scale_for_game_monitor(hwnd, 60);
-                                SetWindowPos(
-                                    hwnd,
-                                    HWND_TOPMOST as *mut std::ffi::c_void,
-                                    x, y, w, h,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                );
-                            }
-                        }
+                        let _ = proxy_ipc.send_event(AppUserEvent::SetHudMode(mode.to_string()));
                         let reply_script = format!("window.__riftIpcReply({}, null, {{ mode: '{}' }});", req_id, mode);
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
                     }
                     "set-click-through" => {
-                        let enable = json.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+                        let requested = json.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+                        let integrated_hud = state_clone.lock().unwrap().native_hud_mode == "integrated";
+                        let enable = requested || integrated_hud;
                         #[cfg(target_os = "windows")]
                         unsafe {
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
@@ -1318,8 +1455,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             "toggle-compact" => {
                                 let mut st = state_clone.lock().unwrap();
-                                #[cfg(target_os = "windows")]
-                                let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
 
                                 #[cfg(target_os = "windows")]
                                 let is_in_game = unsafe {
@@ -1342,53 +1477,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 st.is_compact = !st.is_compact;
                                 if st.is_compact {
                                     st.is_pinned = true;
-                                    #[cfg(target_os = "windows")]
-                                    unsafe {
-                                        maintain_overlay_topmost(hwnd);
-                                        let bounds = game_or_primary_bounds();
-                                        let sw = bounds.right - bounds.left;
-                                        let sh = bounds.bottom - bounds.top;
-                                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
-                                        set_overlay_extended_style(hwnd, new_ex);
-                                        SetWindowPos(
-                                            hwnd,
-                                            HWND_TOPMOST as *mut std::ffi::c_void,
-                                            bounds.left,
-                                            bounds.top,
-                                            sw,
-                                            sh,
-                                            SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                        );
-                                    }
                                 } else {
                                     st.is_pinned = false;
-                                    #[cfg(target_os = "windows")]
-                                    unsafe {
-                                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                                        let app_w = scale_for_primary_monitor(1240);
-                                        let app_h = scale_for_primary_monitor(820);
-                                        let app_x = ((sw - app_w) / 2).max(0);
-                                        let app_y = ((sh - app_h) / 2).max(0);
-                                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
-                                        SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
-                                        SetWindowPos(
-                                            hwnd,
-                                            HWND_NOTOPMOST as *mut std::ffi::c_void,
-                                            app_x,
-                                            app_y,
-                                            app_w,
-                                            app_h,
-                                            SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                        );
-                                        apply_fullscreen_topmost(hwnd, false);
-                                        SetForegroundWindow(hwnd);
-                                    }
                                 }
                                 let is_compact = st.is_compact;
                                 let is_pinned = st.is_pinned;
+                                drop(st);
+                                let _ = proxy_ipc.send_event(AppUserEvent::SetCompactHud(is_compact));
                                 let reply_script = format!(
                                     "window.__riftIpcReply({}, null, {{ isCompactMode: {}, isPinned: {} }});",
                                     req_id, is_compact, is_pinned
@@ -1402,8 +1497,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let on_top = json.get("alwaysOnTop").and_then(|v| v.as_bool()).unwrap_or(true);
                         let mut st = state_clone.lock().unwrap();
                         st.is_pinned = on_top;
+                        let is_compact = st.is_compact;
+                        drop(st);
                         #[cfg(target_os = "windows")]
-                        {
+                        if is_compact {
+                            let _ = proxy_ipc.send_event(AppUserEvent::MaintainOverlayTopmost);
+                        } else {
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                             apply_fullscreen_topmost(hwnd, on_top);
                         }
@@ -1413,58 +1512,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "set-compact-hud" => {
                         let compact = json.get("compact").and_then(|v| v.as_bool()).unwrap_or(true);
                         let mut st = state_clone.lock().unwrap();
+                        let changed = st.is_compact != compact;
                         st.is_compact = compact;
-                        #[cfg(target_os = "windows")]
-                        let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                         if compact {
                             st.is_pinned = true;
-                            #[cfg(target_os = "windows")]
-                            unsafe {
-                                maintain_overlay_topmost(hwnd);
-                                let bounds = game_or_primary_bounds();
-                                let sw = bounds.right - bounds.left;
-                                let sh = bounds.bottom - bounds.top;
-                                let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
-                                set_overlay_extended_style(hwnd, new_ex);
-                                SetWindowPos(
-                                    hwnd,
-                                    HWND_TOPMOST as *mut std::ffi::c_void,
-                                    bounds.left,
-                                    bounds.top,
-                                    sw,
-                                    sh,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                );
-                            }
                         } else {
                             st.is_pinned = false;
-                            #[cfg(target_os = "windows")]
-                            unsafe {
-                                let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                                let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                                let app_w = scale_for_primary_monitor(1240);
-                                let app_h = scale_for_primary_monitor(820);
-                                let app_x = ((sw - app_w) / 2).max(0);
-                                let app_y = ((sh - app_h) / 2).max(0);
-                                let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
-                                SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
-                                SetWindowPos(
-                                    hwnd,
-                                    HWND_NOTOPMOST as *mut std::ffi::c_void,
-                                    app_x,
-                                    app_y,
-                                    app_w,
-                                    app_h,
-                                    SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                );
-                                apply_fullscreen_topmost(hwnd, false);
-                                SetForegroundWindow(hwnd);
-                            }
                         }
                         let is_compact = st.is_compact;
                         let is_pinned = st.is_pinned;
+                        drop(st);
+                        if changed {
+                            let _ = proxy_ipc.send_event(AppUserEvent::SetCompactHud(compact));
+                        }
                         let reply_script = format!(
                             "window.__riftIpcReply({}, null, {{ isCompactMode: {}, isPinned: {} }});",
                             req_id, is_compact, is_pinned
@@ -2142,7 +2202,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bg_state = Arc::clone(&state);
     let bg_http = http_client.clone();
     let bg_proxy = proxy.clone();
-    let window_bg = Arc::clone(&window);
 
     tokio::spawn(async move {
         let mut last_phase = String::new();
@@ -2169,11 +2228,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if let Some(ref creds) = current_creds {
-                let auth = format!("Basic {}", BASE64_STANDARD.encode(format!("riot:{}", creds.token)));
+                let auth = format!(
+                    "Basic {}",
+                    BASE64_STANDARD.encode(format!("riot:{}", creds.token))
+                );
 
                 // 1. Check Gameflow Phase
-                let phase_url = format!("https://127.0.0.1:{}/lol-gameflow/v1/gameflow-phase", creds.port);
-                let phase_res = bg_http.get(&phase_url).header("Authorization", &auth).send().await;
+                let phase_url = format!(
+                    "https://127.0.0.1:{}/lol-gameflow/v1/gameflow-phase",
+                    creds.port
+                );
+                let phase_res = bg_http
+                    .get(&phase_url)
+                    .header("Authorization", &auth)
+                    .send()
+                    .await;
                 match phase_res {
                     Ok(res) if res.status().is_success() => {
                         if let Ok(phase) = res.json::<String>().await {
@@ -2210,8 +2279,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // 2. If ReadyCheck phase, check ready-check state
                 if last_phase == "ReadyCheck" {
-                    let rc_url = format!("https://127.0.0.1:{}/lol-matchmaking/v1/ready-check", creds.port);
-                    if let Ok(res) = bg_http.get(&rc_url).header("Authorization", &auth).send().await {
+                    let rc_url = format!(
+                        "https://127.0.0.1:{}/lol-matchmaking/v1/ready-check",
+                        creds.port
+                    );
+                    if let Ok(res) = bg_http
+                        .get(&rc_url)
+                        .header("Authorization", &auth)
+                        .send()
+                        .await
+                    {
                         if let Ok(rc_json) = res.text().await {
                             let script = format!(
                                 "window.dispatchEvent(new CustomEvent('rift-ready-check', {{ detail: {} }}));",
@@ -2224,8 +2301,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // 3. If ChampSelect phase, query champ select session
                 if last_phase == "ChampSelect" {
-                    let cs_url = format!("https://127.0.0.1:{}/lol-champ-select/v1/session", creds.port);
-                    if let Ok(res) = bg_http.get(&cs_url).header("Authorization", &auth).send().await {
+                    let cs_url = format!(
+                        "https://127.0.0.1:{}/lol-champ-select/v1/session",
+                        creds.port
+                    );
+                    if let Ok(res) = bg_http
+                        .get(&cs_url)
+                        .header("Authorization", &auth)
+                        .send()
+                        .await
+                    {
                         if res.status().is_success() {
                             if let Ok(cs_json) = res.text().await {
                                 if !cs_json.contains("errorCode") {
@@ -2243,7 +2328,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // 4. Live Client Data on port 2999 (Direct League of Legends in-game telemetry)
                 // Polled with a 600ms timeout for all game modes (Summoner's Rift, ARAM, Arena, URF, etc.)
                 let live_url = "https://127.0.0.1:2999/liveclientdata/allgamedata";
-                if let Ok(res) = bg_http.get(live_url).timeout(std::time::Duration::from_millis(600)).send().await {
+                if let Ok(res) = bg_http
+                    .get(live_url)
+                    .timeout(std::time::Duration::from_millis(600))
+                    .send()
+                    .await
+                {
                     if let Ok(live_json) = res.text().await {
                         if live_json.contains("gameData") {
                             if last_phase != "InProgress" {
@@ -2252,28 +2342,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 st.gameflow_phase = "InProgress".to_string();
                                 st.is_pinned = true;
                                 st.is_compact = true;
-                                #[cfg(target_os = "windows")]
-                                unsafe {
-                                    let hwnd = window_bg.hwnd() as *mut std::ffi::c_void;
-                                    maintain_overlay_topmost(hwnd);
-                                    let bounds = game_or_primary_bounds();
-                                    let sw = bounds.right - bounds.left;
-                                    let sh = bounds.bottom - bounds.top;
-                                    let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
-                                    set_overlay_extended_style(hwnd, new_ex);
-                                    SetWindowPos(
-                                        hwnd,
-                                        HWND_TOPMOST as *mut std::ffi::c_void,
-                                        bounds.left,
-                                        bounds.top,
-                                        sw,
-                                        sh,
-                                        SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                    );
-                                }
+                                drop(st);
+                                let _ = bg_proxy.send_event(AppUserEvent::SetCompactHud(true));
                                 let script = "window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true })); window.dispatchEvent(new CustomEvent('rift-phase', { detail: 'InProgress' }));";
-                                let _ = bg_proxy.send_event(AppUserEvent::EvalScript(script.to_string()));
+                                let _ = bg_proxy
+                                    .send_event(AppUserEvent::EvalScript(script.to_string()));
                             } else {
                                 #[cfg(target_os = "windows")]
                                 {
@@ -2282,7 +2355,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         st.is_compact
                                     };
                                     if is_compact {
-                                        maintain_overlay_topmost(window_bg.hwnd() as *mut std::ffi::c_void);
+                                        let _ = bg_proxy
+                                            .send_event(AppUserEvent::MaintainOverlayTopmost);
                                     }
                                 }
                             }
@@ -2338,6 +2412,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::UserEvent(AppUserEvent::EvalScript(script)) => {
                 let _ = webview.evaluate_script(&script);
             }
+            Event::UserEvent(AppUserEvent::SetCompactHud(compact)) => {
+                let should_apply = {
+                    let mut st = state.lock().unwrap();
+                    st.is_compact = compact;
+                    st.is_pinned = compact;
+                    if st.native_compact == compact {
+                        false
+                    } else {
+                        st.native_compact = compact;
+                        st.native_hud_mode = if compact { "integrated".to_string() } else { String::new() };
+                        true
+                    }
+                };
+
+                if should_apply {
+                    #[cfg(target_os = "windows")]
+                    if compact {
+                        apply_hud_window_mode(&window, &webview, "integrated");
+                    } else {
+                        restore_desktop_window(&window, &webview, true);
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    if compact {
+                        window.set_visible(true);
+                    } else {
+                        window.set_visible(true);
+                        window.set_minimized(false);
+                        window.set_focus();
+                    }
+                }
+            }
+            Event::UserEvent(AppUserEvent::SetHudMode(mode)) => {
+                let should_apply = {
+                    let mut st = state.lock().unwrap();
+                    if !st.is_compact || st.native_hud_mode == mode {
+                        false
+                    } else {
+                        st.native_hud_mode = mode.clone();
+                        true
+                    }
+                };
+                if should_apply {
+                    #[cfg(target_os = "windows")]
+                    apply_hud_window_mode(&window, &webview, &mode);
+                }
+            }
+            Event::UserEvent(AppUserEvent::MaintainOverlayTopmost) => {
+                let is_compact = state.lock().unwrap().native_compact;
+                #[cfg(target_os = "windows")]
+                if is_compact {
+                    maintain_overlay_topmost(window.hwnd() as *mut std::ffi::c_void);
+                }
+            }
             Event::UserEvent(AppUserEvent::ToggleOverlay) => {
                 let mut st = state.lock().unwrap();
                 #[cfg(target_os = "windows")]
@@ -2347,31 +2474,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Restore to full desktop companion app
                     st.is_compact = false;
                     st.is_pinned = false;
-                    window.set_visible(true);
-                    window.set_minimized(false);
-
+                    st.native_compact = false;
+                    st.native_hud_mode.clear();
+                    drop(st);
                     #[cfg(target_os = "windows")]
-                    unsafe {
-                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                        let app_w = scale_for_primary_monitor(1240);
-                        let app_h = scale_for_primary_monitor(820);
-                        let app_x = ((sw - app_w) / 2).max(0);
-                        let app_y = ((sh - app_h) / 2).max(0);
-                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
-                        SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
-                        SetWindowPos(
-                            hwnd,
-                            HWND_NOTOPMOST as *mut std::ffi::c_void,
-                            app_x,
-                            app_y,
-                            app_w,
-                            app_h,
-                            SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                        );
-                        apply_fullscreen_topmost(hwnd, false);
-                        SetForegroundWindow(hwnd);
+                    restore_desktop_window(&window, &webview, true);
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        window.set_visible(true);
+                        window.set_minimized(false);
+                        window.set_focus();
                     }
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: false }));");
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: false } }));");
@@ -2386,6 +2498,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let is_in_game = st.gameflow_phase == "InProgress";
 
                     if !is_in_game {
+                        drop(st);
                         window.set_visible(true);
                         window.set_minimized(false);
                         #[cfg(target_os = "windows")]
@@ -2394,40 +2507,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     } else {
                         // Switch to fullscreen in-game overlay
-                        window.set_visible(true);
-                        window.set_minimized(false);
                         st.is_compact = true;
                         st.is_pinned = true;
-
-                    #[cfg(target_os = "windows")]
-                    unsafe {
-                        maintain_overlay_topmost(hwnd);
-                        let bounds = game_or_primary_bounds();
-                        let sw = bounds.right - bounds.left;
-                        let sh = bounds.bottom - bounds.top;
-                        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
-                        set_overlay_extended_style(hwnd, new_ex);
-                        SetWindowPos(
-                            hwnd,
-                            HWND_TOPMOST as *mut std::ffi::c_void,
-                            bounds.left,
-                            bounds.top,
-                            sw,
-                            sh,
-                            SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                        );
-                    }
+                        st.native_compact = true;
+                        st.native_hud_mode = "integrated".to_string();
+                        drop(st);
+                        #[cfg(target_os = "windows")]
+                        apply_hud_window_mode(&window, &webview, "integrated");
+                        #[cfg(not(target_os = "windows"))]
+                        window.set_visible(true);
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-compact-hud', { detail: true }));");
                     let _ = webview.evaluate_script("window.dispatchEvent(new CustomEvent('rift-overlay-toggled', { detail: { visible: true } }));");
                     }
-                }
-            }
-            Event::UserEvent(AppUserEvent::ApplyTopmost(on_top)) => {
-                #[cfg(target_os = "windows")]
-                {
-                    let hwnd = window.hwnd() as *mut std::ffi::c_void;
-                    apply_fullscreen_topmost(hwnd, on_top);
                 }
             }
             Event::WindowEvent {

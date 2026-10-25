@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
 import { ChampSelectView, extractLcuChampionId } from './components/ChampSelectView';
@@ -37,6 +37,7 @@ export const App: React.FC = () => {
   const [gameflowPhase, setGameflowPhase] = useState<GameflowPhase>('None');
   const [activeTab, setActiveTab] = useState<string>('champ-select');
   const [isCompactMode, setIsCompactMode] = useState(false);
+  const compactModeRef = useRef(false);
   const [isPinned, setIsPinned] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showUpdateNotes, setShowUpdateNotes] = useState(false);
@@ -50,6 +51,24 @@ export const App: React.FC = () => {
   const [activeChampionId, setActiveChampionId] = useState<number>(420);
   const [liveData, setLiveData] = useState<LiveGameData | null>(null);
   const [readyCheckData, setReadyCheckData] = useState<any>(null);
+
+  const enterCompactMode = useCallback(() => {
+    if (compactModeRef.current) return;
+    compactModeRef.current = true;
+    setIsCompactMode(true);
+    setActiveTab('live-overlay');
+    void window.riftAPI?.setCompactHud?.(true);
+    window.riftAPI?.setAlwaysOnTop?.(true)?.then((r) => {
+      if (r) setIsPinned(r.isPinned);
+    });
+  }, []);
+
+  const exitCompactMode = useCallback(() => {
+    const wasCompact = compactModeRef.current;
+    compactModeRef.current = false;
+    setIsCompactMode(false);
+    if (wasCompact) void window.riftAPI?.setCompactHud?.(false);
+  }, []);
 
   // App Settings
   const [settings, setSettings] = useState<AppSettings>({
@@ -102,16 +121,13 @@ export const App: React.FC = () => {
         } else {
           setChampSelectSession(null);
           if (res.gameflowPhase === 'InProgress' || res.gameflowPhase === 'GameStart') {
-            setIsCompactMode(true);
-            window.riftAPI?.setCompactHud?.(true);
-            window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-              if (r) setIsPinned(r.isPinned);
-            });
+            enterCompactMode();
           }
         }
       } else {
         setGameflowPhase('None');
         setChampSelectSession(null);
+        compactModeRef.current = false;
         setIsCompactMode(false);
       }
       if (res.connected) fetchInitialData();
@@ -186,16 +202,10 @@ export const App: React.FC = () => {
             }, 600);
           }
         } else if (phase === 'InProgress' || phase === 'GameStart') {
-          setActiveTab('live-overlay');
           setReadyCheckData(null);
-          setIsCompactMode(true);
-          window.riftAPI?.setCompactHud?.(true);
-          window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-            if (r) setIsPinned(r.isPinned);
-          });
+          enterCompactMode();
         } else if (phase === 'EndOfGame' || phase === 'None' || phase === 'Lobby') {
-          setIsCompactMode(false);
-          window.riftAPI?.setCompactHud?.(false);
+          exitCompactMode();
         }
       }
     });
@@ -231,16 +241,13 @@ export const App: React.FC = () => {
     const unsubLive = window.riftAPI.onLiveGameUpdate((gData) => {
       setLiveData(gData);
       if (gData && gData.gameData) {
-        setIsCompactMode(true);
-        window.riftAPI?.setCompactHud?.(true);
-        window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-          if (r) setIsPinned(r.isPinned);
-        });
+        enterCompactMode();
       }
     });
 
     const handleCompactEvent = (e: any) => {
       const isCompact = Boolean(e.detail);
+      compactModeRef.current = isCompact;
       setIsCompactMode(isCompact);
       if (isCompact) {
         setActiveTab('live-overlay');
@@ -256,7 +263,7 @@ export const App: React.FC = () => {
       unsubLive();
       window.removeEventListener('rift-compact-hud', handleCompactEvent);
     };
-  }, []);
+  }, [enterCompactMode, exitCompactMode]);
 
   // Direct In-Game Live Client Data poller (port 2999)
   useEffect(() => {
@@ -267,11 +274,7 @@ export const App: React.FC = () => {
         const data = await window.riftAPI.getLiveClientData();
         if (isSubscribed && data && data.gameData) {
           setLiveData(data);
-          setIsCompactMode(true);
-          window.riftAPI?.setCompactHud?.(true);
-          window.riftAPI?.setAlwaysOnTop?.(true).then((r) => {
-            if (r) setIsPinned(r.isPinned);
-          });
+          enterCompactMode();
         }
       } catch {}
     };
@@ -282,7 +285,7 @@ export const App: React.FC = () => {
       isSubscribed = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [enterCompactMode]);
 
   // Active session poller during ChampSelect phase (guarantees session freshness even if websocket dropped)
   useEffect(() => {
@@ -353,6 +356,7 @@ export const App: React.FC = () => {
     if (window.riftAPI) {
       const res = await window.riftAPI.windowControl('toggle-compact');
       if (res) {
+        compactModeRef.current = res.isCompactMode;
         setIsCompactMode(res.isCompactMode);
         setIsPinned(res.isPinned);
         if (res.isCompactMode) {
@@ -361,6 +365,7 @@ export const App: React.FC = () => {
       }
     } else {
       const next = !isCompactMode;
+      compactModeRef.current = next;
       setIsCompactMode(next);
       if (next) {
         setActiveTab('live-overlay');
@@ -449,10 +454,9 @@ export const App: React.FC = () => {
   // Auto-revert compact mode if outside an active League match (never trap the user in standby)
   useEffect(() => {
     if (isCompactMode && !isMatchLive) {
-      setIsCompactMode(false);
-      window.riftAPI?.setCompactHud?.(false);
+      exitCompactMode();
     }
-  }, [isCompactMode, isMatchLive]);
+  }, [isCompactMode, isMatchLive, exitCompactMode]);
 
   // When in Compact In-Game Overlay Mode AND a match is actively live: Render Pure Floating Tactical HUD Widget
   if (isCompactMode && isMatchLive) {

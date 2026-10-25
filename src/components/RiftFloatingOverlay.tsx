@@ -55,6 +55,10 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const [hudCardSearch, setHudCardSearch] = useState<string>('');
   const [hudCardTierFilter, setHudCardTierFilter] = useState<CardTier | 'ALL'>('ALL');
 
+  useEffect(() => {
+    if (isLive) setIsPreviewMode(false);
+  }, [isLive]);
+
   // Auto-expand to full desktop app if outside an active match and not in preview mode
   useEffect(() => {
     if (!showInGameHud && !isPreviewMode) {
