@@ -1,8 +1,8 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v1.2.7
+       RIFTCORE COMPANION - UPDATE v1.2.8
 --------------------------------------------------
 
-Hey! Welcome to v1.2.7 Here is what is new:
+Hey! Welcome to v1.2.8 Here is what is new:
 
 * In-App Automatic Updates:
   Never miss a patch! RiftCore now checks GitHub
