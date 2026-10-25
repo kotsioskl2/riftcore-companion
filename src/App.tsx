@@ -430,9 +430,17 @@ export const App: React.FC = () => {
     if (isCompactMode) {
       document.body.classList.add('compact-mode');
       document.documentElement.classList.add('compact-mode');
+      document.body.style.backgroundColor = 'transparent';
+      document.body.style.background = 'transparent';
+      document.documentElement.style.backgroundColor = 'transparent';
+      document.documentElement.style.background = 'transparent';
     } else {
       document.body.classList.remove('compact-mode');
       document.documentElement.classList.remove('compact-mode');
+      document.body.style.backgroundColor = '';
+      document.body.style.background = '';
+      document.documentElement.style.backgroundColor = '';
+      document.documentElement.style.background = '';
     }
   }, [isCompactMode]);
 

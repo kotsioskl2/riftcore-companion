@@ -302,7 +302,9 @@ extern "system" {
     fn SwitchToThisWindow(hWnd: *mut std::ffi::c_void, fUnknown: i32);
     fn GetAsyncKeyState(vKey: i32) -> i16;
     fn FindWindowW(lpClassName: *const u16, lpWindowName: *const u16) -> *mut std::ffi::c_void;
+    fn GetWindowRect(hWnd: *mut std::ffi::c_void, lpRect: *mut RECT) -> i32;
     fn GetSystemMetrics(nIndex: i32) -> i32;
+    fn GetDpiForWindow(hWnd: *mut std::ffi::c_void) -> u32;
     fn GetWindow(hWnd: *mut std::ffi::c_void, uCmd: u32) -> *mut std::ffi::c_void;
     fn DestroyWindow(hWnd: *mut std::ffi::c_void) -> i32;
     fn ShowWindow(hWnd: *mut std::ffi::c_void, nCmdShow: i32) -> i32;
@@ -324,6 +326,15 @@ extern "system" {
 struct POINT {
     x: i32,
     y: i32,
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct RECT {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
 }
 
 #[cfg(target_os = "windows")]
@@ -381,13 +392,41 @@ const ICON_SMALL: usize = 0;
 const ICON_BIG: usize = 1;
 const GCLP_HICON: i32 = -14;
 const GCLP_HICONSM: i32 = -34;
-
 const GWL_EXSTYLE: i32 = -20;
 const WS_EX_TOPMOST: i32 = 0x00000008;
 const WS_EX_TOOLWINDOW: i32 = 0x00000080;
 const WS_EX_APPWINDOW: i32 = 0x00040000;
 const WS_EX_NOACTIVATE: i32 = 0x08000000;
 const WS_EX_TRANSPARENT: i32 = 0x00000020;
+
+#[cfg(target_os = "windows")]
+unsafe fn scale_logical_px(hwnd: *mut std::ffi::c_void, value: i32) -> i32 {
+    let dpi = GetDpiForWindow(hwnd);
+    let dpi = if dpi == 0 { 96 } else { dpi as i64 };
+    ((value as i64 * dpi + 48) / 96)
+        .clamp(i32::MIN as i64, i32::MAX as i64) as i32
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn game_or_primary_bounds() -> RECT {
+    let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
+    let game_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
+    let mut bounds = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    if !game_hwnd.is_null()
+        && GetWindowRect(game_hwnd, &mut bounds) != 0
+        && bounds.right > bounds.left
+        && bounds.bottom > bounds.top
+    {
+        return bounds;
+    }
+
+    RECT {
+        left: 0,
+        top: 0,
+        right: GetSystemMetrics(0 /* SM_CXSCREEN */),
+        bottom: GetSystemMetrics(1 /* SM_CYSCREEN */),
+    }
+}
 
 const HWND_TOPMOST: isize = -1;
 const HWND_NOTOPMOST: isize = -2;
@@ -737,15 +776,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ensure_league_fullscreen_cfg();
 
     // Force WebView2 to use a transparent background from the very first frame.
-    // Without this, the WebView2 control defaults to an opaque white surface,
-    // causing a white flash/screen in the overlay before the page CSS loads.
-    // Format: AARRGGBB hex string where AA=00 means fully transparent.
+    // The value is an ARGB hex string; leading 00 requests full transparency.
     std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "00000000");
 
-    // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode, disable print preview
+    // Keep WebView2 on its normal GPU compositing path for transparent surfaces.
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-        "--renderer-process-limit=1 --enable-low-end-device-mode --disable-print-preview --disable-features=msWebOOUI,msPdfOOUI,Translate,msEdgeSidebarV2,msHub,msEdgeRewards,PrintCompositor,PrintBrowser --disable-gpu-shader-disk-cache --disable-background-networking --disable-component-update --disk-cache-size=10485760 --media-cache-size=10485760"
+        "--disable-print-preview --disable-features=msWebOOUI,msPdfOOUI,Translate,msEdgeSidebarV2,msHub,msEdgeRewards,PrintCompositor,PrintBrowser"
     );
 
     if is_already_running() {
@@ -860,29 +897,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if is_compact {
                     let mut pt: POINT = POINT { x: 0, y: 0 };
                     unsafe {
+                        let hwnd = hotkey_window.hwnd() as *mut std::ffi::c_void;
                         GetCursorPos(&mut pt);
-                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                        let mut bounds = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                        if GetWindowRect(hwnd, &mut bounds) == 0 {
+                            bounds = game_or_primary_bounds();
+                        }
+                        let sw = bounds.right - bounds.left;
+                        let sh = bounds.bottom - bounds.top;
+                        let cursor_x = pt.x - bounds.left;
+                        let cursor_y = pt.y - bounds.top;
+                        let top_hud_half_width = scale_logical_px(hwnd, 280);
+                        let top_hud_height = scale_logical_px(hwnd, 65);
+                        let cards_half_width = scale_logical_px(hwnd, 230);
+                        let cards_top = scale_logical_px(hwnd, 45);
+                        let cards_bottom = scale_logical_px(hwnd, 450);
+                        let spell_dock_width = scale_logical_px(hwnd, 200);
+                        let minimap_dock_width = scale_logical_px(hwnd, 360);
 
-                        // 1. Top HUD Bar & Cards Drawer: x centered within 280px, y within 65px (or up to 450px if inspecting cards)
-                        let in_top_hud = pt.y >= 0 && pt.y <= 65 && pt.x >= (sw / 2 - 280) && pt.x <= (sw / 2 + 280);
-                        let in_cards_drawer = pt.y >= 45 && pt.y <= 450 && pt.x >= (sw / 2 - 230) && pt.x <= (sw / 2 + 230);
+                        // Screen hit zones use physical pixels, so scale CSS-pixel dimensions to this monitor's DPI.
+                        let in_top_hud = cursor_y >= 0 && cursor_y <= top_hud_height && cursor_x >= (sw / 2 - top_hud_half_width) && cursor_x <= (sw / 2 + top_hud_half_width);
+                        let in_cards_drawer = cursor_y >= cards_top && cursor_y <= cards_bottom && cursor_x >= (sw / 2 - cards_half_width) && cursor_x <= (sw / 2 + cards_half_width);
                         // 2. Enemy Spells & Teammate Ults Dock: left margin x 0..200, y 20%..75%
-                        let in_spell_dock = pt.x >= 0 && pt.x <= 200 && pt.y >= (sh * 20 / 100) && pt.y <= (sh * 75 / 100);
+                        let in_spell_dock = cursor_x >= 0 && cursor_x <= spell_dock_width && cursor_y >= (sh * 20 / 100) && cursor_y <= (sh * 75 / 100);
                         // 3. Minimap Header Dock (ARAM Relics / Camp timers): bottom-right margin
-                        let in_minimap_dock = pt.x >= (sw - 360) && pt.x <= sw && pt.y >= (sh - (sh * 30 / 100)) && pt.y <= (sh - (sh * 22 / 100));
+                        let in_minimap_dock = cursor_x >= (sw - minimap_dock_width) && cursor_x <= sw && cursor_y >= (sh - (sh * 30 / 100)) && cursor_y <= (sh - (sh * 22 / 100));
 
                         let should_interact = in_top_hud || in_cards_drawer || in_spell_dock || in_minimap_dock;
 
                         if should_interact && was_transparent {
-                            let hwnd = hotkey_window.hwnd() as *mut std::ffi::c_void;
                             let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                             SetWindowLongW(hwnd, GWL_EXSTYLE, ex & !WS_EX_TRANSPARENT);
+                            SetWindowPos(
+                                hwnd,
+                                std::ptr::null_mut(),
+                                0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                            );
                             was_transparent = false;
                         } else if !should_interact && !was_transparent {
-                            let hwnd = hotkey_window.hwnd() as *mut std::ffi::c_void;
                             let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                             SetWindowLongW(hwnd, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
+                            SetWindowPos(
+                                hwnd,
+                                std::ptr::null_mut(),
+                                0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                            );
                             was_transparent = true;
                         }
                     }
@@ -1030,13 +1091,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         #[cfg(target_os = "windows")]
                         unsafe {
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                            let native_w = scale_logical_px(hwnd, w);
+                            let native_h = scale_logical_px(hwnd, h);
                             SetWindowPos(
                                 hwnd,
                                 std::ptr::null_mut(),
                                 0,
                                 0,
-                                w,
-                                h,
+                                native_w,
+                                native_h,
                                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
                             );
                         }
@@ -1049,20 +1112,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let h = json.get("height").and_then(|v| v.as_i64()).unwrap_or(270) as i32;
                         #[cfg(target_os = "windows")]
                         unsafe {
-                            let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                            let (x, y) = match position {
-                                "top-center" => (((sw - w) / 2).max(0), 12),
-                                "top-left" => (24, 60),
-                                _ => ((sw - w - 24).max(0), 60),
-                            };
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
+                            let native_w = scale_logical_px(hwnd, w);
+                            let native_h = scale_logical_px(hwnd, h);
+                            let bounds = game_or_primary_bounds();
+                            let sw = bounds.right - bounds.left;
+                            let margin = scale_logical_px(hwnd, 24);
+                            let top = scale_logical_px(hwnd, 60);
+                            let centered_top = scale_logical_px(hwnd, 12);
+                            let (x, y) = match position {
+                                "top-center" => (bounds.left + ((sw - native_w) / 2).max(0), bounds.top + centered_top),
+                                "top-left" => (bounds.left + margin, bounds.top + top),
+                                _ => (bounds.left + (sw - native_w - margin).max(0), bounds.top + top),
+                            };
                             SetWindowPos(
                                 hwnd,
                                 HWND_TOPMOST as *mut std::ffi::c_void,
                                 x,
                                 y,
-                                w,
-                                h,
+                                native_w,
+                                native_h,
                                 SWP_NOACTIVATE | SWP_SHOWWINDOW,
                             );
                         }
@@ -1074,8 +1143,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         #[cfg(target_os = "windows")]
                         unsafe {
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
-                            let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                            let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                            let bounds = game_or_primary_bounds();
+                            let sw = bounds.right - bounds.left;
+                            let sh = bounds.bottom - bounds.top;
                             let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
 
                             if mode == "integrated" {
@@ -1085,34 +1155,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
-                                    0, 0, sw, sh,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                    bounds.left, bounds.top, sw, sh,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                 );
                             } else if mode == "card" {
                                 let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
-                                let w = 340;
-                                let h = 270;
-                                let x = (sw - w - 24).max(0);
-                                let y = 60;
+                                let w = scale_logical_px(hwnd, 340);
+                                let h = scale_logical_px(hwnd, 270);
+                                let x = bounds.left + (sw - w - scale_logical_px(hwnd, 24)).max(0);
+                                let y = bounds.top + scale_logical_px(hwnd, 60);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
                                     x, y, w, h,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                 );
                             } else if mode == "bar" {
                                 let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
-                                let w = 620;
-                                let h = 42;
-                                let x = ((sw - w) / 2).max(0);
-                                let y = 12;
+                                let w = scale_logical_px(hwnd, 620);
+                                let h = scale_logical_px(hwnd, 42);
+                                let x = bounds.left + ((sw - w) / 2).max(0);
+                                let y = bounds.top + scale_logical_px(hwnd, 12);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
                                     x, y, w, h,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                 );
                             }
                         }
@@ -1131,6 +1201,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 ex & !WS_EX_TRANSPARENT
                             };
                             SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                            SetWindowPos(
+                                hwnd,
+                                std::ptr::null_mut(),
+                                0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                            );
                         }
                         let reply_script = format!("window.__riftIpcReply({}, null, {{ clickThrough: {} }});", req_id, enable);
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
@@ -1214,19 +1290,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     #[cfg(target_os = "windows")]
                                     unsafe {
                                         maintain_overlay_topmost(hwnd);
-                                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                        let bounds = game_or_primary_bounds();
+                                        let sw = bounds.right - bounds.left;
+                                        let sh = bounds.bottom - bounds.top;
                                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                                         let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                                         SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                         SetWindowPos(
                                             hwnd,
                                             HWND_TOPMOST as *mut std::ffi::c_void,
-                                            0,
-                                            0,
+                                            bounds.left,
+                                            bounds.top,
                                             sw,
                                             sh,
-                                            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                            SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                         );
                                     }
                                 } else {
@@ -1235,8 +1312,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     unsafe {
                                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                                        let app_w = 1240;
-                                        let app_h = 820;
+                                        let app_w = scale_logical_px(hwnd, 1240);
+                                        let app_h = scale_logical_px(hwnd, 820);
                                         let app_x = ((sw - app_w) / 2).max(0);
                                         let app_y = ((sh - app_h) / 2).max(0);
                                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -1289,19 +1366,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             #[cfg(target_os = "windows")]
                             unsafe {
                                 maintain_overlay_topmost(hwnd);
-                                let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                                let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                let bounds = game_or_primary_bounds();
+                                let sw = bounds.right - bounds.left;
+                                let sh = bounds.bottom - bounds.top;
                                 let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                                 let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
-                                    0,
-                                    0,
+                                    bounds.left,
+                                    bounds.top,
                                     sw,
                                     sh,
-                                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                 );
                             }
                         } else {
@@ -1310,8 +1388,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             unsafe {
                                 let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                 let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                                let app_w = 1240;
-                                let app_h = 820;
+                                let app_w = scale_logical_px(hwnd, 1240);
+                                let app_h = scale_logical_px(hwnd, 820);
                                 let app_x = ((sw - app_w) / 2).max(0);
                                 let app_y = ((sh - app_h) / 2).max(0);
                                 let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -2123,16 +2201,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 unsafe {
                                     let hwnd = window_bg.hwnd() as *mut std::ffi::c_void;
                                     maintain_overlay_topmost(hwnd);
-                                    let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                                    let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                                    let bounds = game_or_primary_bounds();
+                                    let sw = bounds.right - bounds.left;
+                                    let sh = bounds.bottom - bounds.top;
                                     let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                                     let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                                     SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                                     SetWindowPos(
                                         hwnd,
                                         HWND_TOPMOST as *mut std::ffi::c_void,
-                                        0,
-                                        0,
+                                        bounds.left,
+                                        bounds.top,
                                         sw,
                                         sh,
                                         SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
@@ -2220,8 +2299,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     unsafe {
                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                        let app_w = 1240;
-                        let app_h = 820;
+                        let app_w = scale_logical_px(hwnd, 1240);
+                        let app_h = scale_logical_px(hwnd, 820);
                         let app_x = ((sw - app_w) / 2).max(0);
                         let app_y = ((sh - app_h) / 2).max(0);
                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -2268,16 +2347,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     #[cfg(target_os = "windows")]
                     unsafe {
                         maintain_overlay_topmost(hwnd);
-                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
-                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+                        let bounds = game_or_primary_bounds();
+                        let sw = bounds.right - bounds.left;
+                        let sh = bounds.bottom - bounds.top;
                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                         let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
                         SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
                         SetWindowPos(
                             hwnd,
                             HWND_TOPMOST as *mut std::ffi::c_void,
-                            0,
-                            0,
+                            bounds.left,
+                            bounds.top,
                             sw,
                             sh,
                             SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
