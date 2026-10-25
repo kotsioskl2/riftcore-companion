@@ -259,6 +259,12 @@ extern "system" {
     fn SetCurrentProcessExplicitAppUserModelID(AppID: *const u16) -> i32;
     fn GetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32) -> i32;
     fn SetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: i32) -> i32;
+    fn SetLayeredWindowAttributes(
+        hwnd: *mut std::ffi::c_void,
+        crKey: u32,
+        bAlpha: u8,
+        dwFlags: u32,
+    ) -> i32;
     fn SetWindowPos(
         hWnd: *mut std::ffi::c_void,
         hWndInsertAfter: *mut std::ffi::c_void,
@@ -304,6 +310,7 @@ extern "system" {
     fn FindWindowW(lpClassName: *const u16, lpWindowName: *const u16) -> *mut std::ffi::c_void;
     fn GetWindowRect(hWnd: *mut std::ffi::c_void, lpRect: *mut RECT) -> i32;
     fn GetSystemMetrics(nIndex: i32) -> i32;
+    fn GetDpiForSystem() -> u32;
     fn GetDpiForWindow(hWnd: *mut std::ffi::c_void) -> u32;
     fn GetWindow(hWnd: *mut std::ffi::c_void, uCmd: u32) -> *mut std::ffi::c_void;
     fn DestroyWindow(hWnd: *mut std::ffi::c_void) -> i32;
@@ -398,13 +405,47 @@ const WS_EX_TOOLWINDOW: i32 = 0x00000080;
 const WS_EX_APPWINDOW: i32 = 0x00040000;
 const WS_EX_NOACTIVATE: i32 = 0x08000000;
 const WS_EX_TRANSPARENT: i32 = 0x00000020;
+const WS_EX_LAYERED: i32 = 0x00080000;
+const LWA_ALPHA: u32 = 0x00000002;
 
 #[cfg(target_os = "windows")]
-unsafe fn scale_logical_px(hwnd: *mut std::ffi::c_void, value: i32) -> i32 {
-    let dpi = GetDpiForWindow(hwnd);
+unsafe fn set_overlay_extended_style(hwnd: *mut std::ffi::c_void, style: i32) {
+    let previous_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+    SetWindowLongW(hwnd, GWL_EXSTYLE, style);
+    if style & WS_EX_LAYERED != 0 && previous_style & WS_EX_LAYERED == 0 {
+        // Layered top-level windows are not shown until their alpha mode is initialized.
+        // Keep constant opacity at 100%; WebView2's own per-pixel alpha stays intact.
+        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn scale_px_for_dpi(dpi: u32, value: i32) -> i32 {
     let dpi = if dpi == 0 { 96 } else { dpi as i64 };
     ((value as i64 * dpi + 48) / 96)
         .clamp(i32::MIN as i64, i32::MAX as i64) as i32
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn scale_logical_px(hwnd: *mut std::ffi::c_void, value: i32) -> i32 {
+    scale_px_for_dpi(GetDpiForWindow(hwnd), value)
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn scale_for_game_monitor(hwnd: *mut std::ffi::c_void, value: i32) -> i32 {
+    let class_name: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
+    let game_hwnd = FindWindowW(class_name.as_ptr(), std::ptr::null());
+    let dpi = if game_hwnd.is_null() {
+        GetDpiForWindow(hwnd)
+    } else {
+        GetDpiForWindow(game_hwnd)
+    };
+    scale_px_for_dpi(dpi, value)
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn scale_for_primary_monitor(value: i32) -> i32 {
+    scale_px_for_dpi(GetDpiForSystem(), value)
 }
 
 #[cfg(target_os = "windows")]
@@ -661,7 +702,7 @@ fn maintain_overlay_topmost(overlay_hwnd: *mut std::ffi::c_void) {
                 let ex = GetWindowLongW(overlay_hwnd, GWL_EXSTYLE);
                 if (ex & WS_EX_TOPMOST) == 0 {
                     let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
-                    SetWindowLongW(overlay_hwnd, GWL_EXSTYLE, new_ex);
+                    set_overlay_extended_style(overlay_hwnd, new_ex);
                 }
                 // Only update Z-order if the overlay has actually been covered by another window
                 let prev_wnd = GetWindow(overlay_hwnd, 3 /* GW_HWNDPREV */);
@@ -927,7 +968,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         if should_interact && was_transparent {
                             let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                            SetWindowLongW(hwnd, GWL_EXSTYLE, ex & !WS_EX_TRANSPARENT);
+                            set_overlay_extended_style(hwnd, ex & !WS_EX_TRANSPARENT);
                             SetWindowPos(
                                 hwnd,
                                 std::ptr::null_mut(),
@@ -937,7 +978,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             was_transparent = false;
                         } else if !should_interact && !was_transparent {
                             let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                            SetWindowLongW(hwnd, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
+                            set_overlay_extended_style(hwnd, ex | WS_EX_TRANSPARENT);
                             SetWindowPos(
                                 hwnd,
                                 std::ptr::null_mut(),
@@ -1091,8 +1132,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         #[cfg(target_os = "windows")]
                         unsafe {
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
-                            let native_w = scale_logical_px(hwnd, w);
-                            let native_h = scale_logical_px(hwnd, h);
+                            let native_w = scale_for_game_monitor(hwnd, w);
+                            let native_h = scale_for_game_monitor(hwnd, h);
                             SetWindowPos(
                                 hwnd,
                                 std::ptr::null_mut(),
@@ -1117,9 +1158,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let native_h = scale_logical_px(hwnd, h);
                             let bounds = game_or_primary_bounds();
                             let sw = bounds.right - bounds.left;
-                            let margin = scale_logical_px(hwnd, 24);
-                            let top = scale_logical_px(hwnd, 60);
-                            let centered_top = scale_logical_px(hwnd, 12);
+                            let margin = scale_for_game_monitor(hwnd, 24);
+                            let top = scale_for_game_monitor(hwnd, 60);
+                            let centered_top = scale_for_game_monitor(hwnd, 12);
                             let (x, y) = match position {
                                 "top-center" => (bounds.left + ((sw - native_w) / 2).max(0), bounds.top + centered_top),
                                 "top-left" => (bounds.left + margin, bounds.top + top),
@@ -1150,8 +1191,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             if mode == "integrated" {
                                 // Fullscreen transparent click-through layer covering the game
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
-                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                set_overlay_extended_style(hwnd, new_ex);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
@@ -1159,12 +1200,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                 );
                             } else if mode == "card" {
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
-                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
-                                let w = scale_logical_px(hwnd, 340);
-                                let h = scale_logical_px(hwnd, 270);
-                                let x = bounds.left + (sw - w - scale_logical_px(hwnd, 24)).max(0);
-                                let y = bounds.top + scale_logical_px(hwnd, 60);
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+                                set_overlay_extended_style(hwnd, new_ex);
+                                let w = scale_for_game_monitor(hwnd, 340);
+                                let h = scale_for_game_monitor(hwnd, 270);
+                                let x = bounds.left + (sw - w - scale_for_game_monitor(hwnd, 24)).max(0);
+                                let y = bounds.top + scale_for_game_monitor(hwnd, 60);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
@@ -1172,12 +1213,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
                                 );
                             } else if mode == "bar" {
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
-                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
-                                let w = scale_logical_px(hwnd, 620);
-                                let h = scale_logical_px(hwnd, 42);
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+                                set_overlay_extended_style(hwnd, new_ex);
+                                let w = scale_for_game_monitor(hwnd, 620);
+                                let h = scale_for_game_monitor(hwnd, 42);
                                 let x = bounds.left + ((sw - w) / 2).max(0);
-                                let y = bounds.top + scale_logical_px(hwnd, 12);
+                                let y = bounds.top + scale_for_game_monitor(hwnd, 12);
+                                SetWindowPos(
+                                    hwnd,
+                                    HWND_TOPMOST as *mut std::ffi::c_void,
+                                    x, y, w, h,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
+                                );
+                            } else if mode == "pill" {
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED) & !(WS_EX_APPWINDOW | WS_EX_TRANSPARENT);
+                                set_overlay_extended_style(hwnd, new_ex);
+                                let w = scale_for_game_monitor(hwnd, 280);
+                                let h = scale_for_game_monitor(hwnd, 38);
+                                let margin = scale_for_game_monitor(hwnd, 24);
+                                let x = bounds.left + (sw - w - margin).max(0);
+                                let y = bounds.top + scale_for_game_monitor(hwnd, 60);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
@@ -1196,11 +1251,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
                             let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
                             let new_ex = if enable {
-                                ex | WS_EX_TRANSPARENT
+                                ex | WS_EX_TRANSPARENT | WS_EX_LAYERED
                             } else {
                                 ex & !WS_EX_TRANSPARENT
                             };
-                            SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                            set_overlay_extended_style(hwnd, new_ex);
                             SetWindowPos(
                                 hwnd,
                                 std::ptr::null_mut(),
@@ -1294,8 +1349,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         let sw = bounds.right - bounds.left;
                                         let sh = bounds.bottom - bounds.top;
                                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
-                                        SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                        set_overlay_extended_style(hwnd, new_ex);
                                         SetWindowPos(
                                             hwnd,
                                             HWND_TOPMOST as *mut std::ffi::c_void,
@@ -1312,12 +1367,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     unsafe {
                                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                                        let app_w = scale_logical_px(hwnd, 1240);
-                                        let app_h = scale_logical_px(hwnd, 820);
+                                        let app_w = scale_for_primary_monitor(1240);
+                                        let app_h = scale_for_primary_monitor(820);
                                         let app_x = ((sw - app_w) / 2).max(0);
                                         let app_y = ((sh - app_h) / 2).max(0);
                                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+                                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
                                         SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
                                         SetWindowPos(
                                             hwnd,
@@ -1370,8 +1425,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let sw = bounds.right - bounds.left;
                                 let sh = bounds.bottom - bounds.top;
                                 let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
-                                SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                set_overlay_extended_style(hwnd, new_ex);
                                 SetWindowPos(
                                     hwnd,
                                     HWND_TOPMOST as *mut std::ffi::c_void,
@@ -1388,12 +1443,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             unsafe {
                                 let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                                 let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                                let app_w = scale_logical_px(hwnd, 1240);
-                                let app_h = scale_logical_px(hwnd, 820);
+                                let app_w = scale_for_primary_monitor(1240);
+                                let app_h = scale_for_primary_monitor(820);
                                 let app_x = ((sw - app_w) / 2).max(0);
                                 let app_y = ((sh - app_h) / 2).max(0);
                                 let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+                                let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
                                 SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
                                 SetWindowPos(
                                     hwnd,
@@ -2205,8 +2260,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     let sw = bounds.right - bounds.left;
                                     let sh = bounds.bottom - bounds.top;
                                     let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
-                                    SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                                    let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                                    set_overlay_extended_style(hwnd, new_ex);
                                     SetWindowPos(
                                         hwnd,
                                         HWND_TOPMOST as *mut std::ffi::c_void,
@@ -2299,12 +2354,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     unsafe {
                         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
                         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
-                        let app_w = scale_logical_px(hwnd, 1240);
-                        let app_h = scale_logical_px(hwnd, 820);
+                        let app_w = scale_for_primary_monitor(1240);
+                        let app_h = scale_for_primary_monitor(820);
                         let app_x = ((sw - app_w) / 2).max(0);
                         let app_y = ((sh - app_h) / 2).max(0);
                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+                        let normal_ex = (ex | WS_EX_APPWINDOW) & !(WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
                         SetWindowLongW(hwnd, GWL_EXSTYLE, normal_ex);
                         SetWindowPos(
                             hwnd,
@@ -2351,8 +2406,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let sw = bounds.right - bounds.left;
                         let sh = bounds.bottom - bounds.top;
                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT) & !WS_EX_APPWINDOW;
-                        SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex);
+                        let new_ex = (ex | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
+                        set_overlay_extended_style(hwnd, new_ex);
                         SetWindowPos(
                             hwnd,
                             HWND_TOPMOST as *mut std::ffi::c_void,

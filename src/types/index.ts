@@ -267,7 +267,7 @@ declare global {
       getLeagueWindowMode?: () => Promise<{ found: boolean; windowMode: number; path: string }>;
       setLeagueFullscreen?: () => Promise<{ success: boolean }>;
       setLeagueBorderless?: () => Promise<{ success: boolean }>;
-      setHudMode?: (mode: 'integrated' | 'card' | 'bar') => Promise<any>;
+      setHudMode?: (mode: 'integrated' | 'card' | 'bar' | 'pill') => Promise<any>;
       setClickThrough?: (enabled: boolean) => Promise<any>;
       checkForAppUpdate?: () => Promise<AppUpdateInfo>;
       downloadAppUpdate?: (downloadUrl: string) => Promise<any>;

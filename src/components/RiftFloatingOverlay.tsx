@@ -122,7 +122,13 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
 
   const handleCollapseToPill = () => {
     setHudMode('pill');
-    resizeHud(280, 38);
+    if (window.riftAPI?.setHudMode) {
+      window.riftAPI.setHudMode('pill');
+    } else if ((window as any).ipc) {
+      (window as any).ipc.postMessage(JSON.stringify({ action: 'set-hud-mode', mode: 'pill' }));
+    } else {
+      resizeHud(280, 38);
+    }
   };
 
   const handleCycleOpacity = () => {

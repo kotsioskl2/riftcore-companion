@@ -228,7 +228,7 @@ export function initRustBridge() {
       return sendRustIpc('snap-overlay', { position, width, height });
     },
 
-    setHudMode: async (mode: 'integrated' | 'card' | 'bar') => {
+    setHudMode: async (mode: 'integrated' | 'card' | 'bar' | 'pill') => {
       return sendRustIpc('set-hud-mode', { mode });
     },
 
