@@ -74,20 +74,20 @@ Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heav
 
 ## 📦 Downloads & Installation
 
-### Direct Downloads (Latest Release v1.2.6)
+### Direct Downloads (Latest Release v1.2.7)
 | Package | Type | Download Link | Size |
 | :--- | :--- | :--- | :--- |
-| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.2.6.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.2.6.exe) | ~4.9 MB |
-| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.2.6.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.2.6.zip) | ~13.8 MB |
+| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.2.7.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.2.7.exe) | ~4.9 MB |
+| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.2.7.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.2.7.zip) | ~13.8 MB |
 | **Portable Folder** | Extracted Directory | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Ready to Run |
 
 ### Option A: Windows Installer (Recommended)
-1. Download [**RiftCore-Setup-1.2.6.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.2.6.exe).
+1. Download [**RiftCore-Setup-1.2.7.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.2.7.exe).
 2. Run the setup and choose your installation directory.
 3. Desktop and Start Menu shortcuts with the custom RiftCore emblem will be created automatically.
 
 ### Option B: Standalone Portable `.exe`
-1. Download [**RiftCore-Portable-1.2.6.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.2.6.zip) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
+1. Download [**RiftCore-Portable-1.2.7.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.2.7.zip) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
 2. Double-click `RiftCore.exe` to launch instantly with zero installation required.
 
 ---
