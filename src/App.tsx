@@ -56,6 +56,7 @@ export const App: React.FC = () => {
     autoAccept: true,
     autoImportRunes: true,
     autoImportSpells: true,
+    flashSlotPreference: 'F',
     autoImportItemSets: true,
     soundAlerts: true,
     theme: 'hextech',
@@ -68,10 +69,13 @@ export const App: React.FC = () => {
     hudCsBenchmark: true,
     hudObjectiveTimers: true,
     hudSpellTimers: true,
+    hudUltimateTimers: true,
     hudSkillOrder: true,
     hudItemGoal: true,
+    hudTrinketReminder: true,
     hudMayhemCards: true,
     hudJunglePathing: true,
+    hudAramHealthTimers: true,
   });
 
   // Sync font preference to HTML root
@@ -561,6 +565,8 @@ export const App: React.FC = () => {
               session={champSelectSession}
               selectedChampionId={activeChampionId}
               onSelectChampion={setActiveChampionId}
+              settings={settings}
+              onUpdateSetting={handleUpdateSetting}
             />
           )}
 

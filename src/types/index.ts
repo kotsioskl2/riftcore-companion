@@ -205,6 +205,7 @@ export interface AppSettings {
   autoAccept: boolean;
   autoImportRunes: boolean;
   autoImportSpells: boolean;
+  flashSlotPreference?: 'D' | 'F';
   autoImportItemSets?: boolean;
   soundAlerts: boolean;
   theme: string;
@@ -214,15 +215,18 @@ export interface AppSettings {
   riotApiKey?: string;
   riotRegion?: string;
 
-  // In-Game Tactical HUD Overlay Modules (Per-component toggle)
+  // In-Game Tactical HUD Overlay Modules (Per-component toggle matching Blitz.gg overlay suite)
   hudGoldLead?: boolean;
   hudCsBenchmark?: boolean;
   hudObjectiveTimers?: boolean;
   hudSpellTimers?: boolean;
+  hudUltimateTimers?: boolean;
   hudSkillOrder?: boolean;
   hudItemGoal?: boolean;
+  hudTrinketReminder?: boolean;
   hudMayhemCards?: boolean;
   hudJunglePathing?: boolean;
+  hudAramHealthTimers?: boolean;
 }
 
 export interface AppUpdateInfo {

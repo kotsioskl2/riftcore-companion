@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoAccept: true,
   autoImportRunes: true,
   autoImportSpells: true,
+  flashSlotPreference: 'F',
   autoImportItemSets: true,
   soundAlerts: true,
   theme: 'hextech',

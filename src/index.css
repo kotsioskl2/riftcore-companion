@@ -105,6 +105,16 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* In-game Overlay Compact Mode Transparency Guarantee (Zero White Flash) */
+html.compact-mode,
+body.compact-mode,
+html.compact-mode #root,
+body.compact-mode #root,
+.app-container.compact-mode {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 button, input, select, textarea {
   font-family: inherit;
 }

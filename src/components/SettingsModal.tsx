@@ -133,7 +133,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const tabs: { id: SettingsTab; label: string; icon: React.FC<any>; badge?: string; badgeColor?: string }[] = [
     { id: 'automation', label: 'Automation', icon: Zap },
-    { id: 'hud', label: 'In-Game HUD', icon: Monitor, badge: '8 Modules' },
+    { id: 'hud', label: 'In-Game HUD', icon: Monitor, badge: '11 Modules' },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'system', label: 'System & API', icon: Settings },
     {
@@ -295,6 +295,77 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClick={() => onUpdateSetting('autoImportSpells', !settings.autoImportSpells)}
                 >
                   <div className="toggle-knob" />
+                </div>
+              </div>
+
+              {/* Default Flash / Summoner Spell Key Position */}
+              <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>Default Flash & Summoner Spell Position</span>
+                      <span style={{ fontSize: '10.5px', fontWeight: 800, padding: '1px 7px', borderRadius: '4px', background: 'rgba(0, 210, 255, 0.15)', color: 'var(--blue-primary)', border: '1px solid rgba(0, 210, 255, 0.3)' }}>
+                        Key {settings.flashSlotPreference === 'D' ? 'D' : 'F'} (Default Position)
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                      Controls which keyboard slot Flash automatically binds to when builds are imported.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onUpdateSetting('flashSlotPreference', 'D');
+                        soundService.playTimerTick();
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        background: settings.flashSlotPreference === 'D' ? 'rgba(0, 210, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        border: settings.flashSlotPreference === 'D' ? '1.5px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                        color: settings.flashSlotPreference === 'D' ? '#fff' : '#94a3b8',
+                        fontWeight: 800,
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        boxShadow: settings.flashSlotPreference === 'D' ? '0 0 12px var(--blue-glow)' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      ⚡ Flash on D {settings.flashSlotPreference === 'D' ? '★' : ''}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onUpdateSetting('flashSlotPreference', 'F');
+                        soundService.playTimerTick();
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        background: (settings.flashSlotPreference || 'F') === 'F' ? 'rgba(0, 210, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        border: (settings.flashSlotPreference || 'F') === 'F' ? '1.5px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                        color: (settings.flashSlotPreference || 'F') === 'F' ? '#fff' : '#94a3b8',
+                        fontWeight: 800,
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        boxShadow: (settings.flashSlotPreference || 'F') === 'F' ? '0 0 12px var(--blue-glow)' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      ⚡ Flash on F {(settings.flashSlotPreference || 'F') === 'F' ? '★' : ''}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.06)', fontSize: '11px', color: '#cbd5e1', flexWrap: 'wrap' }}>
+                  <span>Configured Layout:</span>
+                  <span style={{ fontWeight: 700, color: settings.flashSlotPreference === 'D' ? 'var(--blue-primary)' : '#94a3b8' }}>
+                    [Key D: {settings.flashSlotPreference === 'D' ? 'Flash (Default)' : 'Secondary Spell'}]
+                  </span>
+                  <span>•</span>
+                  <span style={{ fontWeight: 700, color: (settings.flashSlotPreference || 'F') === 'F' ? 'var(--blue-primary)' : '#94a3b8' }}>
+                    [Key F: {(settings.flashSlotPreference || 'F') === 'F' ? 'Flash (Default)' : 'Secondary Spell'}]
+                  </span>
                 </div>
               </div>
 
@@ -474,7 +545,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* 5. Next Skill Upgrade Pointer */}
+              {/* 5. Teammate Ultimate Timers */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>👑 Teammate Ultimate Timers & Availability</span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                    Displays allied champion portraits with live R ultimate status and cooldowns so you know when teamfight wombo-combos are ready.
+                  </div>
+                </div>
+                <div
+                  className={`toggle-switch ${settings.hudUltimateTimers !== false ? 'on' : ''}`}
+                  onClick={() => onUpdateSetting('hudUltimateTimers', settings.hudUltimateTimers === false ? true : false)}
+                >
+                  <div className="toggle-knob" />
+                </div>
+              </div>
+
+              {/* 6. Next Skill Upgrade Pointer */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
                 <div>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -492,7 +581,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* 6. Core Item Goal */}
+              {/* 7. Core Item Goal */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
                 <div>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -510,7 +599,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* 7. Mayhem Augments */}
+              {/* 8. Trinket Vision & Swap Reminder */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>👁️ Trinket Vision & Ward Swap Reminder</span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                    Pings when 2 ward charges are sitting idle, and alerts at 14:00 to swap stealth wards for Oracle Lens or Farsight Alteration.
+                  </div>
+                </div>
+                <div
+                  className={`toggle-switch ${settings.hudTrinketReminder !== false ? 'on' : ''}`}
+                  onClick={() => onUpdateSetting('hudTrinketReminder', settings.hudTrinketReminder === false ? true : false)}
+                >
+                  <div className="toggle-knob" />
+                </div>
+              </div>
+
+              {/* 9. Mayhem Augments */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
                 <div>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -528,7 +635,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* 8. Jungle Pathing */}
+              {/* 10. ARAM Health Relic Respawn Timers */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>💚 ARAM Health Relic Respawn Timers</span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                    Tracks health relic shrines (Ally & Enemy Inner/Outer) on Howling Abyss with live 60s respawn countdowns.
+                  </div>
+                </div>
+                <div
+                  className={`toggle-switch ${settings.hudAramHealthTimers !== false ? 'on' : ''}`}
+                  onClick={() => onUpdateSetting('hudAramHealthTimers', settings.hudAramHealthTimers === false ? true : false)}
+                >
+                  <div className="toggle-knob" />
+                </div>
+              </div>
+
+              {/* 11. Jungle Pathing */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>

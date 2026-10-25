@@ -272,6 +272,40 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const targetCost = 3100;
   const goldRemaining = Math.max(0, targetCost - currentGold);
 
+  // Game Mode Detection
+  const rawGameMode = (liveData?.gameData?.gameMode || '').toUpperCase();
+  const rawMapName = (liveData?.gameData?.mapName || '').toUpperCase();
+  const isAramMode = rawGameMode.includes('ARAM') || rawMapName.includes('MAP12') || rawMapName.includes('HOWLINGABYSS');
+  const isArenaMode = rawGameMode.includes('CHERRY') || rawGameMode.includes('ARENA');
+  const isUrfMode = rawGameMode.includes('URF');
+
+  // Teammate Ultimate Timers (Interactive Click-to-Track Teammate R Ults)
+  const [teammateUlts, setTeammateUlts] = useState([
+    { role: 'JG', champ: 'Lee Sin', name: "Dragon's Rage", total: 110, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/BlindMonkRKick.png' },
+    { role: 'MID', champ: 'Ahri', name: 'Spirit Rush', total: 130, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/AhriTumble.png' },
+    { role: 'ADC', champ: 'Jinx', name: 'Super Mega Death Rocket!', total: 90, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/JinxR.png' },
+    { role: 'SUP', champ: 'Thresh', name: 'The Box', total: 120, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/ThreshRPenta.png' },
+  ]);
+
+  // ARAM Health Relic Timers (Track health relic respawn times in ARAM)
+  const [aramRelics, setAramRelics] = useState([
+    { id: 'ally_outer', name: 'Ally Outer', icon: '💚', total: 60, remaining: 0, active: false, mapPos: { bottom: '11.5vh', right: '11.2vw' } },
+    { id: 'ally_inner', name: 'Ally Inner', icon: '💚', total: 60, remaining: 0, active: false, mapPos: { bottom: '14.8vh', right: '13.8vw' } },
+    { id: 'enemy_inner', name: 'Enemy Inner', icon: '💚', total: 60, remaining: 0, active: false, mapPos: { bottom: '17.8vh', right: '7.5vw' } },
+    { id: 'enemy_outer', name: 'Enemy Outer', icon: '💚', total: 60, remaining: 0, active: false, mapPos: { bottom: '21.0vh', right: '4.8vw' } },
+  ]);
+
+  // Jungle First Clear Pathing Route (Bot Leash / Full Clear)
+  const jungleClearSteps = [
+    { name: 'Red Buff', time: '1:30', start: 90, end: 110, icon: '🔴' },
+    { name: 'Krugs', time: '1:50', start: 110, end: 135, icon: '🗿' },
+    { name: 'Raptors', time: '2:15', start: 135, end: 160, icon: '🦅' },
+    { name: 'Wolves', time: '2:40', start: 160, end: 180, icon: '🐺' },
+    { name: 'Blue Buff', time: '3:00', start: 180, end: 195, icon: '🔵' },
+    { name: 'Gromp', time: '3:15', start: 195, end: 210, icon: '🐸' },
+    { name: 'Scuttle', time: '3:30', start: 210, end: 240, icon: '🦀' },
+  ];
+
   // Summoner Spell Timers (Interactive Click-to-Track)
   const [enemySpells, setEnemySpells] = useState([
     { role: 'TOP', champ: opponentChampObj.name, name: 'Flash', total: 300, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/SummonerFlash.png' },
@@ -431,12 +465,64 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
           return obj;
         })
       );
+      setTeammateUlts((prev) =>
+        prev.map((u) => {
+          if (u.active && u.remaining > 0) {
+            return { ...u, remaining: u.remaining - 1 };
+          } else if (u.active && u.remaining <= 1) {
+            soundService.playAutoAccept();
+            return { ...u, active: false, remaining: 0 };
+          }
+          return u;
+        })
+      );
+      setAramRelics((prev) =>
+        prev.map((r) => {
+          if (r.active && r.remaining > 0) {
+            return { ...r, remaining: r.remaining - 1 };
+          } else if (r.active && r.remaining <= 1) {
+            soundService.playAutoAccept();
+            return { ...r, active: false, remaining: 0 };
+          }
+          return r;
+        })
+      );
     }, 1000);
     return () => clearInterval(ticker);
   }, []);
 
   const handleTriggerSpell = (idx: number) => {
     setEnemySpells((prev) => {
+      const copy = [...prev];
+      if (copy[idx].active) {
+        copy[idx].active = false;
+        copy[idx].remaining = 0;
+      } else {
+        copy[idx].active = true;
+        copy[idx].remaining = copy[idx].total;
+        soundService.playTimerTick();
+      }
+      return copy;
+    });
+  };
+
+  const handleTriggerTeammateUlt = (idx: number) => {
+    setTeammateUlts((prev) => {
+      const copy = [...prev];
+      if (copy[idx].active) {
+        copy[idx].active = false;
+        copy[idx].remaining = 0;
+      } else {
+        copy[idx].active = true;
+        copy[idx].remaining = copy[idx].total;
+        soundService.playTimerTick();
+      }
+      return copy;
+    });
+  };
+
+  const handleTriggerAramRelic = (idx: number) => {
+    setAramRelics((prev) => {
       const copy = [...prev];
       if (copy[idx].active) {
         copy[idx].active = false;
@@ -904,9 +990,101 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
               )}
 
               {/* 3. IN-MAP OBJECTIVE TIMERS & TACTICAL MINIMAP HUD */}
-              {settings?.hudObjectiveTimers !== false && (
+              {/* 3A. ARAM HEALTH RELIC TIMERS & MINIMAP PINS (When playing ARAM / Howling Abyss) */}
+              {isAramMode && settings?.hudAramHealthTimers !== false && (
                 <>
-                  {/* 3A. TACTICAL MINIMAP OBJECTIVE HUD (Unblockable Header Bar Docked Directly Above Minimap) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '26.2vh',
+                      right: '0.8vw',
+                      pointerEvents: 'auto',
+                      zIndex: 9999,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: 'rgba(5, 10, 22, 0.94)',
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(16, 185, 129, 0.45)',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.85), 0 0 12px rgba(16, 185, 129, 0.25)',
+                      borderRadius: '8px',
+                      padding: '3px 8px',
+                    }}
+                  >
+                    <span style={{ fontSize: '10px', fontWeight: 900, color: '#10b981', marginRight: '2px' }}>
+                      ARAM Relics:
+                    </span>
+                    {aramRelics.map((relic, idx) => (
+                      <button
+                        key={relic.id}
+                        onClick={() => handleTriggerAramRelic(idx)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 6px',
+                          borderRadius: '5px',
+                          background: relic.active ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
+                          border: relic.active ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(16, 185, 129, 0.35)',
+                          cursor: 'pointer',
+                        }}
+                        title={`Click to mark ${relic.name} taken (60s respawn)`}
+                      >
+                        <span style={{ fontSize: '10px' }}>{relic.icon}</span>
+                        <span style={{ fontSize: '9px', fontWeight: 800, color: '#cbd5e1' }}>{relic.name}</span>
+                        <span
+                          className="tabular-nums"
+                          style={{
+                            fontSize: '9.5px',
+                            fontWeight: 900,
+                            color: relic.active ? '#f43f5e' : '#10b981',
+                          }}
+                        >
+                          {relic.active ? `${relic.remaining}s` : 'UP'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* On-Map ARAM Health Relic Pins */}
+                  {aramRelics.map((relic) => {
+                    if (!relic.active || relic.remaining <= 0) return null;
+                    return (
+                      <div
+                        key={`map-${relic.id}`}
+                        style={{
+                          position: 'absolute',
+                          bottom: relic.mapPos.bottom,
+                          right: relic.mapPos.right,
+                          transform: 'translate(50%, 50%)',
+                          pointerEvents: 'none',
+                          zIndex: 9999,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          background: 'rgba(5, 10, 20, 0.94)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1.5px solid #10b981',
+                          boxShadow: '0 2px 10px rgba(0,0,0,0.9), 0 0 10px rgba(16, 185, 129, 0.5)',
+                          borderRadius: '12px',
+                          padding: '2px 6px',
+                          animation: relic.remaining <= 10 ? 'pulse-blue 1.2s infinite' : 'none',
+                        }}
+                      >
+                        <span style={{ fontSize: '9px' }}>💚</span>
+                        <span className="tabular-nums" style={{ fontSize: '9.5px', fontWeight: 900, color: '#10b981' }}>
+                          {relic.remaining}s
+                        </span>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* 3B. SUMMONER'S RIFT MINIMAP OBJECTIVE HUD (Drake, Grubs, Baron, Buffs) */}
+              {!isAramMode && settings?.hudObjectiveTimers !== false && (
+                <>
                   <div
                     style={{
                       position: 'absolute',
@@ -965,9 +1143,8 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     ))}
                   </div>
 
-                  {/* 3B. ON-MAP SPAWN PIT PINS (Pinpointed directly inside dragon, baron, and buff pits) */}
+                  {/* On-Map Spawn Pit Pins (Pinpointed directly inside dragon, baron, and buff pits) */}
                   {campTimers.map((camp) => {
-                    // Only show on-map countdown while dead/spawning (remaining > 0)
                     if (camp.remaining <= 0) return null;
                     return (
                       <div
@@ -1101,12 +1278,45 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </div>
               )}
 
+              {/* 5B. TRINKET REMINDER OVERLAY (Vision alert & 14m swap) */}
+              {settings?.hudTrinketReminder !== false && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '95px',
+                    left: 'calc(50% + 285px)',
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(5, 10, 20, 0.90)',
+                    backdropFilter: 'blur(14px)',
+                    WebkitBackdropFilter: 'blur(14px)',
+                    border: gameTime >= 840 ? '1.5px solid #f59e0b' : '1px solid rgba(0, 210, 255, 0.4)',
+                    padding: '4px 9px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.8)',
+                    animation: gameTime >= 840 && gameTime <= 960 ? 'pulse-blue 1.5s infinite' : 'none',
+                  }}
+                >
+                  <span style={{ fontSize: '13px' }}>{gameTime >= 840 ? '🔄' : '👁️'}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '8px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+                      {gameTime >= 840 ? 'Trinket Swap (14m)' : 'Vision Ready'}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 900, color: gameTime >= 840 ? '#f59e0b' : '#38bdf8' }}>
+                      {gameTime >= 840 ? 'Swap to Sweeper / Blue' : 'Wards Available (2/2)'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* 6. ENEMY SPELL TRACKER DOCK (Pinned to left side) */}
               {settings?.hudSpellTimers !== false && (
                 <div
                   style={{
                     position: 'absolute',
-                    top: '28%',
+                    top: '25%',
                     left: '14px',
                     pointerEvents: 'auto',
                     display: 'flex',
@@ -1153,6 +1363,115 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                       </span>
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* 6B. TEAMMATE ULTIMATE TIMERS DOCK (Display teammate R cooldown & readiness) */}
+              {settings?.hudUltimateTimers !== false && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '45%',
+                    left: '14px',
+                    pointerEvents: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    background: 'rgba(5, 10, 20, 0.88)',
+                    backdropFilter: 'blur(14px)',
+                    WebkitBackdropFilter: 'blur(14px)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    padding: '6px 8px',
+                    borderRadius: '10px',
+                    boxShadow: '0 6px 20px rgba(0,0,0,0.8)',
+                    zIndex: 9998,
+                  }}
+                >
+                  <div style={{ fontSize: '8.5px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+                    Teammate Ults
+                  </div>
+                  {teammateUlts.map((ult, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleTriggerTeammateUlt(idx)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '6px',
+                        padding: '3px 6px',
+                        borderRadius: '4px',
+                        background: ult.active ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
+                        border: ult.active ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(16, 185, 129, 0.35)',
+                        cursor: 'pointer',
+                      }}
+                      title={`Click to mark ${ult.champ} R used`}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '8px', fontWeight: 800, color: '#38bdf8', width: '20px', textAlign: 'left' }}>
+                          {ult.role}
+                        </span>
+                        <img src={ult.icon} alt={ult.name} style={{ width: '14px', height: '14px', borderRadius: '2px' }} />
+                      </div>
+                      <span className="tabular-nums" style={{ fontSize: '9px', fontWeight: 800, color: ult.active ? '#f87171' : '#10b981' }}>
+                        {ult.active ? `${ult.remaining}s` : 'RDY'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* 7. JUNGLE PATHING OVERLAY (Clear Route & Scuttle Gank Window) */}
+              {!isAramMode && settings?.hudJunglePathing !== false && gameTime < 240 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '60px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'rgba(5, 10, 22, 0.94)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(0, 210, 255, 0.35)',
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.8)',
+                    zIndex: 9998,
+                  }}
+                >
+                  <span style={{ fontSize: '9px', fontWeight: 900, color: 'var(--blue-primary)', textTransform: 'uppercase', marginRight: '4px' }}>
+                    🧭 Jungle Path:
+                  </span>
+                  {jungleClearSteps.map((step, idx) => {
+                    const isActive = gameTime >= step.start && gameTime < step.end;
+                    const isDone = gameTime >= step.end;
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px',
+                          fontSize: '8.5px',
+                          fontWeight: isActive ? 900 : 700,
+                          color: isActive ? '#00d2ff' : isDone ? '#64748b' : '#cbd5e1',
+                          background: isActive ? 'rgba(0, 210, 255, 0.2)' : 'transparent',
+                          padding: isActive ? '1px 5px' : '0 2px',
+                          borderRadius: '4px',
+                          border: isActive ? '1px solid rgba(0, 210, 255, 0.5)' : 'none',
+                        }}
+                      >
+                        <span>{step.icon}</span>
+                        <span>{step.name}</span>
+                        <span style={{ opacity: 0.7, fontSize: '7.5px' }}>({step.time})</span>
+                        {idx < jungleClearSteps.length - 1 && <span style={{ color: '#475569', margin: '0 1px' }}>➔</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -21,7 +21,7 @@ import {
   ShoppingBag,
   TrendingUp,
 } from 'lucide-react';
-import { ChampSelectSession } from '../types';
+import { ChampSelectSession, AppSettings } from '../types';
 import { CHAMPIONS_LIST, getChampionBuild, getChampionIcon, getChampionSplash } from '../services/championData';
 import { RUNE_TREES, STAT_SHARDS, SUMMONER_SPELLS } from '../services/runeData';
 import { RuneCustomizer } from './RuneCustomizer';
@@ -66,7 +66,18 @@ interface ChampSelectViewProps {
   session: ChampSelectSession | null;
   selectedChampionId?: number;
   onSelectChampion?: (championId: number) => void;
+  settings?: AppSettings;
+  onUpdateSetting?: (key: keyof AppSettings, value: any) => void;
 }
+
+// Helper to order summoner spells according to user Flash key preference (Flash on D or Flash on F)
+export const orderSpellsWithPreference = (spells: [number, number], pref: 'D' | 'F' = 'F'): [number, number] => {
+  if (!spells || spells.length < 2) return spells;
+  const hasFlash = spells.includes(4);
+  if (!hasFlash) return spells;
+  const other = spells.find((id) => id !== 4) ?? spells[1];
+  return pref === 'D' ? [4, other] : [other, 4];
+};
 
 // Helper to extract active hovered or locked champion from League Client session
 export const extractLcuChampionId = (sess: ChampSelectSession | null): number => {
@@ -106,6 +117,8 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   session,
   selectedChampionId,
   onSelectChampion,
+  settings,
+  onUpdateSetting,
 }) => {
   const [patchState, setPatchState] = useState<PatchState>(patchService.getPatchState());
   const [selectedChampId, setSelectedChampId] = useState<number>(selectedChampionId || 420);
@@ -126,6 +139,8 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
   // Active Build & Customization State
   const champ = currentChampions.find((c) => Number(c.id) === Number(selectedChampId)) || currentChampions[0];
   const initialBuild = getChampionBuild(champ.id, champ.name);
+  const flashPref = settings?.flashSlotPreference || 'F';
+  const defaultSpells = orderSpellsWithPreference(initialBuild.spells, flashPref);
 
   // Per-champion custom overrides (presets, custom runes, and swapped spells)
   const [customRunesByChamp, setCustomRunesByChamp] = useState<Record<number, {
@@ -140,7 +155,7 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
     primaryStyleId: initialBuild.runes.primaryStyleId,
     subStyleId: initialBuild.runes.subStyleId,
     selectedPerkIds: initialBuild.runes.selectedPerkIds,
-    spells: initialBuild.spells,
+    spells: defaultSpells,
     activePreset: 'meta' as const,
   };
 
@@ -210,7 +225,8 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
       }
 
       // Auto-import optimal summoner spells (Flash, Smite, TP, Ignite, etc.) to client
-      const spellsToUse = customRunesByChamp[selectedChampId]?.spells || targetBuild.spells;
+      const rawSpells = customRunesByChamp[selectedChampId]?.spells || targetBuild.spells;
+      const spellsToUse = orderSpellsWithPreference(rawSpells, flashPref);
       if (autoImport && window.riftAPI?.importSpells && spellsToUse && spellsToUse.length === 2) {
         setSpellStatus('importing');
         window.riftAPI
@@ -368,6 +384,9 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
       nextSpells[1 - activeSpellSlot] = nextSpells[activeSpellSlot];
     }
     nextSpells[activeSpellSlot] = spellId;
+    if (spellId === 4 && onUpdateSetting) {
+      onUpdateSetting('flashSlotPreference', activeSpellSlot === 0 ? 'D' : 'F');
+    }
     setCustomRunesByChamp((prev) => ({
       ...prev,
       [selectedChampId]: {
@@ -381,6 +400,38 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
     setActiveSpellSlot(null);
     soundService.playTimerTick();
 
+    if (autoImport && window.riftAPI?.importSpells) {
+      setSpellStatus('importing');
+      window.riftAPI
+        .importSpells(nextSpells[0], nextSpells[1])
+        .then(() => {
+          setSpellStatus('success');
+          setTimeout(() => setSpellStatus('idle'), 2500);
+        })
+        .catch(() => {
+          setSpellStatus('idle');
+        });
+    }
+  };
+
+  // Swap Key D and Key F summoner spell slots
+  const handleSwapSpellSlots = () => {
+    const nextSpells: [number, number] = [selectedSpells[1], selectedSpells[0]];
+    setCustomRunesByChamp((prev) => ({
+      ...prev,
+      [selectedChampId]: {
+        primaryStyleId,
+        subStyleId,
+        selectedPerkIds,
+        spells: nextSpells,
+        activePreset,
+      },
+    }));
+    if (nextSpells.includes(4) && onUpdateSetting) {
+      const newPref = nextSpells[0] === 4 ? 'D' : 'F';
+      onUpdateSetting('flashSlotPreference', newPref);
+    }
+    soundService.playTimerTick();
     if (autoImport && window.riftAPI?.importSpells) {
       setSpellStatus('importing');
       window.riftAPI
@@ -890,17 +941,129 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
           {/* Summoner Spells Card */}
           <div className="glass-card" style={{ padding: '16px 20px' }}>
-            <div className="card-header" style={{ marginBottom: '12px' }}>
-              <div className="card-title">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Sparkles size={16} color="var(--blue-primary)" />
-                <span>Summoner Spells (Click to swap)</span>
+                <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>Summoner Spells</span>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={handleSwapSpellSlots}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid var(--border-subtle)',
+                    color: '#cbd5e1',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  title="Swap Key D and Key F positions"
+                >
+                  <span>⇄ Swap D / F</span>
+                </button>
+                <div style={{ display: 'flex', gap: '3px' }}>
+                  {(['D', 'F'] as const).map((key) => {
+                    const isActive = flashPref === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          if (onUpdateSetting) onUpdateSetting('flashSlotPreference', key);
+                          const ordered = orderSpellsWithPreference(selectedSpells, key);
+                          setCustomRunesByChamp((prev) => ({
+                            ...prev,
+                            [selectedChampId]: {
+                              primaryStyleId,
+                              subStyleId,
+                              selectedPerkIds,
+                              spells: ordered,
+                              activePreset,
+                            },
+                          }));
+                          if (window.riftAPI?.importSpells) {
+                            window.riftAPI.importSpells(ordered[0], ordered[1]);
+                          }
+                          soundService.playTimerTick();
+                        }}
+                        style={{
+                          fontSize: '10.5px',
+                          fontWeight: 800,
+                          padding: '2px 7px',
+                          borderRadius: '5px',
+                          background: isActive ? 'rgba(0, 210, 255, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                          border: isActive ? '1.5px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
+                          color: isActive ? '#00d2ff' : '#94a3b8',
+                          cursor: 'pointer',
+                        }}
+                        title={`Set Key ${key} as Default position for Flash / primary spells`}
+                      >
+                        ⚡ Flash on {key} {isActive ? '(Default)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Explicit Default Position Info Banner */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: 'rgba(0, 210, 255, 0.05)',
+                border: '1px solid rgba(0, 210, 255, 0.18)',
+                marginBottom: '12px',
+                fontSize: '11px',
+                flexWrap: 'wrap',
+                gap: '6px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: '#94a3b8' }}>Default Spell Position:</span>
+                <span
+                  style={{
+                    fontWeight: 800,
+                    color: 'var(--blue-primary)',
+                    background: 'rgba(0, 210, 255, 0.15)',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(0, 210, 255, 0.3)',
+                  }}
+                >
+                  Key {flashPref} (Default Slot)
+                </span>
+                <span style={{ color: '#cbd5e1' }}>
+                  {selectedSpells.includes(4)
+                    ? `Flash automatically placed on Key ${flashPref}`
+                    : `Primary spell assigned to Key ${flashPref}`}
+                </span>
+              </div>
+              <span style={{ fontSize: '10px', color: '#64748b' }}>
+                Auto-sorts on champ lock
+              </span>
             </div>
 
             <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
               {[0, 1].map((slotIdx) => {
                 const sId = selectedSpells[slotIdx];
                 const spell = SUMMONER_SPELLS[sId] || SUMMONER_SPELLS[4];
+                const keyLetter = slotIdx === 0 ? 'D' : 'F';
+                const isFlash = sId === 4;
+                const hasFlash = selectedSpells.includes(4);
+                const isDefault = isFlash
+                  ? flashPref === keyLetter
+                  : !hasFlash && flashPref === keyLetter;
+
                 return (
                   <button
                     key={slotIdx}
@@ -916,15 +1079,59 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                       border: activeSpellSlot === slotIdx ? '2px solid var(--blue-primary)' : '1px solid var(--border-subtle)',
                       cursor: 'pointer',
                       boxShadow: activeSpellSlot === slotIdx ? '0 0 12px var(--blue-glow)' : 'none',
+                      position: 'relative',
                     }}
                   >
-                    <img src={spell.icon} alt={spell.name} style={{ width: '32px', height: '32px', borderRadius: '6px' }} />
-                    <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>
-                        {slotIdx === 0 ? 'D Spell: ' : 'F Spell: '}{spell.name}
+                    <div style={{ position: 'relative' }}>
+                      <img src={spell.icon} alt={spell.name} style={{ width: '32px', height: '32px', borderRadius: '6px' }} />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          right: '-4px',
+                          background: '#050811',
+                          color: 'var(--blue-primary)',
+                          border: '1px solid var(--blue-primary)',
+                          borderRadius: '3px',
+                          fontSize: '9px',
+                          fontWeight: 900,
+                          padding: '0 3px',
+                        }}
+                      >
+                        {keyLetter}
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>
+                          Key {keyLetter}: {spell.name}
+                        </span>
+                        {isFlash ? (
+                          flashPref === keyLetter ? (
+                            <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(0, 210, 255, 0.2)', color: 'var(--blue-primary)', border: '1px solid rgba(0, 210, 255, 0.35)' }}>
+                              ★ DEFAULT FLASH
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                              ⚡ FLASH (SLOT {keyLetter})
+                            </span>
+                          )
+                        ) : hasFlash ? (
+                          <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.06)', color: '#94a3b8', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                            SECONDARY
+                          </span>
+                        ) : isDefault ? (
+                          <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(0, 210, 255, 0.15)', color: 'var(--blue-primary)', border: '1px solid rgba(0, 210, 255, 0.3)' }}>
+                            ★ DEFAULT SLOT
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '8.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.06)', color: '#94a3b8', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                            SECONDARY
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>
-                        CD: {spell.cooldown}s • Click to swap
+                      <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
+                        CD: {spell.cooldown}s • {isDefault ? `Default position (Key ${keyLetter})` : `Secondary position`} • Click to swap
                       </div>
                     </div>
                   </button>
@@ -943,29 +1150,42 @@ export const ChampSelectView: React.FC<ChampSelectViewProps> = ({
                   borderRadius: '8px',
                 }}
               >
-                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--blue-primary)', marginBottom: '8px' }}>
-                  Select Spell for {activeSpellSlot === 0 ? 'Key D' : 'Key F'}:
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--blue-primary)' }}>
+                    Select Spell for {activeSpellSlot === 0 ? 'Key D (Slot 1)' : 'Key F (Slot 2)'}:
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                    Default Flash Key: <strong style={{ color: 'var(--blue-primary)' }}>Key {flashPref}</strong>
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                  {Object.values(SUMMONER_SPELLS).map((sp) => (
-                    <button
-                      key={sp.id}
-                      onClick={() => handleSelectSpell(sp.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '6px',
-                        borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid var(--border-subtle)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <img src={sp.icon} alt={sp.name} style={{ width: '20px', height: '20px', borderRadius: '4px' }} />
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#fff' }}>{sp.name}</span>
-                    </button>
-                  ))}
+                  {Object.values(SUMMONER_SPELLS).map((sp) => {
+                    const isSpFlash = sp.id === 4;
+                    return (
+                      <button
+                        key={sp.id}
+                        onClick={() => handleSelectSpell(sp.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px',
+                          borderRadius: '6px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: isSpFlash ? '1px solid rgba(0, 210, 255, 0.4)' : '1px solid var(--border-subtle)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <img src={sp.icon} alt={sp.name} style={{ width: '20px', height: '20px', borderRadius: '4px' }} />
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#fff' }}>{sp.name}</span>
+                        {isSpFlash && (
+                          <span style={{ fontSize: '8px', fontWeight: 800, padding: '1px 4px', borderRadius: '3px', background: 'rgba(0, 210, 255, 0.2)', color: 'var(--blue-primary)', marginLeft: 'auto' }}>
+                            Default {flashPref}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -742,10 +742,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Format: AARRGGBB hex string where AA=00 means fully transparent.
     std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "00000000");
 
-    // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode
+    // Optimize WebView2 memory: limit to 1 renderer process, disable unused Edge telemetry/features, enable low-memory mode, disable print preview
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-        "--renderer-process-limit=1 --enable-low-end-device-mode --disable-features=msWebOOUI,msPdfOOUI,Translate,msEdgeSidebarV2,msHub,msEdgeRewards --disable-gpu-shader-disk-cache --disable-background-networking --disable-component-update --disk-cache-size=10485760 --media-cache-size=10485760"
+        "--renderer-process-limit=1 --enable-low-end-device-mode --disable-print-preview --disable-features=msWebOOUI,msPdfOOUI,Translate,msEdgeSidebarV2,msHub,msEdgeRewards,PrintCompositor,PrintBrowser --disable-gpu-shader-disk-cache --disable-background-networking --disable-component-update --disk-cache-size=10485760 --media-cache-size=10485760"
     );
 
     if is_already_running() {
@@ -828,8 +828,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     {
         let hotkey_proxy = proxy.clone();
+        let hotkey_state = Arc::clone(&state);
+        let hotkey_window = Arc::clone(&window);
         std::thread::spawn(move || {
             let mut was_pressed = false;
+            let mut was_transparent = true;
 
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(20));
@@ -847,6 +850,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = hotkey_proxy.send_event(AppUserEvent::ToggleOverlay);
                 }
                 was_pressed = is_combo_down;
+
+                // Smart In-Game Click-Through / Interactive Hit-Testing
+                let is_compact = {
+                    let st = hotkey_state.lock().unwrap();
+                    st.is_compact
+                };
+
+                if is_compact {
+                    let mut pt: POINT = POINT { x: 0, y: 0 };
+                    unsafe {
+                        GetCursorPos(&mut pt);
+                        let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
+                        let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
+
+                        // 1. Top HUD Bar & Cards Drawer: x centered within 280px, y within 65px (or up to 450px if inspecting cards)
+                        let in_top_hud = pt.y >= 0 && pt.y <= 65 && pt.x >= (sw / 2 - 280) && pt.x <= (sw / 2 + 280);
+                        let in_cards_drawer = pt.y >= 45 && pt.y <= 450 && pt.x >= (sw / 2 - 230) && pt.x <= (sw / 2 + 230);
+                        // 2. Enemy Spells & Teammate Ults Dock: left margin x 0..200, y 20%..75%
+                        let in_spell_dock = pt.x >= 0 && pt.x <= 200 && pt.y >= (sh * 20 / 100) && pt.y <= (sh * 75 / 100);
+                        // 3. Minimap Header Dock (ARAM Relics / Camp timers): bottom-right margin
+                        let in_minimap_dock = pt.x >= (sw - 360) && pt.x <= sw && pt.y >= (sh - (sh * 30 / 100)) && pt.y <= (sh - (sh * 22 / 100));
+
+                        let should_interact = in_top_hud || in_cards_drawer || in_spell_dock || in_minimap_dock;
+
+                        if should_interact && was_transparent {
+                            let hwnd = hotkey_window.hwnd() as *mut std::ffi::c_void;
+                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                            SetWindowLongW(hwnd, GWL_EXSTYLE, ex & !WS_EX_TRANSPARENT);
+                            was_transparent = false;
+                        } else if !should_interact && !was_transparent {
+                            let hwnd = hotkey_window.hwnd() as *mut std::ffi::c_void;
+                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                            SetWindowLongW(hwnd, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
+                            was_transparent = true;
+                        }
+                    }
+                } else {
+                    was_transparent = true;
+                }
             }
         });
     }
@@ -893,7 +935,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let builder = builder
         .with_initialization_script(r#"
             window.__riftEnvironment = 'wry';
-            console.log('[RiftCore] Running inside Native Rust runtime on Drive F:');
+            // Permanently block browser right-click context menu across the entire application
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }, true);
+            window.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }, true);
+            // Disable browser hotkeys: Print (Ctrl+P), Save (Ctrl+S), View Source (Ctrl+U), Open (Ctrl+O), Reload (F5 / Ctrl+R), DevTools (F12)
+            window.addEventListener('keydown', function(e) {
+                var key = e.key ? e.key.toLowerCase() : '';
+                var code = e.keyCode || e.which;
+                var ctrl = e.ctrlKey || e.metaKey;
+                if (ctrl && (key === 'p' || code === 80)) { e.preventDefault(); e.stopPropagation(); return false; }
+                if (ctrl && (key === 's' || code === 83)) { e.preventDefault(); e.stopPropagation(); return false; }
+                if (ctrl && (key === 'u' || code === 85)) { e.preventDefault(); e.stopPropagation(); return false; }
+                if (ctrl && (key === 'o' || code === 79)) { e.preventDefault(); e.stopPropagation(); return false; }
+                if (key === 'f5' || code === 116 || (ctrl && (key === 'r' || code === 82))) { e.preventDefault(); e.stopPropagation(); return false; }
+                if (key === 'f12' || code === 123 || (ctrl && e.shiftKey && (key === 'i' || code === 73))) { e.preventDefault(); e.stopPropagation(); return false; }
+            }, true);
+            window.print = function() {};
+            console.log('[RiftCore] Running inside Native Rust runtime on Drive F: (Right-click & Print disabled)');
         "#)
         .with_custom_protocol("rift".into(), move |_webview_id, request: Request<Vec<u8>>| {
             let path = request.uri().path();

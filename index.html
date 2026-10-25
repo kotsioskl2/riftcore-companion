@@ -24,6 +24,68 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Rajdhani:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      // 1. Permanently disable browser right-click context menu (blocks Edge Print/Inspect popup)
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }, { capture: true, passive: false });
+      window.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }, { capture: true, passive: false });
+
+      // 2. Disable browser shortcuts: Print (Ctrl+P), Save (Ctrl+S), View Source (Ctrl+U), Open (Ctrl+O), Reload (F5 / Ctrl+R)
+      window.addEventListener('keydown', function(e) {
+        var key = e.key ? e.key.toLowerCase() : '';
+        var code = e.keyCode || e.which;
+        var ctrl = e.ctrlKey || e.metaKey;
+
+        // Print: Ctrl+P
+        if (ctrl && (key === 'p' || code === 80)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Save: Ctrl+S
+        if (ctrl && (key === 's' || code === 83)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // View Source: Ctrl+U
+        if (ctrl && (key === 'u' || code === 85)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Open: Ctrl+O
+        if (ctrl && (key === 'o' || code === 79)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Reload: F5 / Ctrl+R
+        if (key === 'f5' || code === 116 || (ctrl && (key === 'r' || code === 82))) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // DevTools: F12 or Ctrl+Shift+I
+        if (key === 'f12' || code === 123 || (ctrl && e.shiftKey && (key === 'i' || code === 73))) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+      }, { capture: true, passive: false });
+
+      // 3. Stub window.print completely
+      window.print = function() {
+        console.warn('[RiftCore] Printing disabled in native desktop app.');
+      };
+    </script>
   </head>
   <body>
     <div id="root"></div>
