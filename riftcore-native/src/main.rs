@@ -305,12 +305,6 @@ extern "system" {
     fn GetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32) -> i32;
     fn SetWindowLongW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: i32) -> i32;
     fn GetAncestor(hwnd: *mut std::ffi::c_void, gaFlags: u32) -> *mut std::ffi::c_void;
-    fn SetLayeredWindowAttributes(
-        hwnd: *mut std::ffi::c_void,
-        crKey: u32,
-        bAlpha: u8,
-        dwFlags: u32,
-    ) -> i32;
     fn SetWindowPos(
         hWnd: *mut std::ffi::c_void,
         hWndInsertAfter: *mut std::ffi::c_void,
@@ -472,17 +466,10 @@ const WS_EX_APPWINDOW: i32 = 0x00040000;
 const WS_EX_NOACTIVATE: i32 = 0x08000000;
 const WS_EX_TRANSPARENT: i32 = 0x00000020;
 const WS_EX_LAYERED: i32 = 0x00080000;
-const LWA_ALPHA: u32 = 0x00000002;
 
 #[cfg(target_os = "windows")]
 unsafe fn set_overlay_extended_style(hwnd: *mut std::ffi::c_void, style: i32) {
-    let previous_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
     SetWindowLongW(hwnd, GWL_EXSTYLE, style);
-    if style & WS_EX_LAYERED != 0 && previous_style & WS_EX_LAYERED == 0 {
-        // Layered top-level windows are not shown until their alpha mode is initialized.
-        // Keep constant opacity at 100%; WebView2's own per-pixel alpha stays intact.
-        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
-    }
 }
 
 #[cfg(target_os = "windows")]
@@ -551,6 +538,7 @@ const SWP_NOACTIVATE: u32 = 0x0010;
 const SWP_FRAMECHANGED: u32 = 0x0020;
 const SWP_SHOWWINDOW: u32 = 0x0040;
 const SW_HIDE: i32 = 0;
+const SW_SHOW: i32 = 5;
 const SW_SHOWNA: i32 = 8;
 const GA_ROOT: u32 = 2;
 
@@ -816,9 +804,54 @@ fn maintain_overlay_topmost(overlay_hwnd: *mut std::ffi::c_void) {
 }
 
 #[cfg(target_os = "windows")]
+fn launch_hybrid_electron_overlay() {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    let candidates = [
+        exe_dir.join("overlay/RiftCore_Overlay.exe"),
+        exe_dir.join("RiftCore_Overlay.exe"),
+        exe_dir.join("dist_overlay/RiftCore_Overlay-win32-x64/RiftCore_Overlay.exe"),
+        exe_dir.join("../dist_overlay/RiftCore_Overlay-win32-x64/RiftCore_Overlay.exe"),
+        PathBuf::from("F:/league app/RiftCore_Rust_Portable/overlay/RiftCore_Overlay.exe"),
+        PathBuf::from("F:/league app/dist_overlay/RiftCore_Overlay-win32-x64/RiftCore_Overlay.exe"),
+    ];
+
+    for candidate in &candidates {
+        if candidate.exists() {
+            let _ = Command::new(candidate)
+                .arg("--overlay")
+                .creation_flags(0x08000000 /* CREATE_NO_WINDOW */)
+                .spawn();
+            return;
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn terminate_hybrid_electron_overlay() {
+    let _ = Command::new("taskkill")
+        .args(&["/F", "/IM", "RiftCore_Overlay.exe"])
+        .creation_flags(0x08000000 /* CREATE_NO_WINDOW */)
+        .status();
+}
+
+#[cfg(target_os = "windows")]
 fn apply_hud_window_mode(window: &Window, webview: &WebView, mode: &str) {
     unsafe {
         let hwnd = window.hwnd() as *mut std::ffi::c_void;
+
+        // Hybrid Architecture: If integrated in-game overlay is requested,
+        // hide the Rust companion window from the game and launch the dedicated
+        // 100% per-pixel DirectComposition Electron overlay (Zero white box).
+        if mode == "integrated" {
+            ShowWindow(hwnd, SW_HIDE);
+            launch_hybrid_electron_overlay();
+            return;
+        }
+
         let bounds = game_or_primary_bounds();
         let screen_w = bounds.right - bounds.left;
         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
@@ -889,7 +922,7 @@ fn apply_hud_window_mode(window: &Window, webview: &WebView, mode: &str) {
             y,
             width,
             height,
-            SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_SHOWWINDOW,
         );
 
         if mode == "integrated" {
@@ -922,6 +955,8 @@ fn apply_hud_window_mode(window: &Window, webview: &WebView, mode: &str) {
 fn restore_desktop_window(window: &Window, webview: &WebView, focus: bool) {
     unsafe {
         let hwnd = window.hwnd() as *mut std::ffi::c_void;
+        terminate_hybrid_electron_overlay();
+        ShowWindow(hwnd, SW_SHOW);
         let sw = GetSystemMetrics(0 /* SM_CXSCREEN */);
         let sh = GetSystemMetrics(1 /* SM_CYSCREEN */);
         let app_w = scale_for_primary_monitor(1240);
@@ -1984,6 +2019,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     "get-league-window-mode" => {
                         let mut mode = 0;
+                        let mut minimap_scale: f32 = 1.0;
+                        let mut flip_minimap: bool = false;
                         let mut found = false;
                         let mut cfg_path_str = String::new();
                         if let Some(cfg_path) = find_league_game_cfg() {
@@ -1996,14 +2033,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         if let Some(val_str) = trimmed.strip_prefix("WindowMode=") {
                                             mode = val_str.parse::<i32>().unwrap_or(0);
                                         }
-                                        break;
+                                    } else if trimmed.starts_with("MinimapScale=") {
+                                        if let Some(val_str) = trimmed.strip_prefix("MinimapScale=") {
+                                            minimap_scale = val_str.parse::<f32>().unwrap_or(1.0);
+                                        }
+                                    } else if trimmed.starts_with("FlipMiniMap=") {
+                                        if let Some(val_str) = trimmed.strip_prefix("FlipMiniMap=") {
+                                            flip_minimap = val_str.parse::<i32>().unwrap_or(0) == 1;
+                                        }
                                     }
                                 }
                             }
                         }
                         let script = format!(
-                            "window.__riftIpcReply({}, null, {{ found: {}, windowMode: {}, path: \"{}\" }});",
-                            req_id, found, mode, cfg_path_str.replace('\\', "\\\\")
+                            "window.__riftIpcReply({}, null, {{ found: {}, windowMode: {}, minimapScale: {}, flipMinimap: {}, path: \"{}\" }});",
+                            req_id, found, mode, minimap_scale, flip_minimap, cfg_path_str.replace('\\', "\\\\")
                         );
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
                     }
@@ -2447,6 +2491,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match event {
             Event::UserEvent(AppUserEvent::Exit) => {
+                #[cfg(target_os = "windows")]
+                terminate_hybrid_electron_overlay();
                 #[cfg(target_os = "windows")]
                 unsafe {
                     let tray_hwnd = TRAY_HWND.load(std::sync::atomic::Ordering::SeqCst);

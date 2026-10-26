@@ -13,7 +13,7 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "RiftCore Companion"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "1.2.14"
+  !define PRODUCT_VERSION "2.0.0"
 !endif
 !define PRODUCT_PUBLISHER "RiftCore Team"
 !define PRODUCT_WEB_SITE "https://github.com/kotsioskl2/riftcore-companion"
@@ -128,6 +128,7 @@ Section "MainSection" SEC01
   ; Terminate running instance if open
   DetailPrint "Checking for running instances of RiftCore..."
   nsExec::Exec 'taskkill /F /IM RiftCore.exe'
+  nsExec::Exec 'taskkill /F /IM RiftCore_Overlay.exe'
 
   SetOutPath "$INSTDIR"
   SetOverwrite on
@@ -138,6 +139,11 @@ Section "MainSection" SEC01
   File "..\public\icon.ico"
   File "..\LICENSE"
   File "UPDATE_NOTES.txt"
+
+  DetailPrint "Extracting high-performance overlay engine..."
+  SetOutPath "$INSTDIR\overlay"
+  File /r "..\RiftCore_Rust_Portable\overlay\*.*"
+  SetOutPath "$INSTDIR"
 
   ; Create Uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -178,6 +184,7 @@ SectionEnd
 Section Uninstall
   DetailPrint "Closing running instances of RiftCore..."
   nsExec::Exec 'taskkill /F /IM RiftCore.exe'
+  nsExec::Exec 'taskkill /F /IM RiftCore_Overlay.exe'
 
   ; Remove Shortcuts
   DetailPrint "Removing shortcuts..."
@@ -194,6 +201,9 @@ Section Uninstall
   Delete "$INSTDIR\icon.ico"
   Delete "$INSTDIR\UPDATE_NOTES.txt"
   Delete "$INSTDIR\uninstall.exe"
+
+  ; Remove Overlay subsystem
+  RMDir /r "$INSTDIR\overlay"
 
   ; Remove WebView2 User Data cache
   RMDir /r "$INSTDIR\RiftCore.exe.WebView2"

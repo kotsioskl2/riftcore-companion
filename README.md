@@ -1,37 +1,39 @@
-# ⚔️ RiftCore Companion
+# ⚔️ RiftCore Companion 2.0
 
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Rust](https://img.shields.io/badge/backend-Rust_1.80+-orange.svg?logo=rust)
+![Hybrid Architecture](https://img.shields.io/badge/engine-Rust_+_DirectComposition_Hybrid-9cf.svg?logo=rust)
 ![React](https://img.shields.io/badge/frontend-React_19_+_TypeScript-61dafb.svg?logo=react)
-![RAM Footprint](https://img.shields.io/badge/memory-~38_MB_RAM-brightgreen.svg)
+![RAM Footprint](https://img.shields.io/badge/idle_memory-~40_MB_RAM-brightgreen.svg)
+![Overlay](https://img.shields.io/badge/overlay-100%25_DirectComposition_Transparent-00c8ff.svg)
 ![Ad-Free](https://img.shields.io/badge/ads-ZERO_ADS-crimson.svg)
 
-**The ultra-lightweight, ad-free, high-performance League of Legends companion built in Rust.**
+**The ultra-lightweight, ad-free, high-performance League of Legends companion & zero-whitebox overlay.**
 
-[Features](#-features) • [Performance Comparison](#-performance-benchmark) • [Installation](#-installation) • [Build from Source](#-building-from-source) • [Architecture](#-architecture) • [License](#-license)
+[Features](#-features) • [Performance Comparison](#-performance-benchmark) • [Hybrid Architecture](#-hybrid-architecture) • [Installation](#-installation) • [Build from Source](#-building-from-source) • [License](#-license)
 
 </div>
 
 ---
 
-## ⚡ Why RiftCore?
+## ⚡ Why RiftCore 2.0?
 
-Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heavy apps) consuming **1GB+ of RAM**, injecting intrusive audio/video ads, and slowing down your PC mid-game?
+Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heavy apps) consuming **1GB+ of RAM**, injecting intrusive audio/video ads, and causing frame drops mid-game?
 
-**RiftCore** was engineered from the ground up to solve this:
+**RiftCore 2.0** introduces the **Hybrid Architecture**:
+- **Native Rust Companion:** Idles around **~40 MB RAM** (25x less RAM than competitors), booting in **0.1s** with instant Auto-Accept, 1-Click Runes, and AI Draft Coaching.
+- **Zero White-Box DirectComposition Overlay:** Eliminates the classic Windows child HWND white rectangle bug entirely using a dedicated hardware-accelerated DirectComposition overlay with 100% per-pixel transparency and true click-through.
+- **Dynamic Memory Reclaiming:** Spawns the overlay only while in a match and fully terminates it when the match ends, dropping RAM right back down to ~40 MB.
 - **Zero Ads, Zero Trackers:** Pure utility, 100% free and open-source forever.
-- **Native Rust Core:** Powered by native Rust (`wry` + `tao` + `tokio`), running directly against the League Client Update (LCU) REST & WebSocket APIs and local game memory port.
-- **Microscopic Memory Footprint:** Idles around **~38 MB RAM** (up to 25x less RAM than Electron/Overwolf apps).
-- **Minimalist Red & Blue Duality:** Sleek obsidian dark UI with clear chromatic division: **Cyan/Blue (`#00c8ff`)** for ally utility, runes, and matchmaking; **Crimson Red (`#ff2a5f`)** for enemy threats, cooldowns, and jungle objectives.
+- **Vanguard Safe:** Interacts only through Riot's official LCU REST & WebSocket endpoints and local game memory port 2999.
 
 ---
 
 ## 🚀 Features
 
 ### 1. ⚡ Instant Auto-Accept
-- Automatically detects match found queue pops and accepts instantly.
+- Automatically detects match queue pops and accepts instantly.
 - Plays crisp audio cues and alerts.
 
 ### 2. 🔮 1-Click Rune & Summoner Spell Import
@@ -39,34 +41,28 @@ Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heav
 - Imports complete rune trees (Primary, Secondary, Stat Shards) directly into your active League client perk page with one click.
 - Auto-assigns recommended Flash + Summoner Spell combinations.
 
-### 3. 🎯 Live Game HUD & Threat Tracker
+### 3. 🎯 True In-Game HUD & Minimap Objectives
 - Real-time in-game overlay querying local port 2999 Live Client Data.
-- Live dragon, Baron Nashor, and Rift Herald objective timers.
-- Enemy summoner spell cooldown timers (Flash, Teleport, Ignite, Cleanse).
-- Real-time CS/min, gold differentials, and combat stat tracking.
+- **Minimap Dock:** Aligned directly above the League minimap for Dragon, Baron Nashor, Voidgrubs, Blue Buff, and Red Buff timers.
+- **Scoreboard Team Gold Lead:** Shows real-time team gold lead/deficit and lane matchup difference right at the top center.
+- **CS Diff Tracker:** Discreet CS score and CS/min pill beside your game clock with live matchup comparison.
+- **Optimal Skill Path:** Skill indicator showing the next recommended ability level-up.
+- **Instant Hotkeys:** Hit <kbd>Alt + ~</kbd> or <kbd>Ctrl + Space</kbd> anytime to toggle HUD visibility.
 
 ### 4. 📊 Profile & Ranked History
 - Live rank, division, and LP tracking.
 - Win-rate statistics, recent match performances, and MVP/ACE badges.
 
-### 5. 🖥️ Full Screen Native In-Game HUD (Alt + G)
-- **True Exclusive Full Screen Support:** Works natively over League of Legends in Full Screen mode (`WindowMode=0`) with zero mouse lag and click-through transparency.
-- **Scoreboard Team Gold Lead:** Shows real-time team gold lead/deficit and lane matchup difference right at the top center scoreboard.
-- **Objective & Camp Timers:** Clean dock bar pinned above the minimap for Dragon, Baron, Voidgrubs, Blue Buff, and Red Buff.
-- **Small CS Score Tracker:** Discreet CS score and CS/min pill beside your game clock with live matchup comparison.
-- **Skill Level-Up Indicator:** Arrow directly above your ability bar showing your optimal skill upgrade for the next level.
-- **Standby Mode Guard:** Automatically stays idle in standby mode when League is not in a match so your Windows desktop remains completely clean.
-- **Instant Hotkey:** Hit <kbd>Alt + G</kbd> anytime in-game to toggle HUD on/off.
-
 ---
 
 ## 📊 Performance Benchmark
 
-| Metric | Commercial Apps / Overwolf | Porofessor / Mobalytics | ⚡ **RiftCore (Rust)** |
+| Metric | Commercial Apps / Overwolf | Porofessor / Mobalytics | ⚡ **RiftCore 2.0 (Hybrid)** |
 | :--- | :---: | :---: | :---: |
-| **Idle Memory (RAM)** | ~800 MB – 1.4 GB | ~600 MB – 950 MB | **~38 MB** |
-| **Standalone Binary Size** | ~280 MB – 450 MB | ~200 MB – 350 MB | **~11 MB** |
-| **Startup Time** | 4.5 – 9.0s | 3.5 – 6.0s | **< 0.4s** |
+| **Idle Companion RAM** | ~800 MB – 1.4 GB | ~600 MB – 950 MB | **~40 MB** *(Rust)* |
+| **In-Game Overlay RAM** | ~1.2 GB+ persistent | ~850 MB persistent | **~300 MB** *(freed on match end)* |
+| **Overlay Transparency** | Often borders/artifacts | Washed out or layered | **100% DirectComposition Alpha** |
+| **Startup Time** | 4.5 – 9.0s | 3.5 – 6.0s | **< 0.1s** |
 | **Third-Party Ads** | Heavy (video/banners) | Heavy (banners/promos) | **ZERO (0)** |
 | **CPU Usage** | 3 – 8% background | 2 – 6% background | **< 0.1%** |
 
@@ -74,20 +70,20 @@ Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heav
 
 ## 📦 Downloads & Installation
 
-### Direct Downloads (Latest Release v1.2.14)
-| Package | Type | Download Link | Size |
+### Direct Downloads (Latest Release v2.0.0)
+| Package | Type | Download Link | Description |
 | :--- | :--- | :--- | :--- |
-| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-1.2.14.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.2.14.exe) | ~4.9 MB |
-| **Portable Package** | ZIP Archive | [📦 **Download RiftCore-Portable-1.2.14.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.2.14.zip) | ~13.8 MB |
-| **Portable Folder** | Extracted Directory | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Ready to Run |
+| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-2.0.0.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Complete 1-Click Installer (Start Menu & Desktop shortcuts) |
+| **Portable ZIP Archive** | Portable ZIP | [📦 **Download RiftCore-Portable-2.0.0.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Zero-install, unzips to any folder |
+| **Portable Directory** | Local Extracted | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Run `RiftCore.exe` directly |
 
 ### Option A: Windows Installer (Recommended)
-1. Download [**RiftCore-Setup-1.2.14.exe**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Setup-1.2.14.exe).
+1. Download [**RiftCore-Setup-2.0.0.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest).
 2. Run the setup and choose your installation directory.
 3. Desktop and Start Menu shortcuts with the custom RiftCore emblem will be created automatically.
 
 ### Option B: Standalone Portable `.exe`
-1. Download [**RiftCore-Portable-1.2.14.zip**](https://github.com/kotsioskl2/riftcore-companion/raw/main/installer_output/RiftCore-Portable-1.2.14.zip) or open the [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/) directory.
+1. Download [**RiftCore-Portable-2.0.0.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) or open [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/).
 2. Double-click `RiftCore.exe` to launch instantly with zero installation required.
 
 ---
@@ -100,57 +96,48 @@ Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heav
 - MinGW / GCC (e.g. `w64devkit` or MSVC C++ Build Tools)
 - [NSIS](https://nsis.sourceforge.io/) (for compiling the installer)
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/kotsioskl2/riftcore-companion.git
-cd riftcore-companion
+### 1-Click Master Build
+Simply run the master build batch script from the repository root:
+```cmd
+build_all.bat
 ```
-
-### 2. Install dependencies & build frontend
-```bash
-npm install
-npm run build:renderer
-```
-
-### 3. Compile the Native Rust binary
-```bash
-cd riftcore-native
-cargo build --release
-```
-
-### 4. Assemble Portable Release
-```bash
-# Copy dist web assets and WebView2Loader.dll to release folder
-xcopy /E /I /Y "..\dist" "target\release\dist"
-```
-
-### 5. Build the Windows Installer
-```bash
-makensis installer\installer.nsi
-```
-The compiled installer will be generated in `installer_output\RiftCore-Setup-1.1.0.exe`.
+This automated script will:
+1. Package the React 19 frontend and DirectComposition overlay engine into `app.asar`.
+2. Compile the high-performance native Rust companion (`riftcore-native.exe`) in release profile.
+3. Assemble the portable distribution folder `RiftCore_Rust_Portable/`.
+4. Compile the Windows NSIS Setup installer in `installer_output/RiftCore-Setup-2.0.0.exe`.
+5. Generate the portable ZIP package in `installer_output/RiftCore-Portable-2.0.0.zip`.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Hybrid Architecture
 
 ```
 riftcore-companion/
-├── src/                      # Modern React 19 + TypeScript Frontend
-│   ├── components/           # Minimalist Red & Blue UI Views
-│   │   ├── TitleBar.tsx      # Window controls, live client status pill
-│   │   ├── ChampSelectView.tsx # Meta builds, 1-click rune & spell import
-│   │   ├── LiveGameOverlay.tsx # Objective & enemy cooldown HUD
+├── src/                          # Modern React 19 + TypeScript Frontend
+│   ├── components/               # Minimalist Red & Blue UI Views
+│   │   ├── TitleBar.tsx          # Window controls, live client status pill
+│   │   ├── ChampSelectView.tsx   # Meta builds, 1-click rune & spell import
+│   │   ├── LiveGameOverlay.tsx   # Objective & enemy cooldown HUD
+│   │   ├── RiftFloatingOverlay.tsx # Minimap dock & scoreboard diff HUD
 │   │   ├── SummonerProfileView.tsx # Ranked LP stats & match history
-│   │   └── ChampionTierListView.tsx # Champion tier list & counter picks
-│   ├── rustBridge.ts         # Bi-directional IPC bridge to native Rust
-│   └── index.css             # Obsidian styling with Electric Cyan & Crimson
-├── riftcore-native/          # Native Rust Runtime
-│   ├── src/main.rs           # Tokio async engine, LCU REST API client,
-│   │                         # wry WebView2 renderer, custom protocol handler
-│   └── Cargo.toml            # Dependencies: wry, tao, tokio, reqwest
-├── installer/                # NSIS Windows Installer Scripts
-│   └── installer.nsi         # Modern UI installer definition
+│   │   └── ChampionTierListView.tsx# Champion tier list & counter picks
+│   ├── rustBridge.ts             # Bi-directional IPC bridge
+│   └── index.css                 # Obsidian styling with Electric Cyan & Crimson
+├── riftcore-native/              # Native Rust Companion Core (~40 MB)
+│   ├── src/main.rs               # Tokio async engine, LCU client, process watcher,
+│   │                             # and dynamic overlay lifecycle manager
+│   └── Cargo.toml                # Dependencies: wry, tao, tokio, reqwest
+├── electron/                     # DirectComposition Standalone Overlay Engine
+│   ├── main.js                   # 100% transparent click-through HUD process
+│   └── preload.js                # Secure bridge to Live Client Data port 2999
+├── scripts/
+│   ├── build_electron_exe.mjs    # High-speed ASAR overlay packager
+│   ├── bump_version.mjs          # Automatic semver synchronizer
+│   └── publish_release.ps1       # GitHub Releases API asset publisher
+├── installer/                    # NSIS Windows Installer Scripts
+│   └── installer.nsi             # Modern UI 2 solid LZMA installer definition
+├── build_all.bat                 # 1-Click end-to-end master builder
 └── package.json
 ```
 

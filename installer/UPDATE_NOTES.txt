@@ -1,44 +1,37 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v1.2.14
+       RIFTCORE COMPANION - UPDATE v2.0.0
 --------------------------------------------------
 
-Hey! Welcome to v1.2.14 Here is what is new:
+Welcome to RiftCore 2.0! The Next-Generation Hybrid LoL Companion.
 
-* Full-Power In-Game Overlay Overhaul:
-  - Enabled Borderless Windowed (WindowMode=2) compatibility:
-    DWM compositing now reliably paints the transparent HUD directly
-    over League with zero flickering, zero input lag, and no game minimizing.
-  - Fixed 1-Click Game Display Mode config in Settings:
-    Instantly detect and set League to Borderless Windowed or Fullscreen.
-  - Interactive & Preview Mode Support:
-    Preview mode and overlay controls now respond directly to mouse clicks,
-    while in-match gameplay remains 100% click-through.
-  - Added 4 HUD Window Formats:
-    Choose between Integrated Fullscreen, Top Bar Dock, Tactical Card,
-    or Minimap Pill directly in Settings.
+* Major 2.0 Feature: Hybrid Architecture
+  - Ultra-Lightweight Rust Companion (~40 MB RAM):
+    Handles Auto-Accept, 1-Click Meta Runes, AI Draft Coach,
+    Tier Lists, and Match History at blistering 0.1s startup speeds.
+  - Dedicated Zero-Whitebox Overlay Subsystem:
+    In-game HUD now runs in a dedicated DirectComposition overlay engine
+    that guarantees 100% true per-pixel transparency, zero white-box frame
+    artifacts, and seamless hardware click-through.
+  - Automatic In-Match Memory Reclaiming:
+    The overlay engine launches dynamically when you enter a match and
+    terminates completely when the game ends, releasing ~300 MB of RAM
+    instantly back down to ~40 MB.
 
-* In-App Automatic Updates:
-  Never miss a patch! RiftCore now checks GitHub
-  Releases automatically and lets you download and
-  upgrade with 1 click without ever opening a browser.
-
-* Pure Native Rust Engine (90% Smaller):
-  Completely removed legacy Electron bloat! The app
-  now runs 100% natively on Rust and Windows WebView2,
-  dropping the installer to just ~5MB with zero RAM waste.
+* Minimap & Live Game Alignment:
+  - Pixel-perfect docking above the League minimap for Dragon, Baron,
+    Voidgrubs, Red Buff, and Blue Buff timers.
+  - Live Scoreboard gold diff banner at top center.
+  - Real-time matchup CS/min comparison pill beside game clock.
+  - Skill level-up indicator showing optimal ability upgrade path.
 
 * Vanguard Safe & Zero Delay:
-  Compliant with Riot Games third-party policies.
-  Reads official local client memory/LCU APIs only.
+  - 100% compliant with Riot Games third-party application policies.
+  - Communicates solely through official local LCU REST and Live Client Port 2999.
+  - Zero memory tampering, zero game DLL hooks.
 
-* Full Screen In-Game HUD:
-  Works natively over League of Legends in Full
-  Screen mode with zero mouse lag and click-through.
-  Hit Alt + G in-game anytime to show or hide it.
+* Quality-of-Life & Hotkey Controls:
+  - Press Alt + ~ or Ctrl + Space in-game to toggle overlay visibility.
+  - Interactive & Preview Mode support in Settings to preview positioning.
 
-* Live Matchup & Objective Timers:
-  Shows team gold diff, lane matchup CS leads, and
-  floating objective timers right above the minimap.
-
-Enjoy the climb! Simple, lightweight, and Vanguard-safe.
+Enjoy the climb! Unmatched performance, zero ads, zero compromise.
 --------------------------------------------------

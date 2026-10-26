@@ -6,10 +6,17 @@ node_modules/
 # Production & Build outputs
 dist/
 release/
+dist_app/
+dist_electron/
+dist_overlay/
+temp_packager/
+build_staging/
 !installer_output/
 !installer_output/**
+installer_output/*.zip
 !RiftCore_Rust_Portable/
 !RiftCore_Rust_Portable/**
+RiftCore_Rust_Portable/overlay/
 RiftCore_Rust_Portable/RiftCore.exe.WebView2/
 
 *.exe

@@ -339,14 +339,71 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     { role: 'SUP', champ: 'Support', name: 'Ignite', total: 180, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/SummonerDot.png' },
   ]);
 
+  // Dynamic Minimap Scale & Position Calibration (Reads League game.cfg MinimapScale & FlipMiniMap)
+  const [detectedMinimapScale, setDetectedMinimapScale] = useState<number>(2.16);
+  const [detectedMinimapFlip, setDetectedMinimapFlip] = useState<boolean>(false);
+  const [nudgeX, setNudgeX] = useState<number>(0);
+  const [nudgeY, setNudgeY] = useState<number>(0);
+
+  useEffect(() => {
+    if (window.riftAPI?.getLeagueWindowMode) {
+      window.riftAPI.getLeagueWindowMode().then((res) => {
+        if (res?.minimapScale && res.minimapScale > 0) {
+          setDetectedMinimapScale(res.minimapScale);
+        }
+        if (typeof res?.flipMinimap === 'boolean') {
+          setDetectedMinimapFlip(res.flipMinimap);
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  const effectiveMinimapScale = settings?.hudMinimapScale || detectedMinimapScale || 2.16;
+  const isMinimapFlipped = settings?.hudMinimapFlip !== undefined ? settings.hudMinimapFlip : detectedMinimapFlip;
+
+  // On standard 16:9 displays:
+  // Base minimap height at scale 1.0 is ~13.3vh.
+  // At scale 2.16 (user config): mapHeightVh = 13.3 * 2.16 = 28.73vh.
+  // With 16:9 aspect ratio, 1vh = 0.5625vw in pixels, so:
+  // mapWidthVw = mapHeightVh * 0.5625 = 16.16vw.
+  const mapHeightVh = Math.min(46, Math.max(16, 13.3 * effectiveMinimapScale));
+  const mapWidthVw = mapHeightVh * 0.5625;
+
+  const calculatePitPosition = (pitId: 'dragon' | 'upper_pit' | 'blue' | 'red') => {
+    let relBottom = 0;
+    let relSide = 0;
+    switch (pitId) {
+      case 'upper_pit': // Voidgrubs / Rift Herald / Baron Nashor pit
+        relBottom = mapHeightVh * 0.715;
+        relSide = mapWidthVw * 0.69;
+        break;
+      case 'dragon': // Elemental & Elder Dragon pit
+        relBottom = mapHeightVh * 0.32;
+        relSide = mapWidthVw * 0.36;
+        break;
+      case 'blue': // Bot-side Blue Sentinel camp
+        relBottom = mapHeightVh * 0.53;
+        relSide = mapWidthVw * 0.755;
+        break;
+      case 'red': // Bot-side Red Brambleback camp
+        relBottom = mapHeightVh * 0.265;
+        relSide = mapWidthVw * 0.495;
+        break;
+    }
+    const finalBottom = `${(relBottom + nudgeY).toFixed(2)}vh`;
+    const sideValue = `${(relSide + (isMinimapFlipped ? -nudgeX : nudgeX)).toFixed(2)}vw`;
+    return {
+      bottom: finalBottom,
+      ...(isMinimapFlipped ? { left: sideValue } : { right: sideValue }),
+    };
+  };
+
   // Separate camp timers positioned directly on the in-game minimap
-  // Using viewport-relative units (vw/vh) for resolution-independent placement
-  // Minimap is ~13.5vw × 24vh at bottom-right corner on standard 16:9 displays
   const [campTimers, setCampTimers] = useState([
-    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: { bottom: '8.8vh', right: '4.8vw' }, alive: false },
-    { id: 'upper_pit', name: 'Grubs', icon: '👾', total: 300, remaining: Math.max(0, 300 - gameTime), color: '#f43f5e', mapPos: { bottom: '17.2vh', right: '9.5vw' }, alive: false },
-    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 90, color: '#3b82f6', mapPos: { bottom: '12.5vh', right: '9.9vw' }, alive: false },
-    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 90, color: '#ef4444', mapPos: { bottom: '8.0vh', right: '7.0vw' }, alive: false },
+    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: calculatePitPosition('dragon'), alive: false },
+    { id: 'upper_pit', name: 'Grubs', icon: '👾', total: 300, remaining: Math.max(0, 300 - gameTime), color: '#f43f5e', mapPos: calculatePitPosition('upper_pit'), alive: false },
+    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 90, color: '#3b82f6', mapPos: calculatePitPosition('blue'), alive: false },
+    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 90, color: '#ef4444', mapPos: calculatePitPosition('red'), alive: false },
   ]);
 
   // Objective Timers
@@ -451,10 +508,10 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     const redRemaining = gTime < 90 ? 90 - gTime : 0;
 
     setCampTimers([
-      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: { bottom: '8.8vh', right: '4.8vw' }, alive: isDragonAlive },
-      { id: 'upper_pit', name: upperPitName, icon: upperPitIcon, total: upperPitName === 'Baron' ? 360 : 300, remaining: upperPitRemaining, color: upperPitColor, mapPos: { bottom: '17.2vh', right: '9.5vw' }, alive: isUpperPitAlive },
-      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: { bottom: '12.5vh', right: '9.9vw' }, alive: blueRemaining === 0 },
-      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: { bottom: '8.0vh', right: '7.0vw' }, alive: redRemaining === 0 },
+      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: calculatePitPosition('dragon'), alive: isDragonAlive },
+      { id: 'upper_pit', name: upperPitName, icon: upperPitIcon, total: upperPitName === 'Baron' ? 360 : 300, remaining: upperPitRemaining, color: upperPitColor, mapPos: calculatePitPosition('upper_pit'), alive: isUpperPitAlive },
+      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: calculatePitPosition('blue'), alive: blueRemaining === 0 },
+      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: calculatePitPosition('red'), alive: redRemaining === 0 },
     ]);
 
     setObjectives([
@@ -462,7 +519,17 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
       { name: upperPitName, icon: upperPitIcon, total: 300, remaining: upperPitRemaining, color: upperPitColor },
       { name: 'Baron', icon: '👑', total: 1200, remaining: gTime < 1200 ? 1200 - gTime : (upperPitName === 'Baron' ? upperPitRemaining : 0), color: '#c084fc' },
     ]);
-  }, [liveData, isLive]);
+  }, [liveData, isLive, mapHeightVh, mapWidthVw, nudgeX, nudgeY, isMinimapFlipped]);
+
+  // Immediately re-sync pit positions when minimap scale or nudges change
+  useEffect(() => {
+    setCampTimers((prev) =>
+      prev.map((c) => ({
+        ...c,
+        mapPos: calculatePitPosition(c.id as any),
+      }))
+    );
+  }, [effectiveMinimapScale, isMinimapFlipped, nudgeX, nudgeY]);
 
   // Countdown ticker
   useEffect(() => {
@@ -715,6 +782,91 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   >
                     Pill
                   </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>Map Nudge:</span>
+                  <button
+                    onClick={() => setNudgeY((v) => Number((v + 0.5).toFixed(1)))}
+                    title="Nudge Minimap Timers Up"
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ⬆
+                  </button>
+                  <button
+                    onClick={() => setNudgeY((v) => Number((v - 0.5).toFixed(1)))}
+                    title="Nudge Minimap Timers Down"
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ⬇
+                  </button>
+                  <button
+                    onClick={() => setNudgeX((v) => Number((v + 0.5).toFixed(1)))}
+                    title="Nudge Minimap Timers Left"
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ⬅
+                  </button>
+                  <button
+                    onClick={() => setNudgeX((v) => Number((v - 0.5).toFixed(1)))}
+                    title="Nudge Minimap Timers Right"
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ➡
+                  </button>
+                  {(nudgeX !== 0 || nudgeY !== 0) && (
+                    <button
+                      onClick={() => { setNudgeX(0); setNudgeY(0); }}
+                      title="Reset Minimap Nudges"
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        background: 'rgba(239, 68, 68, 0.2)',
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        color: '#f87171',
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -1157,11 +1309,49 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
               {/* 3B. SUMMONER'S RIFT MINIMAP OBJECTIVE HUD (Drake, Grubs, Baron, Buffs) */}
               {!isAramMode && settings?.hudObjectiveTimers !== false && (
                 <>
+                  {/* Minimap Calibration Outline Frame (Visible in Preview Mode to verify perfect alignment over League minimap) */}
+                  {isPreviewMode && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: `${nudgeY}vh`,
+                        ...(isMinimapFlipped ? { left: `${nudgeX}vw` } : { right: `${nudgeX}vw` }),
+                        width: `${mapWidthVw.toFixed(2)}vw`,
+                        height: `${mapHeightVh.toFixed(2)}vh`,
+                        border: '2px dashed rgba(0, 210, 255, 0.75)',
+                        background: 'rgba(0, 210, 255, 0.05)',
+                        pointerEvents: 'none',
+                        zIndex: 9998,
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        paddingTop: '6px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: 'rgba(5, 10, 20, 0.92)',
+                          border: '1px solid var(--blue-primary)',
+                          borderRadius: '6px',
+                          padding: '2px 8px',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          color: '#38bdf8',
+                          letterSpacing: '0.3px',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.7)',
+                        }}
+                      >
+                        Summoner's Rift Minimap ({effectiveMinimapScale.toFixed(2)}x scale)
+                      </div>
+                    </div>
+                  )}
+
                   <div
                     style={{
                       position: 'absolute',
-                      bottom: '26.2vh',
-                      right: '0.8vw',
+                      bottom: `${(mapHeightVh + 0.8 + nudgeY).toFixed(2)}vh`,
+                      ...(isMinimapFlipped ? { left: '0.8vw' } : { right: '0.8vw' }),
                       pointerEvents: 'none',
                       zIndex: 9999,
                       display: 'flex',
@@ -1218,13 +1408,16 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   {/* On-Map Spawn Pit Pins (Pinpointed directly inside dragon, baron, and buff pits) */}
                   {campTimers.map((camp) => {
                     if (camp.remaining <= 0) return null;
+                    const sidePos = (camp.mapPos as any).left !== undefined
+                      ? { left: (camp.mapPos as any).left }
+                      : { right: (camp.mapPos as any).right };
                     return (
                       <div
                         key={camp.id}
                         style={{
                           position: 'absolute',
                           bottom: camp.mapPos.bottom,
-                          right: camp.mapPos.right,
+                          ...sidePos,
                           transform: 'translate(50%, 50%)',
                           pointerEvents: 'none',
                           zIndex: 9999,

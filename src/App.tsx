@@ -430,9 +430,11 @@ export const App: React.FC = () => {
     window.riftAPI?.windowControl('exit-app');
   };
 
+  const isDedicatedOverlay = typeof window !== 'undefined' && window.location.hash === '#overlay';
+
   // Sync compact mode class to document body for transparency
   useEffect(() => {
-    if (isCompactMode) {
+    if (isCompactMode || isDedicatedOverlay) {
       document.body.classList.add('compact-mode');
       document.documentElement.classList.add('compact-mode');
       document.body.style.backgroundColor = 'transparent';
@@ -447,19 +449,19 @@ export const App: React.FC = () => {
       document.documentElement.style.backgroundColor = '';
       document.documentElement.style.background = '';
     }
-  }, [isCompactMode]);
+  }, [isCompactMode, isDedicatedOverlay]);
 
   const isMatchLive = gameflowPhase === 'InProgress' || gameflowPhase === 'GameStart' || Boolean(liveData?.gameData);
 
   // Auto-revert compact mode if outside an active League match (never trap the user in standby)
   useEffect(() => {
-    if (isCompactMode && !isMatchLive) {
+    if (!isDedicatedOverlay && isCompactMode && !isMatchLive) {
       exitCompactMode();
     }
-  }, [isCompactMode, isMatchLive, exitCompactMode]);
+  }, [isCompactMode, isMatchLive, exitCompactMode, isDedicatedOverlay]);
 
-  // When in Compact In-Game Overlay Mode AND a match is actively live: Render Pure Floating Tactical HUD Widget
-  if (isCompactMode && isMatchLive) {
+  // When in Dedicated In-Game Overlay Window OR Compact Mode: Render Pure Floating Tactical HUD Widget
+  if (isDedicatedOverlay || (isCompactMode && isMatchLive)) {
     return (
       <div className="app-container compact-mode" style={{ background: 'transparent' }}>
         <OverlayErrorBoundary onExpand={handleToggleCompact}>

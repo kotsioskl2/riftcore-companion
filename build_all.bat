@@ -9,6 +9,9 @@ echo.
 set "RUSTUP_HOME=F:\.rustup"
 set "CARGO_HOME=F:\.cargo"
 set "PATH=F:\w64devkit\bin;F:\.cargo\bin;%PATH%"
+if not exist "F:\temp" mkdir "F:\temp"
+set "TEMP=F:\temp"
+set "TMP=F:\temp"
 
 cd /d "F:\league app"
 
@@ -18,15 +21,15 @@ if "!APP_VERSION!"=="" set "APP_VERSION=1.1.2"
 echo Target Version: v!APP_VERSION!
 echo.
 
-echo [1/4] Building Frontend (Vite + React 19)...
-call npm run build:renderer
+echo [1/5] Packaging Frontend and High-Performance Overlay Engine...
+call node scripts/build_electron_exe.mjs
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Frontend build failed!
+    echo [ERROR] Overlay packaging failed!
     exit /b %ERRORLEVEL%
 )
 
 echo.
-echo [2/4] Compiling Native Rust Backend (Cargo Release)...
+echo [2/5] Compiling Native Rust Companion (Cargo Release)...
 cd /d "F:\league app\riftcore-native"
 cargo build --release
 if %ERRORLEVEL% NEQ 0 (
@@ -35,7 +38,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo [3/4] Assembling Portable Release Package...
+echo [3/5] Assembling Portable Release Package...
 cd /d "F:\league app"
 if not exist "RiftCore_Rust_Portable" mkdir "RiftCore_Rust_Portable"
 if exist "RiftCore_Rust_Portable\dist" rd /s /q "RiftCore_Rust_Portable\dist"

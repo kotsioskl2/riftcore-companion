@@ -67,7 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateCheckMsg, setUpdateCheckMsg] = useState<string | null>(null);
   const [isUpdatingFromSettings, setIsUpdatingFromSettings] = useState(false);
-  const [leagueWindowMode, setLeagueWindowMode] = useState<{ found: boolean; windowMode: number; path: string } | null>(null);
+  const [leagueWindowMode, setLeagueWindowMode] = useState<{ found: boolean; windowMode: number; minimapScale?: number; flipMinimap?: boolean; path: string } | null>(null);
   const [isConfiguringMode, setIsConfiguringMode] = useState(false);
   const [modeConfigMsg, setModeConfigMsg] = useState<string | null>(null);
   const [currentHudMode, setCurrentHudMode] = useState<'integrated' | 'card' | 'bar' | 'pill'>('integrated');
@@ -713,6 +713,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="toggle-knob" />
                 </div>
               </div>
+
+              {/* Minimap Alignment & Scale Calibration */}
+              {settings.hudObjectiveTimers !== false && (
+                <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(0, 210, 255, 0.05)', border: '1px solid rgba(0, 210, 255, 0.15)', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#38bdf8' }}>
+                        Minimap Scale & Objective Pin Alignment
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        Auto-detected from League's game.cfg ({leagueWindowMode?.minimapScale ? `${(leagueWindowMode.minimapScale * 100).toFixed(0)}%` : '216%'}). Drag slider to fine-tune pit overlay alignment.
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff', background: 'rgba(0,210,255,0.15)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(0,210,255,0.3)' }}>
+                      {((settings.hudMinimapScale || leagueWindowMode?.minimapScale || 2.16) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="range"
+                      min="1.0"
+                      max="3.0"
+                      step="0.05"
+                      value={settings.hudMinimapScale || leagueWindowMode?.minimapScale || 2.16}
+                      onChange={(e) => onUpdateSetting('hudMinimapScale', parseFloat(e.target.value))}
+                      style={{ flex: 1, accentColor: 'var(--blue-primary)', cursor: 'pointer' }}
+                    />
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: '10px', padding: '4px 10px', whiteSpace: 'nowrap' }}
+                      onClick={() => onUpdateSetting('hudMinimapScale', leagueWindowMode?.minimapScale || 2.16)}
+                      title="Reset to detected game.cfg scale"
+                    >
+                      Reset to Auto
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 4. Enemy Summoner Spell Tracker */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>

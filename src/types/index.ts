@@ -227,6 +227,8 @@ export interface AppSettings {
   hudMayhemCards?: boolean;
   hudJunglePathing?: boolean;
   hudAramHealthTimers?: boolean;
+  hudMinimapScale?: number;
+  hudMinimapFlip?: boolean;
 }
 
 export interface AppUpdateInfo {
@@ -264,7 +266,7 @@ declare global {
       riotApiRequest?: (url: string, key?: string) => Promise<{ status: number; data: any }>;
       resizeWindow?: (width: number, height: number) => Promise<any>;
       snapOverlay?: (position: string, width?: number, height?: number) => Promise<any>;
-      getLeagueWindowMode?: () => Promise<{ found: boolean; windowMode: number; path: string }>;
+      getLeagueWindowMode?: () => Promise<{ found: boolean; windowMode: number; minimapScale?: number; flipMinimap?: boolean; path: string }>;
       setLeagueFullscreen?: () => Promise<{ success: boolean }>;
       setLeagueBorderless?: () => Promise<{ success: boolean }>;
       setHudMode?: (mode: 'integrated' | 'card' | 'bar' | 'pill') => Promise<any>;
