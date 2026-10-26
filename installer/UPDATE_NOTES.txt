@@ -1,20 +1,21 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v1.2.13
+       RIFTCORE COMPANION - UPDATE v1.2.14
 --------------------------------------------------
 
-Hey! Welcome to v1.2.13 Here is what is new:
+Hey! Welcome to v1.2.14 Here is what is new:
 
-* Fixed the fullscreen overlay interaction:
-  The integrated HUD now stays click-through while a match is active,
-  so it no longer blocks League mouse input or freezes the game.
-
-* Improved live overlay positioning and transitions:
-  The HUD uses the game display bounds reliably and switches out of
-  preview mode as soon as live match data arrives.
-
-* Fixed focus handoff when opening the in-game HUD:
-  League receives keyboard focus again after RiftCore changes into
-  integrated overlay mode.
+* Full-Power In-Game Overlay Overhaul:
+  - Enabled Borderless Windowed (WindowMode=2) compatibility:
+    DWM compositing now reliably paints the transparent HUD directly
+    over League with zero flickering, zero input lag, and no game minimizing.
+  - Fixed 1-Click Game Display Mode config in Settings:
+    Instantly detect and set League to Borderless Windowed or Fullscreen.
+  - Interactive & Preview Mode Support:
+    Preview mode and overlay controls now respond directly to mouse clicks,
+    while in-match gameplay remains 100% click-through.
+  - Added 4 HUD Window Formats:
+    Choose between Integrated Fullscreen, Top Bar Dock, Tactical Card,
+    or Minimap Pill directly in Settings.
 
 * In-App Automatic Updates:
   Never miss a patch! RiftCore now checks GitHub

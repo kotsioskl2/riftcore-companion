@@ -59,6 +59,19 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     if (isLive) setIsPreviewMode(false);
   }, [isLive]);
 
+  // Dynamic Click-Through Synchronization:
+  // When in Preview Mode: NEVER click-through so user can click, configure, and exit.
+  // When in Live Match Integrated Mode: Click-through by default so gameplay is 100% responsive.
+  useEffect(() => {
+    if (isPreviewMode) {
+      window.riftAPI?.setClickThrough?.(false);
+    } else if (hudMode === 'integrated') {
+      window.riftAPI?.setClickThrough?.(true);
+    } else {
+      window.riftAPI?.setClickThrough?.(false);
+    }
+  }, [isPreviewMode, hudMode]);
+
   // Auto-expand to full desktop app if outside an active match and not in preview mode
   useEffect(() => {
     if (!showInGameHud && !isPreviewMode) {
@@ -72,6 +85,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
       if (e.key === 'Escape') {
         if (isPreviewMode) {
           setIsPreviewMode(false);
+          window.riftAPI?.setClickThrough?.(true);
         } else {
           onExpand();
         }
@@ -626,7 +640,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
               width: '100vw',
               height: '100vh',
               background: 'transparent',
-              pointerEvents: 'none',
+              pointerEvents: isPreviewMode ? 'auto' : 'none',
               userSelect: 'none',
               overflow: 'hidden',
             }}
@@ -644,26 +658,74 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
-                  padding: '5px 14px',
-                  borderRadius: '20px',
-                  background: 'rgba(5, 10, 20, 0.92)',
+                  padding: '6px 16px',
+                  borderRadius: '24px',
+                  background: 'rgba(5, 10, 20, 0.94)',
                   border: '1px solid var(--blue-primary)',
-                  boxShadow: '0 4px 20px rgba(0, 210, 255, 0.3)',
+                  boxShadow: '0 4px 24px rgba(0, 210, 255, 0.35)',
                 }}
               >
-                <Eye size={13} color="var(--blue-primary)" />
+                <Eye size={14} color="var(--blue-primary)" />
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>
-                  HUD Layout Preview (Transparent Over League)
+                  HUD Preview Mode
                 </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <button
+                    onClick={handleSwitchToBar}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Top Bar
+                  </button>
+                  <button
+                    onClick={handleSwitchToCard}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Card
+                  </button>
+                  <button
+                    onClick={handleCollapseToPill}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Pill
+                  </button>
+                </div>
                 <button
                   onClick={() => {
                     setIsPreviewMode(false);
+                    window.riftAPI?.setClickThrough?.(true);
                     onExpand();
                   }}
                   style={{
-                    padding: '3px 9px',
+                    padding: '3px 10px',
                     borderRadius: '12px',
-                    background: 'rgba(255, 42, 95, 0.2)',
+                    background: 'rgba(255, 42, 95, 0.25)',
                     border: '1px solid var(--red-primary)',
                     color: '#fff',
                     fontSize: '10.5px',

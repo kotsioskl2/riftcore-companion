@@ -67,6 +67,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateCheckMsg, setUpdateCheckMsg] = useState<string | null>(null);
   const [isUpdatingFromSettings, setIsUpdatingFromSettings] = useState(false);
+  const [leagueWindowMode, setLeagueWindowMode] = useState<{ found: boolean; windowMode: number; path: string } | null>(null);
+  const [isConfiguringMode, setIsConfiguringMode] = useState(false);
+  const [modeConfigMsg, setModeConfigMsg] = useState<string | null>(null);
+  const [currentHudMode, setCurrentHudMode] = useState<'integrated' | 'card' | 'bar' | 'pill'>('integrated');
+
+  // Load League WindowMode when HUD tab opens
+  React.useEffect(() => {
+    if (activeTab === 'hud' && window.riftAPI?.getLeagueWindowMode) {
+      window.riftAPI.getLeagueWindowMode().then((res) => {
+        if (res) setLeagueWindowMode(res);
+      }).catch(() => {});
+    }
+  }, [activeTab]);
+
+  const handleSetLeagueMode = async (mode: 'borderless' | 'fullscreen') => {
+    if (!window.riftAPI) return;
+    setIsConfiguringMode(true);
+    setModeConfigMsg(null);
+    try {
+      if (mode === 'borderless' && window.riftAPI.setLeagueBorderless) {
+        await window.riftAPI.setLeagueBorderless();
+        soundService.playAutoAccept();
+        setModeConfigMsg('League game.cfg set to Borderless Windowed (WindowMode=2)!');
+      } else if (mode === 'fullscreen' && window.riftAPI.setLeagueFullscreen) {
+        await window.riftAPI.setLeagueFullscreen();
+        soundService.playTimerTick();
+        setModeConfigMsg('League game.cfg set to Exclusive Fullscreen (WindowMode=0).');
+      }
+      if (window.riftAPI.getLeagueWindowMode) {
+        const updated = await window.riftAPI.getLeagueWindowMode();
+        setLeagueWindowMode(updated);
+      }
+    } catch {
+      setModeConfigMsg('Could not update game.cfg.');
+    } finally {
+      setIsConfiguringMode(false);
+    }
+  };
+
+  const handleSelectHudMode = async (mode: 'integrated' | 'card' | 'bar' | 'pill') => {
+    setCurrentHudMode(mode);
+    if (window.riftAPI?.setHudMode) {
+      await window.riftAPI.setHudMode(mode);
+    }
+    soundService.playRuneImport();
+  };
 
   const KOFI_URL = 'https://ko-fi.com/X6I629C814';
   const REVOLUT_BASE = 'https://revolut.me/kkleovoulou';
@@ -428,6 +474,147 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       {/* ====================================================================== */}
       {activeTab === 'hud' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Game Display Mode & Overlay Compatibility Card */}
+          <div className="glass-card" style={{ border: '1px solid rgba(0, 210, 255, 0.35)', background: 'linear-gradient(135deg, rgba(8, 16, 32, 0.85) 0%, rgba(13, 24, 48, 0.85) 100%)' }}>
+            <div className="card-header" style={{ marginBottom: '10px' }}>
+              <div className="card-title">
+                <Shield size={18} color="var(--blue-primary)" />
+                <span>League Display Mode & Overlay Health</span>
+              </div>
+              {leagueWindowMode?.found ? (
+                leagueWindowMode.windowMode === 2 ? (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      color: '#10b981',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <CheckCircle2 size={13} />
+                    Borderless Windowed (Optimal)
+                  </span>
+                ) : leagueWindowMode.windowMode === 0 ? (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      color: '#f59e0b',
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <AlertCircle size={13} />
+                    Exclusive Fullscreen
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Windowed Mode ({leagueWindowMode.windowMode})
+                  </span>
+                )
+              ) : (
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>Detecting League config...</span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.5' }}>
+                For flawless overlays without lag or minimizing, League of Legends must run in <strong style={{ color: '#fff' }}>Borderless Windowed</strong> mode. This looks identical to fullscreen, but allows Windows DWM to render the transparent HUD on top with 0 screen flicker.
+              </div>
+
+              {modeConfigMsg && (
+                <div style={{ fontSize: '11.5px', color: '#10b981', fontWeight: 700, padding: '6px 12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                  {modeConfigMsg}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  className="btn-primary"
+                  onClick={() => handleSetLeagueMode('borderless')}
+                  disabled={isConfiguringMode}
+                  style={{
+                    fontSize: '11.5px',
+                    padding: '7px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontWeight: 800,
+                    borderRadius: '8px',
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>{isConfiguringMode ? 'Applying...' : 'Set Borderless Windowed (Recommended)'}</span>
+                </button>
+
+                <button
+                  className="btn-secondary"
+                  onClick={() => handleSetLeagueMode('fullscreen')}
+                  disabled={isConfiguringMode}
+                  style={{
+                    fontSize: '11.5px',
+                    padding: '7px 14px',
+                    borderRadius: '8px',
+                    color: '#94a3b8',
+                  }}
+                >
+                  Set Exclusive Fullscreen
+                </button>
+              </div>
+
+              {/* HUD Layout Selector */}
+              <div style={{ marginTop: '8px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>
+                  HUD Window Format:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                  {[
+                    { id: 'integrated', label: '🖥️ Integrated', desc: 'Fullscreen tactical overlay' },
+                    { id: 'bar', label: '➖ Top Bar', desc: 'Compact 42px header bar' },
+                    { id: 'card', label: '🃏 Tactical Card', desc: 'Floating 340x270 card' },
+                    { id: 'pill', label: '💊 Minimap Pill', desc: 'Mini 280x38 floating pill' },
+                  ].map((modeItem) => {
+                    const isSelected = currentHudMode === modeItem.id;
+                    return (
+                      <button
+                        key={modeItem.id}
+                        onClick={() => handleSelectHudMode(modeItem.id as any)}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: isSelected ? '1px solid var(--blue-primary)' : '1px solid rgba(255, 255, 255, 0.08)',
+                          background: isSelected ? 'rgba(0, 210, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                          color: isSelected ? '#fff' : '#94a3b8',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: isSelected ? '#00d2ff' : '#fff' }}>
+                          {modeItem.label}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                          {modeItem.desc}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Hotkey Guide Banner */}
           <div
             style={{
@@ -445,10 +632,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Keyboard size={18} color="var(--blue-primary)" />
               <span style={{ fontSize: '12.5px', color: '#e2e8f0' }}>
-                Toggle Fullscreen HUD in-game: <kbd style={{ padding: '2px 7px', background: 'rgba(0,0,0,0.4)', borderRadius: '4px', border: '1px solid rgba(0,210,255,0.3)', color: '#00d2ff', fontWeight: 800 }}>Alt + G</kbd> or <kbd style={{ padding: '2px 7px', background: 'rgba(0,0,0,0.4)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontWeight: 800 }}>Ctrl + Space</kbd>
+                Toggle In-Game HUD: <kbd style={{ padding: '2px 7px', background: 'rgba(0,0,0,0.4)', borderRadius: '4px', border: '1px solid rgba(0,210,255,0.3)', color: '#00d2ff', fontWeight: 800 }}>Alt + G</kbd> or <kbd style={{ padding: '2px 7px', background: 'rgba(0,0,0,0.4)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontWeight: 800 }}>Ctrl + Space</kbd>
               </span>
             </div>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Zero click delay · Vanguard compliant</span>
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Zero click delay · 100% Vanguard safe</span>
           </div>
 
           <div className="glass-card">

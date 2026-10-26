@@ -58,7 +58,6 @@ struct LcuCredentials {
     install_dir: Option<PathBuf>,
 }
 
-#[derive(Default)]
 struct AppState {
     credentials: Option<LcuCredentials>,
     gameflow_phase: String,
@@ -66,6 +65,21 @@ struct AppState {
     is_pinned: bool,
     native_compact: bool,
     native_hud_mode: String,
+    click_through: bool,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            credentials: None,
+            gameflow_phase: String::new(),
+            is_compact: false,
+            is_pinned: false,
+            native_compact: false,
+            native_hud_mode: String::new(),
+            click_through: true,
+        }
+    }
 }
 
 enum AppUserEvent {
@@ -75,6 +89,7 @@ enum AppUserEvent {
     ShowAndFocus,
     SetCompactHud(bool),
     SetHudMode(String),
+    SetClickThrough(bool),
     MaintainOverlayTopmost,
 }
 
@@ -731,17 +746,25 @@ fn find_league_game_cfg() -> Option<PathBuf> {
     None
 }
 
-fn ensure_league_fullscreen_cfg() {
+fn ensure_league_borderless_cfg() {
     if let Some(cfg_path) = find_league_game_cfg() {
         if let Ok(content) = std::fs::read_to_string(&cfg_path) {
-            if content.contains("WindowMode=2") || content.contains("WindowMode=1") {
+            // WindowMode=2 is Borderless Windowed (fullscreen without borders).
+            // This is required so Windows DWM can composite transparent overlay windows
+            // directly over the game without minimizing, tearing, or flickering.
+            if !content.contains("WindowMode=2") {
                 let mut new_lines = Vec::new();
+                let mut replaced = false;
                 for line in content.lines() {
                     if line.trim().starts_with("WindowMode=") {
-                        new_lines.push("WindowMode=0".to_string());
+                        new_lines.push("WindowMode=2".to_string());
+                        replaced = true;
                     } else {
                         new_lines.push(line.to_string());
                     }
+                }
+                if !replaced {
+                    new_lines.push("WindowMode=2".to_string());
                 }
                 let _ = std::fs::write(&cfg_path, new_lines.join("\r\n"));
             }
@@ -1040,8 +1063,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     cleanup_old_update_files();
 
-    // Ensure League of Legends remains in true Full Screen mode (never forced to borderless)
-    ensure_league_fullscreen_cfg();
+    // Ensure League of Legends is in Borderless mode (WindowMode=2) for optimal DWM overlay rendering
+    ensure_league_borderless_cfg();
 
     // Force WebView2 to use a transparent background from the very first frame.
     // The value is an ARGB hex string; leading 00 requests full transparency.
@@ -1065,6 +1088,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         is_pinned: false,
         native_compact: false,
         native_hud_mode: String::new(),
+        click_through: true,
     }));
 
     let event_loop = EventLoopBuilder::<AppUserEvent>::with_user_event().build();
@@ -1170,20 +1194,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 was_pressed = is_combo_down;
 
-                // The integrated HUD must never steal gameplay input. Its full-screen
-                // window remains click-through; interactive controls are available
-                // after expanding back to the regular RiftCore window.
-                let (is_compact, is_integrated) = {
+                // Dynamic Click-Through / Interactive HUD support:
+                // When click_through is true (default in-game), the overlay stays click-through
+                // so gameplay input is never blocked. When false (e.g. preview mode or interactive mode),
+                // mouse clicks interact directly with the overlay.
+                let (is_compact, is_integrated, click_through) = {
                     let st = hotkey_state.lock().unwrap();
-                    (st.is_compact, st.native_hud_mode == "integrated")
+                    (st.is_compact, st.native_hud_mode == "integrated", st.click_through)
                 };
 
                 if is_compact && is_integrated {
                     unsafe {
                         let hwnd = hotkey_window.hwnd() as *mut std::ffi::c_void;
                         let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                        if (ex & WS_EX_TRANSPARENT) == 0 {
+                        if click_through && (ex & WS_EX_TRANSPARENT) == 0 {
                             set_overlay_extended_style(hwnd, ex | WS_EX_TRANSPARENT);
+                            SetWindowPos(
+                                hwnd,
+                                std::ptr::null_mut(),
+                                0,
+                                0,
+                                0,
+                                0,
+                                SWP_NOMOVE
+                                    | SWP_NOSIZE
+                                    | SWP_NOZORDER
+                                    | SWP_NOACTIVATE
+                                    | SWP_FRAMECHANGED,
+                            );
+                        } else if !click_through && (ex & WS_EX_TRANSPARENT) != 0 {
+                            set_overlay_extended_style(hwnd, ex & !WS_EX_TRANSPARENT);
                             SetWindowPos(
                                 hwnd,
                                 std::ptr::null_mut(),
@@ -1396,26 +1436,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     "set-click-through" => {
                         let requested = json.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
-                        let integrated_hud = state_clone.lock().unwrap().native_hud_mode == "integrated";
-                        let enable = requested || integrated_hud;
-                        #[cfg(target_os = "windows")]
-                        unsafe {
-                            let hwnd = window_clone.hwnd() as *mut std::ffi::c_void;
-                            let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                            let new_ex = if enable {
-                                ex | WS_EX_TRANSPARENT | WS_EX_LAYERED
-                            } else {
-                                ex & !WS_EX_TRANSPARENT
-                            };
-                            set_overlay_extended_style(hwnd, new_ex);
-                            SetWindowPos(
-                                hwnd,
-                                std::ptr::null_mut(),
-                                0, 0, 0, 0,
-                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                            );
-                        }
-                        let reply_script = format!("window.__riftIpcReply({}, null, {{ clickThrough: {} }});", req_id, enable);
+                        let _ = proxy_ipc.send_event(AppUserEvent::SetClickThrough(requested));
+                        let reply_script = format!("window.__riftIpcReply({}, null, {{ clickThrough: {} }});", req_id, requested);
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(reply_script));
                     }
                     "window-control" => {
@@ -1985,7 +2007,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
                     }
-                    "set-league-fullscreen" | "set-league-borderless" => {
+                    "set-league-borderless" => {
+                        let mut success = false;
+                        if let Some(cfg_path) = find_league_game_cfg() {
+                            if let Ok(content) = std::fs::read_to_string(&cfg_path) {
+                                let mut new_lines = Vec::new();
+                                let mut replaced = false;
+                                for line in content.lines() {
+                                    if line.trim().starts_with("WindowMode=") {
+                                        new_lines.push("WindowMode=2".to_string());
+                                        replaced = true;
+                                    } else {
+                                        new_lines.push(line.to_string());
+                                    }
+                                }
+                                if !replaced {
+                                    new_lines.push("WindowMode=2".to_string());
+                                }
+                                if std::fs::write(&cfg_path, new_lines.join("\r\n")).is_ok() {
+                                    success = true;
+                                }
+                            }
+                        }
+                        let script = format!(
+                            "window.__riftIpcReply({}, null, {{ success: {} }});",
+                            req_id, success
+                        );
+                        let _ = proxy_ipc.send_event(AppUserEvent::EvalScript(script));
+                    }
+                    "set-league-fullscreen" => {
                         let mut success = false;
                         if let Some(cfg_path) = find_league_game_cfg() {
                             if let Ok(content) = std::fs::read_to_string(&cfg_path) {
@@ -2437,6 +2487,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     } else {
                         st.native_compact = compact;
                         st.native_hud_mode = if compact { "integrated".to_string() } else { String::new() };
+                        st.click_through = compact;
                         true
                     }
                 };
@@ -2465,12 +2516,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         false
                     } else {
                         st.native_hud_mode = mode.clone();
+                        st.click_through = mode == "integrated";
                         true
                     }
                 };
                 if should_apply {
                     #[cfg(target_os = "windows")]
                     apply_hud_window_mode(&window, &webview, &mode);
+                }
+            }
+            Event::UserEvent(AppUserEvent::SetClickThrough(enabled)) => {
+                {
+                    let mut st = state.lock().unwrap();
+                    st.click_through = enabled;
+                }
+                #[cfg(target_os = "windows")]
+                unsafe {
+                    let hwnd = window.hwnd() as *mut std::ffi::c_void;
+                    let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                    let new_ex = if enabled {
+                        ex | WS_EX_TRANSPARENT | WS_EX_LAYERED
+                    } else {
+                        ex & !WS_EX_TRANSPARENT
+                    };
+                    set_overlay_extended_style(hwnd, new_ex);
+                    SetWindowPos(
+                        hwnd,
+                        std::ptr::null_mut(),
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE
+                            | SWP_NOSIZE
+                            | SWP_NOZORDER
+                            | SWP_NOACTIVATE
+                            | SWP_FRAMECHANGED,
+                    );
                 }
             }
             Event::UserEvent(AppUserEvent::MaintainOverlayTopmost) => {
@@ -2491,6 +2573,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     st.is_pinned = false;
                     st.native_compact = false;
                     st.native_hud_mode.clear();
+                    st.click_through = false;
                     drop(st);
                     #[cfg(target_os = "windows")]
                     restore_desktop_window(&window, &webview, true);
@@ -2526,6 +2609,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         st.is_pinned = true;
                         st.native_compact = true;
                         st.native_hud_mode = "integrated".to_string();
+                        st.click_through = true;
                         drop(st);
                         #[cfg(target_os = "windows")]
                         apply_hud_window_mode(&window, &webview, "integrated");

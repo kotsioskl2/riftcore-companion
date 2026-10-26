@@ -217,7 +217,7 @@ export function initRustBridge() {
     },
 
     setLeagueBorderless: async () => {
-      return sendRustIpc('set-league-fullscreen');
+      return sendRustIpc('set-league-borderless');
     },
 
     resizeWindow: async (width: number, height: number) => {
