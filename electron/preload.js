@@ -123,6 +123,14 @@ contextBridge.exposeInMainWorld('riftAPI', {
     ipcRenderer.send('set-ignore-mouse-events', ignore, options);
   },
 
+  updateInteractiveRegions: (regions) => {
+    ipcRenderer.send('update-interactive-regions', regions);
+  },
+
+  setLayoutEditMode: (editMode) => {
+    return ipcRenderer.invoke('set-layout-edit-mode', editMode);
+  },
+
   riotApiRequest: (url, key) => {
     return ipcRenderer.invoke('riot-api-request', { url, key });
   },

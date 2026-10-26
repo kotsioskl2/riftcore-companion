@@ -2,21 +2,34 @@
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static int s_lastState = -1;
+static DWORD s_electronPid = 0;
 
 void checkAndReport(HWND hwnd) {
     if (hwnd == NULL) return;
+    
     char className[256] = {0};
     GetClassNameA(hwnd, className, sizeof(className) - 1);
     
+    DWORD windowPid = 0;
+    GetWindowThreadProcessId(hwnd, &windowPid);
+
     // Check if foreground window is League of Legends in-game client
     // League game window class is "RiotWindowClass"
     int isLeague = (strcmp(className, "RiotWindowClass") == 0);
     
-    if (isLeague != s_lastState) {
-        s_lastState = isLeague;
-        if (isLeague) {
+    // Check if foreground window belongs to RiftCore (Electron overlay, main window, or child process)
+    int isRiftCore = (s_electronPid > 0 && windowPid == s_electronPid);
+
+    // If either League or RiftCore is in the foreground, keep overlay active and visible!
+    // This completely prevents the overlay from disappearing when the user clicks or interacts with it.
+    int effectiveState = (isLeague || isRiftCore) ? 1 : 0;
+    
+    if (effectiveState != s_lastState) {
+        s_lastState = effectiveState;
+        if (effectiveState) {
             printf("LEAGUE_FOCUSED\n");
         } else {
             printf("LEAGUE_BLURRED\n");
@@ -32,6 +45,10 @@ void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, 
 }
 
 int main(int argc, char* argv[]) {
+    if (argc > 1) {
+        s_electronPid = (DWORD)strtoul(argv[1], NULL, 10);
+    }
+
     // Initial foreground check
     HWND initial = GetForegroundWindow();
     checkAndReport(initial);

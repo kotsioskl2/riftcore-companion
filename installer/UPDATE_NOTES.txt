@@ -1,38 +1,39 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.2
+       RIFTCORE COMPANION - UPDATE v2.0.3
 --------------------------------------------------
 
-* 100% Interactive Overlay & True Click-Through:
-  - Fixed click handling so all buttons, cards, spells,
-    and menus register clicks immediately on hover.
-  - Battlefield clicks pass 100% through to League of Legends
-    with zero interference.
+* Movable HUD Layout Customizer (Drag & Arrange Anything):
+  - Added [🔓 Move HUD] toggle directly in the Top Scoreboard.
+  - When unlocked, drag any module (Scoreboard, CS Benchmark,
+    Enemy Spells, Teammate Ults, Minimap Dock) anywhere on screen!
+  - Custom positions are saved automatically in localStorage.
+  - One-click [↺ Reset Default Layout] to restore auto-alignment.
 
-* Zero-Lag Hextech Obsidian Architecture:
-  - Eliminated all backdrop-filter GPU blurs across overlay.
-  - High-performance dark obsidian styling eliminates GPU
-    framebuffer readbacks, restoring buttery-smooth 144+ FPS.
+* 100% Reliable Clicks & Smart Hit-Testing:
+  - Fixed focus_watcher so interacting with the overlay never
+    triggers a false Alt-Tab hide.
+  - Hardware cursor polling in Electron main process enables
+    instant clickability over every button, card, and timer.
+  - Game clicks pass straight through to League of Legends
+    with 0ms delay for completely native movement and casting.
 
-* Calibrated Minimap & Interactive Jungle Router:
-  - Accurate Summoner's Rift coordinate calibration on Blue/Red
-    buffs, Dragon, Baron/Grubs, and scuttle camps.
-  - Quick toggle: [Red Start (Bot)] / [Blue Start (Top)].
-  - Numbered Minimap Path Pins (1-7) with active step highlight.
-  - Live minimap alignment nudges and pin toggles.
+* Mathematical Minimap Alignment & Team-Aware Jungle Router:
+  - Exact Summoner's Rift camp coordinate percentages:
+    Blue Buff, Red Buff, Gromp, Wolves, Raptors, Krugs, Dragon,
+    Baron/Voidgrubs, and Scuttle Crabs.
+  - Automatically adapts to player's team (Blue Side vs Red Side).
+  - Toggles [🔴 Red Start] / [🔵 Blue Start] with numbered 1-7
+    minimap route badges and active target pulsing rings.
+  - Added [+] and [-] Minimap Zoom buttons (5% increments) alongside
+    fine-grained [▲] [▼] [◀] [▶] pixel alignment nudges.
 
-* Fullscreen Detection & 1-Click Fix:
-  - Alerts when League is running in Exclusive Fullscreen and
-    provides a 1-click button to configure Borderless in game.cfg.
+* Exclusive Fullscreen Detector & 1-Click Borderless Enforcer:
+  - Informs players if League is in Exclusive Fullscreen (which
+    Windows blocks overlays over) and offers a 1-click button
+    to switch game.cfg to Borderless Fullscreen safely.
 
-* Advanced Companion Tools:
-  - Real-time Kill Participation (KP%) and KDA tracker.
-  - CS/min rating tiers (S-Tier, A-Tier, Farm benchmark).
-  - Interactive clickable enemy summoner spell & ally ult trackers.
-  - High-ELO strategic warding spots on the minimap.
-
-* Standalone Packaging & DLL Fix:
-  - Resolved missing ffmpeg.dll error by distributing complete
-    Setup installer and Portable zip archives.
+* Zero-Lag Hextech Obsidian Engine:
+  - Completely removed GPU backdrop-filter readbacks for
+    stable 144+ FPS in 5v5 teamfights.
 
 --------------------------------------------------
-

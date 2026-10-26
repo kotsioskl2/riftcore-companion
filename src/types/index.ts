@@ -271,6 +271,8 @@ declare global {
       setLeagueBorderless?: () => Promise<{ success: boolean }>;
       setHudMode?: (mode: 'integrated' | 'card' | 'bar' | 'pill') => Promise<any>;
       setClickThrough?: (enabled: boolean) => Promise<any>;
+      updateInteractiveRegions?: (regions: Array<{ x: number; y: number; width: number; height: number }>) => void;
+      setLayoutEditMode?: (editMode: boolean) => Promise<{ editMode: boolean }>;
       checkForAppUpdate?: () => Promise<AppUpdateInfo>;
       downloadAppUpdate?: (downloadUrl: string) => Promise<any>;
       onUpdateProgress?: (callback: (data: { stage: string; percent: number }) => void) => () => void;

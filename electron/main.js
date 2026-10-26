@@ -71,7 +71,7 @@ function startFocusWatcher() {
   }
 
   try {
-    focusWatcherProc = spawn(watcherExe, [], {
+    focusWatcherProc = spawn(watcherExe, [process.pid.toString()], {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
@@ -107,6 +107,61 @@ function stopFocusWatcher() {
   if (focusWatcherProc) {
     try { focusWatcherProc.kill(); } catch {}
     focusWatcherProc = null;
+  }
+}
+
+// -------------------------------------------------------------
+// DYNAMIC INTERACTIVE REGION HIT-TESTING (WINDOWS CLICK-THROUGH)
+// -------------------------------------------------------------
+let interactiveRegions = [];
+let mousePollingTimer = null;
+let isCurrentlyInteractive = false;
+let isLayoutEditMode = false;
+
+function startMouseWatcher() {
+  if (mousePollingTimer) return;
+  mousePollingTimer = setInterval(() => {
+    if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) {
+      return;
+    }
+    if (isLayoutEditMode) {
+      if (!isCurrentlyInteractive) {
+        isCurrentlyInteractive = true;
+        overlayWindow.setIgnoreMouseEvents(false);
+      }
+      return;
+    }
+    const point = screen.getCursorScreenPoint();
+    const bounds = overlayWindow.getBounds();
+    let hit = false;
+    for (const r of interactiveRegions) {
+      const rx = bounds.x + r.x;
+      const ry = bounds.y + r.y;
+      if (
+        point.x >= rx &&
+        point.x <= rx + r.width &&
+        point.y >= ry &&
+        point.y <= ry + r.height
+      ) {
+        hit = true;
+        break;
+      }
+    }
+    if (hit !== isCurrentlyInteractive) {
+      isCurrentlyInteractive = hit;
+      if (hit) {
+        overlayWindow.setIgnoreMouseEvents(false);
+      } else {
+        overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+      }
+    }
+  }, 40);
+}
+
+function stopMouseWatcher() {
+  if (mousePollingTimer) {
+    clearInterval(mousePollingTimer);
+    mousePollingTimer = null;
   }
 }
 
@@ -324,16 +379,21 @@ function showOverlay() {
     const { width, height } = primaryDisplay.bounds;
     win.setBounds({ x: 0, y: 0, width, height });
     win.setAlwaysOnTop(true, 'screen-saver', 1);
-    if (overlayClickThrough) {
+    try {
+      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    } catch {}
+    if (overlayClickThrough && !isLayoutEditMode) {
       win.setIgnoreMouseEvents(true, { forward: true });
     } else {
       win.setIgnoreMouseEvents(false);
     }
     win.showInactive();
+    startMouseWatcher();
   }
 }
 
 function hideOverlay() {
+  stopMouseWatcher();
   if (isOverlayOnly) {
     app.quit();
     return;
@@ -854,6 +914,24 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
   }
 });
 
+ipcMain.on('update-interactive-regions', (_event, regions) => {
+  interactiveRegions = Array.isArray(regions) ? regions : [];
+});
+
+ipcMain.handle('set-layout-edit-mode', (_event, editMode) => {
+  isLayoutEditMode = Boolean(editMode);
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    if (isLayoutEditMode) {
+      isCurrentlyInteractive = true;
+      overlayWindow.setIgnoreMouseEvents(false);
+    } else {
+      isCurrentlyInteractive = false;
+      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+  }
+  return { editMode: isLayoutEditMode };
+});
+
 ipcMain.handle('set-hud-mode', (_event, mode) => {
   currentHudMode = mode;
   if (!overlayWindow || overlayWindow.isDestroyed()) return { mode };
@@ -1083,6 +1161,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   stopFocusWatcher();
+  stopMouseWatcher();
   globalShortcut.unregisterAll();
 });
 
