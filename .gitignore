@@ -11,19 +11,11 @@ dist_electron/
 dist_overlay/
 temp_packager/
 build_staging/
-!installer_output/
-!installer_output/**
-installer_output/*.zip
-!RiftCore_Rust_Portable/
-!RiftCore_Rust_Portable/**
-RiftCore_Rust_Portable/overlay/
-RiftCore_Rust_Portable/RiftCore.exe.WebView2/
-
+installer_output/
+RiftCore_Rust_Portable/
+build_output/
 *.exe
-!installer_output/*.exe
-!RiftCore_Rust_Portable/*.exe
 *.dll
-!RiftCore_Rust_Portable/*.dll
 
 # Rust build artifacts
 riftcore-native/target/

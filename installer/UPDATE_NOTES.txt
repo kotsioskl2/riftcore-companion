@@ -1,26 +1,31 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.0
+       RIFTCORE COMPANION - UPDATE v2.0.1
 --------------------------------------------------
 
-Welcome to RiftCore 2.0!
+* Single Unified App in Task Manager:
+  - Merged companion and in-game HUD under ONE clean
+    process group ("RiftCore Companion").
+  - Eliminated separate WebView2 Manager and Electron entries.
 
-* Hybrid Architecture:
-  - Companion App (~40 MB RAM): Instant boot, Auto-Accept,
-    1-Click Runes, AI Draft Coach, and Match History.
-  - Clean In-Game Overlay: 100% transparent, click-through,
-    and zero lag over League of Legends.
-  - Auto-RAM Reclaim: Overlay runs only in-game and terminates
-    when the match ends, freeing all memory.
+* Instant Alt-Tab Auto-Hide:
+  - Zero-CPU event hook automatically hides the overlay
+    when Alt-Tabbing out of League (to Discord/Browser/Desktop)
+    and instantly restores it when returning to the game.
 
-* Live Match HUD & Objectives:
-  - Minimap timers for Dragon, Baron, Grubs, and Buffs.
-  - Team gold lead banner on top scoreboard.
-  - Real-time CS/min diff beside the game clock.
-  - Skill level-up indicator.
+* Jungle Path Alignment:
+  - Repositioned jungle clear route to float cleanly above
+    champion ability icons and level-up buttons.
 
-* 100% Free & Vanguard Safe:
-  - Zero ads, zero background bloat.
-  - Strictly compliant with Riot Games third-party policies.
+* Real-Time Ward & Trinket Synchronization:
+  - Dynamically syncs with live item slot 6 trinket charges
+    (showing exact remaining wards e.g. 1/2, 0/2, pink wards,
+    and Oracle Lens sweeper status).
 
-Enjoy the climb!
+* High-Contrast White Timers:
+  - Crisp, pure white timer digits (#ffffff) with dark drop
+    shadows on all minimap objectives and spawn pit pins.
+
+* Teammate Ults & Visual Fixes:
+  - Reliable champion portraits with zero broken image icons.
+
 --------------------------------------------------

@@ -251,6 +251,18 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     ? 2450
     : 500;
 
+  // Live Trinket & Ward Tracking (Real-time synchronization with Live Client Data item slot 6)
+  const trinketItem = myPlayer?.items?.find((it: any) => it.slot === 6 || [3340, 3363, 3364].includes(it.itemID));
+  const isTrinketSweeper = trinketItem?.itemID === 3364;
+  const isTrinketBlue = trinketItem?.itemID === 3363;
+  const rawWardCount = trinketItem
+    ? (typeof trinketItem.count === 'number' ? trinketItem.count : (trinketItem.canUse ? 1 : 0))
+    : (isLive ? 0 : 2);
+  const wardCount = Math.max(0, Math.min(2, rawWardCount));
+  const maxWards = isTrinketBlue ? 1 : 2;
+  const controlWardItem = myPlayer?.items?.find((it: any) => it.itemID === 2055);
+  const controlWardCount = controlWardItem?.count || 0;
+
   const teamKills = isLive
     ? (liveData?.allPlayers?.filter((p) => p.team === myTeam)?.reduce((sum, p) => sum + (p.scores?.kills || 0), 0) || 0)
     : 16;
@@ -305,11 +317,34 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
 
   // Teammate Ultimate Timers (Interactive Click-to-Track Teammate R Ults)
   const [teammateUlts, setTeammateUlts] = useState([
-    { role: 'JG', champ: 'Lee Sin', name: "Dragon's Rage", total: 110, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/BlindMonkRKick.png' },
-    { role: 'MID', champ: 'Ahri', name: 'Spirit Rush', total: 130, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/AhriTumble.png' },
-    { role: 'ADC', champ: 'Jinx', name: 'Super Mega Death Rocket!', total: 90, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/JinxR.png' },
-    { role: 'SUP', champ: 'Thresh', name: 'The Box', total: 120, remaining: 0, active: false, icon: 'https://ddragon.leagueoflegends.com/cdn/14.23.1/img/spell/ThreshRPenta.png' },
+    { role: 'JG', champ: 'Lee Sin', name: "Dragon's Rage", total: 110, remaining: 0, active: false, icon: getChampionIcon('LeeSin') },
+    { role: 'MID', champ: 'Ahri', name: 'Spirit Rush', total: 130, remaining: 0, active: false, icon: getChampionIcon('Ahri') },
+    { role: 'ADC', champ: 'Jinx', name: 'Super Mega Death Rocket!', total: 90, remaining: 0, active: false, icon: getChampionIcon('Jinx') },
+    { role: 'SUP', champ: 'Thresh', name: 'The Box', total: 120, remaining: 0, active: false, icon: getChampionIcon('Thresh') },
   ]);
+
+  // Synchronize teammate ults with actual live game allies
+  useEffect(() => {
+    if (!isLive || allPlayers.length === 0) return;
+    const allies = allPlayers.filter((p) => p.team === myTeam && p !== myPlayer);
+    if (allies.length > 0) {
+      const defaultRoles = ['TOP', 'JG', 'MID', 'ADC', 'SUP'].filter((r) => r !== (myChampBuild?.role || 'TOP'));
+      setTeammateUlts(
+        allies.slice(0, 4).map((ally, idx) => {
+          const cName = ally.championName || 'Ahri';
+          return {
+            role: defaultRoles[idx] || `TM${idx + 1}`,
+            champ: cName,
+            name: `${cName} R`,
+            total: 100,
+            remaining: 0,
+            active: false,
+            icon: getChampionIcon(cName),
+          };
+        })
+      );
+    }
+  }, [isLive, allPlayers.length, myTeam]);
 
   // ARAM Health Relic Timers (Track health relic respawn times in ARAM)
   const [aramRelics, setAramRelics] = useState([
@@ -1390,11 +1425,10 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         <span
                           className="tabular-nums"
                           style={{
-                            fontSize: '10px',
+                            fontSize: '10.5px',
                             fontWeight: 900,
-                            color: camp.remaining > 0
-                              ? (camp.remaining <= 30 ? '#f59e0b' : camp.color)
-                              : '#10b981',
+                            color: camp.remaining > 0 ? '#ffffff' : '#10b981',
+                            textShadow: '0 1px 3px rgba(0, 0, 0, 0.95), 0 0 2px #000000',
                           }}
                         >
                           {camp.remaining > 0
@@ -1438,9 +1472,10 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         <span
                           className="tabular-nums"
                           style={{
-                            fontSize: '10px',
+                            fontSize: '10.5px',
                             fontWeight: 900,
-                            color: camp.remaining <= 30 ? '#f59e0b' : camp.color,
+                            color: '#ffffff',
+                            textShadow: '0 1px 4px rgba(0, 0, 0, 0.95), 0 0 3px #000000',
                             letterSpacing: '0.2px',
                           }}
                         >
@@ -1557,20 +1592,48 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     background: 'rgba(5, 10, 20, 0.90)',
                     backdropFilter: 'blur(14px)',
                     WebkitBackdropFilter: 'blur(14px)',
-                    border: gameTime >= 840 ? '1.5px solid #f59e0b' : '1px solid rgba(0, 210, 255, 0.4)',
+                    border: gameTime >= 840 ? '1.5px solid #f59e0b' : (wardCount > 0 ? '1px solid rgba(0, 210, 255, 0.4)' : '1px solid rgba(148, 163, 184, 0.25)'),
                     padding: '4px 9px',
                     borderRadius: '8px',
                     boxShadow: '0 4px 16px rgba(0,0,0,0.8)',
                     animation: gameTime >= 840 && gameTime <= 960 ? 'pulse-blue 1.5s infinite' : 'none',
                   }}
                 >
-                  <span style={{ fontSize: '13px' }}>{gameTime >= 840 ? '🔄' : '👁️'}</span>
+                  <span style={{ fontSize: '13px' }}>
+                    {gameTime >= 840 ? '🔄' : (isTrinketSweeper ? '🔴' : (wardCount > 0 ? '👁️' : '⏳'))}
+                  </span>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '8px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
-                      {gameTime >= 840 ? 'Trinket Swap (14m)' : 'Vision Ready'}
+                      {gameTime >= 840
+                        ? 'Trinket Swap (14m)'
+                        : isTrinketSweeper
+                        ? 'Oracle Lens'
+                        : isTrinketBlue
+                        ? 'Farsight Alteration'
+                        : wardCount > 0
+                        ? 'Vision Ready'
+                        : 'Vision Recharging'}
                     </span>
-                    <span style={{ fontSize: '10px', fontWeight: 900, color: gameTime >= 840 ? '#f59e0b' : '#38bdf8' }}>
-                      {gameTime >= 840 ? 'Swap to Sweeper / Blue' : 'Wards Available (2/2)'}
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 900,
+                        color: gameTime >= 840
+                          ? '#f59e0b'
+                          : isTrinketSweeper
+                          ? '#f43f5e'
+                          : wardCount > 0
+                          ? '#38bdf8'
+                          : '#94a3b8',
+                      }}
+                    >
+                      {gameTime >= 840
+                        ? 'Swap to Sweeper / Blue'
+                        : isTrinketSweeper
+                        ? (trinketItem?.canUse !== false ? 'Sweeper Ready' : 'Sweeper on CD')
+                        : wardCount > 0
+                        ? `Wards Available (${wardCount}/${maxWards})${controlWardCount > 0 ? ` +${controlWardCount} Pink` : ''}`
+                        : `0 Wards Left${controlWardCount > 0 ? ` (${controlWardCount} Pink)` : ' (Recharging)'}`}
                     </span>
                   </div>
                 </div>
@@ -1676,7 +1739,15 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         <span style={{ fontSize: '8px', fontWeight: 800, color: '#38bdf8', width: '20px', textAlign: 'left' }}>
                           {ult.role}
                         </span>
-                        <img src={ult.icon} alt={ult.name} style={{ width: '14px', height: '14px', borderRadius: '2px' }} />
+                        <img
+                          src={ult.icon}
+                          alt={ult.name}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = getChampionIcon(ult.champ);
+                          }}
+                          style={{ width: '16px', height: '16px', borderRadius: '3px', objectFit: 'cover' }}
+                        />
                       </div>
                       <span className="tabular-nums" style={{ fontSize: '9px', fontWeight: 800, color: ult.active ? '#f87171' : '#10b981' }}>
                         {ult.active ? `${ult.remaining}s` : 'RDY'}
@@ -1691,7 +1762,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 <div
                   style={{
                     position: 'absolute',
-                    bottom: '60px',
+                    bottom: '165px',
                     left: '50%',
                     transform: 'translateX(-50%)',
                     pointerEvents: 'none',

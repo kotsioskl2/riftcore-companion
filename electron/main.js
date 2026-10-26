@@ -2,8 +2,14 @@ const { app, BrowserWindow, ipcMain, shell, globalShortcut, screen, Tray, Menu }
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const WebSocket = require('ws');
+
+// Set Application Identity for Windows Task Manager & Shell grouping
+app.setName('RiftCore Companion');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.riftcore.companion');
+}
 
 // Disable TLS verification for local self-signed Riot certificates
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
@@ -27,6 +33,82 @@ let isCompactMode = false;
 let isPinned = false;
 let currentHudMode = 'integrated';
 let overlayClickThrough = true;
+
+// Alt-Tab Auto-Hide & Focus Tracking State
+let isLeagueInForeground = false;
+let focusWatcherProc = null;
+
+function getFocusWatcherPath() {
+  const userPath = path.join(app.getPath('userData'), 'focus_watcher.exe');
+  const bundledPath = path.join(__dirname, 'bin', 'focus_watcher.exe');
+  const resPath = path.join(process.resourcesPath || '', 'focus_watcher.exe');
+  const besideExePath = path.join(path.dirname(process.execPath), 'focus_watcher.exe');
+
+  if (fs.existsSync(besideExePath)) return besideExePath;
+  if (fs.existsSync(resPath)) return resPath;
+  if (fs.existsSync(bundledPath)) {
+    try {
+      if (!fs.existsSync(userPath) || fs.statSync(bundledPath).mtimeMs > fs.statSync(userPath).mtimeMs) {
+        fs.copyFileSync(bundledPath, userPath);
+      }
+      return userPath;
+    } catch {
+      return bundledPath;
+    }
+  }
+  if (fs.existsSync(userPath)) return userPath;
+  return null;
+}
+
+function startFocusWatcher() {
+  if (process.platform !== 'win32') return;
+  if (focusWatcherProc) return;
+
+  const watcherExe = getFocusWatcherPath();
+  if (!watcherExe || !fs.existsSync(watcherExe)) {
+    console.warn('[RiftCore] focus_watcher.exe not found, falling back to manual overlay hotkey');
+    return;
+  }
+
+  try {
+    focusWatcherProc = spawn(watcherExe, [], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+
+    focusWatcherProc.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      if (text.includes('LEAGUE_FOCUSED')) {
+        isLeagueInForeground = true;
+        // League gained focus! Automatically restore overlay if in match
+        const shouldShow = gameflowPhase === 'InProgress' || gameflowPhase === 'GameStart' || isOverlayOnly || lastLiveData !== null;
+        if (shouldShow && overlayWindow && !overlayWindow.isDestroyed()) {
+          overlayWindow.showInactive();
+          overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+        }
+      } else if (text.includes('LEAGUE_BLURRED')) {
+        isLeagueInForeground = false;
+        // User Alt-Tabbed out of League of Legends! Automatically hide overlay immediately!
+        if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+          overlayWindow.hide();
+        }
+      }
+    });
+
+    focusWatcherProc.on('exit', () => {
+      focusWatcherProc = null;
+    });
+  } catch (err) {
+    console.warn('[RiftCore] Error starting focus watcher:', err);
+  }
+}
+
+function stopFocusWatcher() {
+  if (focusWatcherProc) {
+    try { focusWatcherProc.kill(); } catch {}
+    focusWatcherProc = null;
+  }
+}
 
 // LCU State
 let lcuCredentials = null;
@@ -484,7 +566,7 @@ function startLiveGamePolling() {
         const liveData = await res.json();
         lastLiveData = liveData;
         notifyAllRenderers('live-game-update', liveData);
-        if (overlayWindow && !overlayWindow.isVisible()) {
+        if (overlayWindow && !overlayWindow.isVisible() && isLeagueInForeground) {
           showOverlay();
         }
       }
@@ -906,6 +988,8 @@ function toggleOverlayHotkey() {
 }
 
 app.whenReady().then(() => {
+  startFocusWatcher();
+
   if (isOverlayOnly) {
     createOverlayWindow();
     showOverlay();
@@ -975,6 +1059,7 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
+  stopFocusWatcher();
   globalShortcut.unregisterAll();
 });
 

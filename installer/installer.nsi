@@ -13,7 +13,7 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "RiftCore Companion"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "2.0.0"
+  !define PRODUCT_VERSION "2.0.1"
 !endif
 !define PRODUCT_PUBLISHER "RiftCore Team"
 !define PRODUCT_WEB_SITE "https://github.com/kotsioskl2/riftcore-companion"
@@ -134,16 +134,8 @@ Section "MainSection" SEC01
   SetOverwrite on
 
   DetailPrint "Extracting core application binaries..."
-  File "..\RiftCore_Rust_Portable\RiftCore.exe"
-  File "..\RiftCore_Rust_Portable\WebView2Loader.dll"
-  File "..\public\icon.ico"
-  File "..\LICENSE"
+  File /r "..\RiftCore_Rust_Portable\*.*"
   File "UPDATE_NOTES.txt"
-
-  DetailPrint "Extracting high-performance overlay engine..."
-  SetOutPath "$INSTDIR\overlay"
-  File /r "..\RiftCore_Rust_Portable\overlay\*.*"
-  SetOutPath "$INSTDIR"
 
   ; Create Uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -194,20 +186,9 @@ Section Uninstall
   Delete "$SMPROGRAMS\RiftCore Companion\Uninstall RiftCore.lnk"
   RMDir "$SMPROGRAMS\RiftCore Companion"
 
-  ; Remove Installed Files
+  ; Remove Installed Directory
   DetailPrint "Removing application files..."
-  Delete "$INSTDIR\RiftCore.exe"
-  Delete "$INSTDIR\WebView2Loader.dll"
-  Delete "$INSTDIR\icon.ico"
-  Delete "$INSTDIR\UPDATE_NOTES.txt"
-  Delete "$INSTDIR\uninstall.exe"
-
-  ; Remove Overlay subsystem
-  RMDir /r "$INSTDIR\overlay"
-
-  ; Remove WebView2 User Data cache
-  RMDir /r "$INSTDIR\RiftCore.exe.WebView2"
-  RMDir "$INSTDIR"
+  RMDir /r "$INSTDIR"
 
   ; Delete Registry Keys
   DetailPrint "Cleaning registry entries..."

@@ -64,20 +64,20 @@ Live rank, LP, win rates, and recent match stats with MVP/ACE badges.
 
 ## 📦 Downloads & Installation
 
-### Direct Downloads (Latest Release v2.0.0)
+### Direct Downloads (Latest Release v2.0.1)
 | Package | Type | Download Link | Description |
 | :--- | :--- | :--- | :--- |
-| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-2.0.0.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Complete 1-Click Installer (Start Menu & Desktop shortcuts) |
-| **Portable ZIP Archive** | Portable ZIP | [📦 **Download RiftCore-Portable-2.0.0.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Zero-install, unzips to any folder |
+| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-2.0.1.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Complete 1-Click Installer (Start Menu & Desktop shortcuts) |
+| **Portable ZIP Archive** | Portable ZIP | [📦 **Download RiftCore-Portable-2.0.1.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Zero-install, unzips to any folder |
 | **Portable Directory** | Local Extracted | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Run `RiftCore.exe` directly |
 
 ### Option A: Windows Installer (Recommended)
-1. Download [**RiftCore-Setup-2.0.0.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest).
+1. Download [**RiftCore-Setup-2.0.1.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest).
 2. Run the setup and choose your installation directory.
 3. Desktop and Start Menu shortcuts with the custom RiftCore emblem will be created automatically.
 
 ### Option B: Standalone Portable `.exe`
-1. Download [**RiftCore-Portable-2.0.0.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) or open [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/).
+1. Download [**RiftCore-Portable-2.0.1.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) or open [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/).
 2. Double-click `RiftCore.exe` to launch instantly with zero installation required.
 
 ---
@@ -99,8 +99,8 @@ This automated script will:
 1. Package the React 19 frontend and DirectComposition overlay engine into `app.asar`.
 2. Compile the high-performance native Rust companion (`riftcore-native.exe`) in release profile.
 3. Assemble the portable distribution folder `RiftCore_Rust_Portable/`.
-4. Compile the Windows NSIS Setup installer in `installer_output/RiftCore-Setup-2.0.0.exe`.
-5. Generate the portable ZIP package in `installer_output/RiftCore-Portable-2.0.0.zip`.
+4. Compile the Windows NSIS Setup installer in `installer_output/RiftCore-Setup-2.0.1.exe`.
+5. Generate the portable ZIP package in `installer_output/RiftCore-Portable-2.0.1.zip`.
 
 ---
 
