@@ -16,12 +16,30 @@ export class OverlayErrorBoundary extends Component<Props, State> {
     hasError: false,
   };
 
+  private recoveryTimer: any = null;
+
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[RiftCore Overlay] Runtime error caught:', error, errorInfo);
+    // Automatically attempt recovery after 1.5 seconds so a temporary loading glitch never freezes the overlay
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = setTimeout(() => {
+      this.setState({ hasError: false, error: undefined });
+    }, 1500);
+  }
+
+  public componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && this.props.children !== prevProps.children) {
+      if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+      this.setState({ hasError: false, error: undefined });
+    }
+  }
+
+  public componentWillUnmount() {
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
   }
 
   public render() {
@@ -39,13 +57,14 @@ export class OverlayErrorBoundary extends Component<Props, State> {
           }}
         >
           <div
+            data-rift-interactive="true"
             style={{
               pointerEvents: 'auto',
-              padding: '12px 18px',
+              padding: '10px 16px',
               borderRadius: '10px',
               background: 'rgba(10, 16, 28, 0.95)',
-              border: '1px solid rgba(255, 42, 95, 0.4)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)',
+              border: '1px solid rgba(0, 210, 255, 0.4)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8), 0 0 16px rgba(0, 210, 255, 0.2)',
               display: 'flex',
               alignItems: 'center',
               gap: '12px',
@@ -53,31 +72,32 @@ export class OverlayErrorBoundary extends Component<Props, State> {
               fontSize: '12px',
             }}
           >
-            <AlertTriangle size={18} color="#ff2a5f" />
+            <AlertTriangle size={16} color="#38bdf8" />
             <div>
-              <div style={{ fontWeight: 800, color: '#f8fafc' }}>Overlay Telemetry Syncing...</div>
-              <div style={{ fontSize: '10px', color: '#94a3b8' }}>Recovering active game state</div>
+              <div style={{ fontWeight: 800, color: '#f8fafc', fontSize: '11.5px' }}>Overlay Telemetry Syncing...</div>
+              <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>Auto-recovering live match data</div>
             </div>
             <button
               onClick={() => {
-                this.setState({ hasError: false });
+                if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+                this.setState({ hasError: false, error: undefined });
                 if (this.props.onExpand) this.props.onExpand();
               }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                padding: '4px 10px',
+                gap: '4px',
+                padding: '3px 9px',
                 borderRadius: '6px',
                 background: 'rgba(0, 210, 255, 0.2)',
                 border: '1px solid var(--blue-primary)',
                 color: 'var(--blue-primary)',
-                fontSize: '11px',
+                fontSize: '10.5px',
                 cursor: 'pointer',
-                fontWeight: 700,
+                fontWeight: 800,
               }}
             >
-              <RotateCcw size={12} />
+              <RotateCcw size={11} />
               <span>Retry</span>
             </button>
           </div>

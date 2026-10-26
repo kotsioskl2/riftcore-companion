@@ -908,9 +908,12 @@ ipcMain.handle('window-control', (_event, action) => {
       isCompactMode = !isCompactMode;
       if (isCompactMode) {
         showOverlay();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.hide();
+        }
       } else {
         hideOverlay();
-        if (mainWindow) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.show();
           mainWindow.focus();
         }

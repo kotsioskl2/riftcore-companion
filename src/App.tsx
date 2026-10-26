@@ -460,8 +460,9 @@ export const App: React.FC = () => {
     }
   }, [isCompactMode, isMatchLive, exitCompactMode, isDedicatedOverlay]);
 
-  // When in Dedicated In-Game Overlay Window OR Compact Mode: Render Pure Floating Tactical HUD Widget
-  if (isDedicatedOverlay || (isCompactMode && isMatchLive)) {
+  // When in Dedicated In-Game Overlay Window (#overlay) OR Web Standalone Compact Mode:
+  const shouldRenderOverlay = isDedicatedOverlay || (!window.riftAPI && isCompactMode && isMatchLive);
+  if (shouldRenderOverlay) {
     return (
       <div className="app-container compact-mode" style={{ background: 'transparent' }}>
         <OverlayErrorBoundary onExpand={handleToggleCompact}>

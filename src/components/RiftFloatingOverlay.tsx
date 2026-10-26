@@ -337,46 +337,74 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   }, [isDemoMode, isLive]);
 
   // Live or Demo values
-  const gameTime = isLive
-    ? Math.floor(liveData.gameData.gameTime)
+  const gameTime = isLive && typeof liveData?.gameData?.gameTime === 'number'
+    ? Math.max(0, Math.floor(liveData.gameData.gameTime))
     : isDemoMode
     ? demoClock
     : 0;
 
-  const gameMinutes = Math.max(1, gameTime / 60);
+  const gameMinutes = Math.max(1, (gameTime || 0) / 60);
 
   // Active Player info (safe against Riot ID / undefined fields)
   const activeSumm = (liveData?.activePlayer?.summonerName || (liveData?.activePlayer as any)?.riotIdGameName || '').toLowerCase();
   const allPlayers = Array.isArray(liveData?.allPlayers) ? liveData.allPlayers : [];
   const myPlayer = allPlayers.find(
     (p) => {
+      if (!p) return false;
       const sName = (p?.summonerName || (p as any)?.riotIdGameName || '').toLowerCase();
       const cName = (p?.championName || '').toLowerCase();
       return (activeSumm && (sName === activeSumm || cName === activeSumm));
     }
-  ) || allPlayers[0];
+  ) || allPlayers[0] || null;
 
   const myTeam = myPlayer?.team || 'ORDER';
 
   // My Champion Identity
   const rawChampName = isLive ? (myPlayer?.championName || 'Ahri') : 'Illaoi';
-  const myChampObj = CHAMPIONS_LIST.find((c) => c.name.toLowerCase() === rawChampName.toLowerCase()) || CHAMPIONS_LIST[0];
-  const myChampBuild = getChampionBuild(myChampObj.id, myChampObj.name);
+  const myChampObj = CHAMPIONS_LIST.find((c) => c?.name?.toLowerCase() === rawChampName.toLowerCase()) || CHAMPIONS_LIST[0] || {
+    id: 103,
+    name: 'Ahri',
+    key: 'Ahri',
+    title: 'the Nine-Tailed Fox',
+    roles: ['MID']
+  };
+  const rawBuild = getChampionBuild(myChampObj.id, myChampObj.name);
+  const myChampBuild = {
+    ...rawBuild,
+    skillOrder: rawBuild?.skillOrder || ['Q', 'W', 'E', 'Q', 'Q', 'R', 'Q', 'W', 'Q', 'W', 'R', 'W', 'W', 'E', 'E', 'R', 'E', 'E'],
+    skillPriority: rawBuild?.skillPriority || 'Q > W > E',
+    startingItems: Array.isArray(rawBuild?.startingItems) && rawBuild.startingItems.length > 0
+      ? rawBuild.startingItems
+      : [{ id: 1055, name: "Doran's Blade" }, { id: 2003, name: "Health Potion" }],
+    boots: rawBuild?.boots || { id: 3047, name: "Plated Steelcaps" },
+    tips: Array.isArray(rawBuild?.tips) && rawBuild.tips.length > 0
+      ? rawBuild.tips
+      : ["Focus on lane control and CS.", "Trade when enemy abilities are on cooldown."],
+    coreItems: Array.isArray(rawBuild?.coreItems) && rawBuild.coreItems.length > 0
+      ? rawBuild.coreItems
+      : [{ id: 3071, name: 'Black Cleaver' }, { id: 3071, name: 'Black Cleaver' }],
+    counters: {
+      strongAgainst: rawBuild?.counters?.strongAgainst || [],
+      weakAgainst: rawBuild?.counters?.weakAgainst || [],
+    },
+  };
 
   // Detect Enemy Lane Opponent
   const enemyTeam = myTeam === 'ORDER' ? 'CHAOS' : 'ORDER';
   const enemyPlayers = isLive
-    ? allPlayers.filter((p) => p?.team === enemyTeam)
+    ? allPlayers.filter((p) => p && p.team === enemyTeam)
     : [];
 
+  const fallbackOpponentName = myChampBuild?.counters?.weakAgainst?.[0]?.name || 'Darius';
   const laneOpponent = isLive
-    ? (enemyPlayers[0] || { championName: myChampBuild.counters.weakAgainst[0]?.name || 'Darius' })
-    : { championName: 'Darius' };
+    ? (enemyPlayers[0] || { championName: fallbackOpponentName })
+    : { championName: fallbackOpponentName };
 
-  const opponentChampObj = CHAMPIONS_LIST.find((c) => c.name.toLowerCase() === (laneOpponent?.championName || '').toLowerCase()) || {
+  const opponentChampName = laneOpponent?.championName || fallbackOpponentName;
+  const opponentChampObj = CHAMPIONS_LIST.find((c) => c?.name?.toLowerCase() === opponentChampName.toLowerCase()) || {
     id: 122,
-    name: 'Darius',
-    key: 'Darius',
+    name: opponentChampName,
+    key: opponentChampName,
     roles: ['TOP'],
   };
   const opponentBuild = getChampionBuild(opponentChampObj.id, opponentChampObj.name);
@@ -388,7 +416,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     ? Math.floor((demoClock / 60) * 8.2)
     : 0;
 
-  const csm = (currentCs / gameMinutes).toFixed(1);
+  const csm = (currentCs / (gameMinutes || 1)).toFixed(1);
   const benchmarkCSM = 7.5;
   const csmDelta = (parseFloat(csm) - benchmarkCSM).toFixed(1);
   const isCsmAhead = parseFloat(csmDelta) >= 0;
@@ -426,14 +454,14 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const controlWardCount = controlWardItem?.count || 0;
 
   const teamKills = isLive
-    ? (liveData?.allPlayers?.filter((p) => p.team === myTeam)?.reduce((sum, p) => sum + (p.scores?.kills || 0), 0) || 0)
+    ? (liveData?.allPlayers?.filter((p) => p && p.team === myTeam)?.reduce((sum, p) => sum + (p?.scores?.kills || 0), 0) || 0)
     : 16;
   const myKills = isLive ? (myPlayer?.scores?.kills || 0) : 4;
   const myDeaths = isLive ? (myPlayer?.scores?.deaths || 0) : 1;
   const myAssists = isLive ? (myPlayer?.scores?.assists || 0) : 5;
   const kp = teamKills > 0 ? Math.round(((myKills + myAssists) / teamKills) * 100) : 56;
   const kdaRatio = myDeaths > 0 ? ((myKills + myAssists) / myDeaths).toFixed(1) : (myKills + myAssists).toFixed(1);
-  const gpm = Math.floor(((currentGold + currentCs * 21 + myKills * 300) / gameMinutes) || 410);
+  const gpm = Math.floor(((currentGold + currentCs * 21 + myKills * 300) / (gameMinutes || 1)) || 410);
 
   // Gold calculation for scoreboard / tab section
   const calcPlayerGold = (p: any) => {
@@ -441,17 +469,17 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     const csGold = (p.scores?.creepScore || 0) * 21;
     const killGold = (p.scores?.kills || 0) * 300;
     const assistGold = (p.scores?.assists || 0) * 100;
-    const passiveGold = Math.floor(gameMinutes * 125);
+    const passiveGold = Math.floor((gameMinutes || 1) * 125);
     return 500 + csGold + killGold + assistGold + passiveGold;
   };
 
   const myTeamTotalGold = isLive && liveData?.allPlayers?.length
-    ? liveData.allPlayers.filter((p) => p.team === myTeam).reduce((sum, p) => sum + calcPlayerGold(p), 0)
-    : Math.floor(21400 + (gameMinutes * 650));
+    ? liveData.allPlayers.filter((p) => p && p.team === myTeam).reduce((sum, p) => sum + calcPlayerGold(p), 0)
+    : Math.floor(21400 + ((gameMinutes || 1) * 650));
 
   const enemyTeamTotalGold = isLive && liveData?.allPlayers?.length
-    ? liveData.allPlayers.filter((p) => p.team === enemyTeam).reduce((sum, p) => sum + calcPlayerGold(p), 0)
-    : Math.floor(19600 + (gameMinutes * 600));
+    ? liveData.allPlayers.filter((p) => p && p.team === enemyTeam).reduce((sum, p) => sum + calcPlayerGold(p), 0)
+    : Math.floor(19600 + ((gameMinutes || 1) * 600));
 
   const teamGoldDiff = myTeamTotalGold - enemyTeamTotalGold;
   const isTeamGoldAhead = teamGoldDiff >= 0;
@@ -463,11 +491,13 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const myKP = kp;
 
   // Next skill to level up calculation
-  const nextSkillIndex = Math.min(17, myLevel);
-  const nextSkillKey = myChampBuild.skillOrder[nextSkillIndex] || myChampBuild.skillOrder[0] || 'Q';
+  const nextSkillIndex = Math.min(17, Math.max(0, myLevel - 1));
+  const skillOrderList = myChampBuild?.skillOrder || ['Q', 'W', 'E', 'Q', 'Q', 'R', 'Q', 'W', 'Q', 'W', 'R', 'W', 'W', 'E', 'E', 'R', 'E', 'E'];
+  const nextSkillKey = skillOrderList[nextSkillIndex] || skillOrderList[0] || 'Q';
 
   // Current item target & components
-  const targetCoreItem = myChampBuild.coreItems[1] || myChampBuild.coreItems[0] || { id: 3071, name: 'Black Cleaver' };
+  const coreItemsList = myChampBuild?.coreItems || [{ id: 3071, name: 'Black Cleaver' }, { id: 3071, name: 'Black Cleaver' }];
+  const targetCoreItem = coreItemsList[1] || coreItemsList[0] || { id: 3071, name: 'Black Cleaver' };
   const targetCost = 3100;
   const goldRemaining = Math.max(0, targetCost - currentGold);
 
@@ -1370,7 +1400,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     <span style={{ fontSize: '11px' }}>⚔️</span>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        vs {laneOpponent.championName}
+                        vs {opponentChampName}
                       </span>
                       <span
                         style={{
@@ -1695,7 +1725,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                       border: `1px solid ${csDiffVsOpponent >= 0 ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'}`,
                     }}
                   >
-                    {csDiffVsOpponent >= 0 ? `▲ +${csDiffVsOpponent}` : `▼ ${csDiffVsOpponent}`} vs {laneOpponent.championName}
+                    {csDiffVsOpponent >= 0 ? `▲ +${csDiffVsOpponent}` : `▼ ${csDiffVsOpponent}`} vs {opponentChampName}
                   </span>
                 </div>
               )}

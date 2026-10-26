@@ -39,7 +39,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo [3/4] Packaging Portable ZIP Archive...
-powershell -Command "Compress-Archive -Path 'RiftCore_Rust_Portable\*' -DestinationPath 'installer_output\RiftCore-Portable-!APP_VERSION!.zip' -Force"
+powershell -Command "Get-ChildItem -Path 'RiftCore_Rust_Portable' -Recurse | Where-Object { $_.LastWriteTime.Year -lt 1980 } | ForEach-Object { $_.LastWriteTime = Get-Date }; Compress-Archive -Path 'RiftCore_Rust_Portable\*' -DestinationPath 'installer_output\RiftCore-Portable-!APP_VERSION!.zip' -Force"
 
 echo.
 echo ===================================================
