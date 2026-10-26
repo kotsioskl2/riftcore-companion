@@ -85,9 +85,12 @@ function startFocusWatcher() {
         if (shouldShow && overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.showInactive();
           overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+          overlayWindow.moveTop();
+          startTopmostWatcher();
         }
       } else if (text.includes('LEAGUE_BLURRED')) {
         isLeagueInForeground = false;
+        stopTopmostWatcher();
         // User Alt-Tabbed out of League of Legends! Automatically hide overlay immediately!
         if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
           overlayWindow.hide();
@@ -97,6 +100,7 @@ function startFocusWatcher() {
 
     focusWatcherProc.on('exit', () => {
       focusWatcherProc = null;
+      stopTopmostWatcher();
     });
   } catch (err) {
     console.warn('[RiftCore] Error starting focus watcher:', err);
@@ -104,9 +108,29 @@ function startFocusWatcher() {
 }
 
 function stopFocusWatcher() {
+  stopTopmostWatcher();
   if (focusWatcherProc) {
     try { focusWatcherProc.kill(); } catch {}
     focusWatcherProc = null;
+  }
+}
+
+let topmostReinforceTimer = null;
+
+function startTopmostWatcher() {
+  if (topmostReinforceTimer) return;
+  topmostReinforceTimer = setInterval(() => {
+    if (isLeagueInForeground && overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+      overlayWindow.moveTop();
+    }
+  }, 2000);
+}
+
+function stopTopmostWatcher() {
+  if (topmostReinforceTimer) {
+    clearInterval(topmostReinforceTimer);
+    topmostReinforceTimer = null;
   }
 }
 
@@ -376,9 +400,10 @@ function showOverlay() {
   const win = overlayWindow || createOverlayWindow();
   if (win && !win.isDestroyed()) {
     const primaryDisplay = screen.getPrimaryDisplay();
-    const { width, height } = primaryDisplay.bounds;
-    win.setBounds({ x: 0, y: 0, width, height });
+    const { x, y, width, height } = primaryDisplay.bounds;
+    win.setBounds({ x, y, width, height });
     win.setAlwaysOnTop(true, 'screen-saver', 1);
+    win.moveTop();
     try {
       win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     } catch {}
@@ -389,11 +414,15 @@ function showOverlay() {
     }
     win.showInactive();
     startMouseWatcher();
+    if (isLeagueInForeground) {
+      startTopmostWatcher();
+    }
   }
 }
 
 function hideOverlay() {
   stopMouseWatcher();
+  stopTopmostWatcher();
   if (isOverlayOnly) {
     app.quit();
     return;
