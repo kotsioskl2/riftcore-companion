@@ -296,7 +296,11 @@ function createOverlayWindow() {
   });
 
   overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-  overlayWindow.setIgnoreMouseEvents(overlayClickThrough, { forward: true });
+  if (overlayClickThrough) {
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  } else {
+    overlayWindow.setIgnoreMouseEvents(false);
+  }
 
   const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged && process.env.VITE_DEV_SERVER_URL;
   const indexHtml = path.join(app.getAppPath(), 'dist/index.html');
@@ -320,7 +324,11 @@ function showOverlay() {
     const { width, height } = primaryDisplay.bounds;
     win.setBounds({ x: 0, y: 0, width, height });
     win.setAlwaysOnTop(true, 'screen-saver', 1);
-    win.setIgnoreMouseEvents(overlayClickThrough, { forward: true });
+    if (overlayClickThrough) {
+      win.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      win.setIgnoreMouseEvents(false);
+    }
     win.showInactive();
   }
 }
@@ -826,9 +834,24 @@ ipcMain.handle('window-control', (_event, action) => {
 ipcMain.handle('set-click-through', (_event, enabled) => {
   overlayClickThrough = Boolean(enabled);
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.setIgnoreMouseEvents(overlayClickThrough, { forward: true });
+    if (overlayClickThrough) {
+      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      overlayWindow.setIgnoreMouseEvents(false);
+    }
   }
   return { clickThrough: overlayClickThrough };
+});
+
+ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && !win.isDestroyed()) {
+    if (ignore) {
+      win.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      win.setIgnoreMouseEvents(false);
+    }
+  }
 });
 
 ipcMain.handle('set-hud-mode', (_event, mode) => {

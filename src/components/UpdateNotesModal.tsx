@@ -122,7 +122,7 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
 
         {/* Highlights List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-          {/* Highlight 0: In-App Updates & Pure Rust */}
+          {/* Highlight 0: Interactive Overlay & Click-Through */}
           <div
             style={{
               padding: '11px 14px',
@@ -151,14 +151,14 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
             </div>
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: '#6ee7b7' }}>
-                In-App Auto-Updates & 100% Native Rust Architecture
+                100% Clickable Overlay + Seamless Game Click-Through
               </span>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', lineHeight: '1.4' }}>
-                Never miss an update! RiftCore scans GitHub Releases automatically and installs with 1 click. Completely purged Electron bloat—installer is now only ~5MB!
+                You can now click every button, card, spell, menu, and timer with zero issues. When hovering over empty game space, clicks pass right into League with 0 input latency!
               </div>
             </div>
           </div>
-          {/* Highlight 1: Full Screen In-Game HUD */}
+          {/* Highlight 1: Zero-Lag Hextech Architecture & Calibrated Minimap */}
           <div
             style={{
               padding: '11px 14px',
@@ -188,14 +188,14 @@ export const UpdateNotesModal: React.FC<UpdateNotesModalProps> = ({ isOpen, onCl
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
-                  Full Screen In-Game HUD
+                  Zero GPU Lag & Calibrated Jungle Map Pins
                 </span>
                 <span style={{ fontSize: '10px', color: 'var(--blue-primary)', background: 'rgba(0, 210, 255, 0.1)', padding: '1px 6px', borderRadius: '3px', fontWeight: 600 }}>
-                  Alt + G
+                  144+ FPS
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', lineHeight: '1.4' }}>
-                Works natively over League of Legends in Full Screen mode! Zero mouse lag, clicks pass straight into the game. Hit <kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '1px 5px', borderRadius: '3px', color: '#00c8ff' }}>Alt + G</kbd> in-game anytime to show or hide it.
+                Purged all heavy GPU blur filters to restore buttery smooth frame rates! Camps, buffs, and numbered 1-7 jungle route markers now align pixel-perfect with Summoner's Rift with Red/Blue start toggles.
               </div>
             </div>
           </div>

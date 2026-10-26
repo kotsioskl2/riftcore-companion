@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LiveGameData, AppSettings } from '../types';
 import {
   Maximize2,
@@ -59,18 +59,60 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     if (isLive) setIsPreviewMode(false);
   }, [isLive]);
 
-  // Dynamic Click-Through Synchronization:
-  // When in Preview Mode: NEVER click-through so user can click, configure, and exit.
-  // When in Live Match Integrated Mode: Click-through by default so gameplay is 100% responsive.
-  useEffect(() => {
-    if (isPreviewMode) {
-      window.riftAPI?.setClickThrough?.(false);
-    } else if (hudMode === 'integrated') {
-      window.riftAPI?.setClickThrough?.(true);
+  // Robust interaction control: Enables full mouse interaction over overlay elements,
+  // and restores transparent pass-through over the League battlefield.
+  const enableInteraction = useCallback(() => {
+    if (window.riftAPI?.setIgnoreMouseEvents) {
+      window.riftAPI.setIgnoreMouseEvents(false);
     } else {
       window.riftAPI?.setClickThrough?.(false);
     }
+  }, []);
+
+  const disableInteraction = useCallback(() => {
+    if (isPreviewMode || hudMode !== 'integrated') return;
+    if (window.riftAPI?.setIgnoreMouseEvents) {
+      window.riftAPI.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      window.riftAPI?.setClickThrough?.(true);
+    }
   }, [isPreviewMode, hudMode]);
+
+  useEffect(() => {
+    if (isPreviewMode || hudMode !== 'integrated') {
+      enableInteraction();
+      return;
+    }
+
+    // Default to click-through in integrated mode
+    disableInteraction();
+    let isOverInteractive = false;
+
+    const handlePointerMove = (e: MouseEvent) => {
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      const interactive = !!target && (
+        target.tagName === 'BUTTON' ||
+        target.tagName === 'A' ||
+        target.tagName === 'INPUT' ||
+        target.getAttribute('role') === 'button' ||
+        !!target.closest('button, a, input, [role="button"], [data-interactive="true"]')
+      );
+
+      if (interactive !== isOverInteractive) {
+        isOverInteractive = interactive;
+        if (interactive) {
+          enableInteraction();
+        } else {
+          disableInteraction();
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove);
+    };
+  }, [isPreviewMode, hudMode, enableInteraction, disableInteraction]);
 
   // Auto-expand to full desktop app if outside an active match and not in preview mode
   useEffect(() => {
@@ -298,6 +340,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const enemyLaneGold = isLive ? calcPlayerGold(laneOpponent) : Math.max(500, myLaneGold - 450);
   const laneGoldDiff = myLaneGold - enemyLaneGold;
   const isLaneGoldAhead = laneGoldDiff >= 0;
+  const myKP = kp;
 
   // Next skill to level up calculation
   const nextSkillIndex = Math.min(17, myLevel);
@@ -354,16 +397,38 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     { id: 'enemy_outer', name: 'Enemy Outer', icon: '💚', total: 60, remaining: 0, active: false, mapPos: { bottom: '21.0vh', right: '4.8vw' } },
   ]);
 
-  // Jungle First Clear Pathing Route (Bot Leash / Full Clear)
-  const jungleClearSteps = [
-    { name: 'Red Buff', time: '1:30', start: 90, end: 110, icon: '🔴' },
-    { name: 'Krugs', time: '1:50', start: 110, end: 135, icon: '🗿' },
-    { name: 'Raptors', time: '2:15', start: 135, end: 160, icon: '🦅' },
-    { name: 'Wolves', time: '2:40', start: 160, end: 180, icon: '🐺' },
-    { name: 'Blue Buff', time: '3:00', start: 180, end: 195, icon: '🔵' },
-    { name: 'Gromp', time: '3:15', start: 195, end: 210, icon: '🐸' },
-    { name: 'Scuttle', time: '3:30', start: 210, end: 240, icon: '🦀' },
+  // Jungle Pathing Configuration: Red Start vs Blue Start with exact minimap camp alignment
+  const [jungleStartBuff, setJungleStartBuff] = useState<'red' | 'blue'>('red');
+  const [showJungleMapPins, setShowJungleMapPins] = useState<boolean>(true);
+  const [showStrategicWards, setShowStrategicWards] = useState<boolean>(false);
+  const [showAlwaysJunglePath, setShowAlwaysJunglePath] = useState<boolean>(true);
+
+  const redStartSteps = [
+    { step: 1, campKey: 'red_bot', name: 'Red Buff', time: '1:30', start: 90, end: 110, icon: '🔴', smite: false },
+    { step: 2, campKey: 'krugs_bot', name: 'Krugs', time: '1:50', start: 110, end: 135, icon: '🗿', smite: true },
+    { step: 3, campKey: 'raptors_bot', name: 'Raptors', time: '2:15', start: 135, end: 160, icon: '🦅', smite: false },
+    { step: 4, campKey: 'wolves_bot', name: 'Wolves', time: '2:40', start: 160, end: 180, icon: '🐺', smite: false },
+    { step: 5, campKey: 'blue_bot', name: 'Blue Buff', time: '3:00', start: 180, end: 195, icon: '🔵', smite: false },
+    { step: 6, campKey: 'gromp_bot', name: 'Gromp', time: '3:15', start: 195, end: 210, icon: '🐸', smite: true },
+    { step: 7, campKey: 'scuttle_top', name: 'Scuttle Crab', time: '3:30', start: 210, end: 240, icon: '🦀', smite: true },
   ];
+
+  const blueStartSteps = [
+    { step: 1, campKey: 'blue_bot', name: 'Blue Buff', time: '1:30', start: 90, end: 110, icon: '🔵', smite: false },
+    { step: 2, campKey: 'gromp_bot', name: 'Gromp', time: '1:50', start: 110, end: 135, icon: '🐸', smite: true },
+    { step: 3, campKey: 'wolves_bot', name: 'Wolves', time: '2:15', start: 135, end: 160, icon: '🐺', smite: false },
+    { step: 4, campKey: 'raptors_bot', name: 'Raptors', time: '2:40', start: 160, end: 180, icon: '🦅', smite: false },
+    { step: 5, campKey: 'red_bot', name: 'Red Buff', time: '3:00', start: 180, end: 195, icon: '🔴', smite: false },
+    { step: 6, campKey: 'krugs_bot', name: 'Krugs', time: '3:15', start: 195, end: 210, icon: '🗿', smite: true },
+    { step: 7, campKey: 'scuttle_bot', name: 'Scuttle Crab', time: '3:30', start: 210, end: 240, icon: '🦀', smite: true },
+  ];
+
+  const jungleClearSteps = jungleStartBuff === 'red' ? redStartSteps : blueStartSteps;
+
+  // Toggle for On-Map Minimap Pin Badges
+  const [showOnMapPins, setShowOnMapPins] = useState<boolean>(true);
+  const [leagueWindowMode, setLeagueWindowMode] = useState<number | null>(null);
+  const [borderlessApplied, setBorderlessApplied] = useState<boolean>(false);
 
   // Summoner Spell Timers (Interactive Click-to-Track)
   const [enemySpells, setEnemySpells] = useState([
@@ -383,6 +448,9 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   useEffect(() => {
     if (window.riftAPI?.getLeagueWindowMode) {
       window.riftAPI.getLeagueWindowMode().then((res) => {
+        if (typeof res?.windowMode === 'number') {
+          setLeagueWindowMode(res.windowMode);
+        }
         if (res?.minimapScale && res.minimapScale > 0) {
           setDetectedMinimapScale(res.minimapScale);
         }
@@ -392,6 +460,16 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
       }).catch(() => {});
     }
   }, []);
+
+  const handleFixBorderless = async () => {
+    if (window.riftAPI?.setLeagueBorderless) {
+      const res = await window.riftAPI.setLeagueBorderless();
+      if (res?.success) {
+        setBorderlessApplied(true);
+        setLeagueWindowMode(2);
+      }
+    }
+  };
 
   const effectiveMinimapScale = settings?.hudMinimapScale || detectedMinimapScale || 2.16;
   const isMinimapFlipped = settings?.hudMinimapFlip !== undefined ? settings.hudMinimapFlip : detectedMinimapFlip;
@@ -404,25 +482,63 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
   const mapHeightVh = Math.min(46, Math.max(16, 13.3 * effectiveMinimapScale));
   const mapWidthVw = mapHeightVh * 0.5625;
 
-  const calculatePitPosition = (pitId: 'dragon' | 'upper_pit' | 'blue' | 'red') => {
+  const calculateCampPosition = (campKey: string) => {
     let relBottom = 0;
     let relSide = 0;
-    switch (pitId) {
+    switch (campKey) {
       case 'upper_pit': // Voidgrubs / Rift Herald / Baron Nashor pit
-        relBottom = mapHeightVh * 0.715;
-        relSide = mapWidthVw * 0.69;
+        relBottom = mapHeightVh * 0.67;
+        relSide = mapWidthVw * 0.67;
         break;
       case 'dragon': // Elemental & Elder Dragon pit
         relBottom = mapHeightVh * 0.32;
-        relSide = mapWidthVw * 0.36;
+        relSide = mapWidthVw * 0.32;
         break;
-      case 'blue': // Bot-side Blue Sentinel camp
+      case 'blue_bot': // Blue team Blue Sentinel camp
+      case 'blue':
         relBottom = mapHeightVh * 0.53;
-        relSide = mapWidthVw * 0.755;
+        relSide = mapWidthVw * 0.75;
         break;
-      case 'red': // Bot-side Red Brambleback camp
-        relBottom = mapHeightVh * 0.265;
-        relSide = mapWidthVw * 0.495;
+      case 'red_bot': // Blue team Red Brambleback camp
+      case 'red':
+        relBottom = mapHeightVh * 0.27;
+        relSide = mapWidthVw * 0.47;
+        break;
+      case 'blue_top': // Red team Blue Sentinel camp
+        relBottom = mapHeightVh * 0.47;
+        relSide = mapWidthVw * 0.25;
+        break;
+      case 'red_top': // Red team Red Brambleback camp
+        relBottom = mapHeightVh * 0.73;
+        relSide = mapWidthVw * 0.53;
+        break;
+      case 'krugs_bot':
+        relBottom = mapHeightVh * 0.16;
+        relSide = mapWidthVw * 0.42;
+        break;
+      case 'raptors_bot':
+        relBottom = mapHeightVh * 0.36;
+        relSide = mapWidthVw * 0.52;
+        break;
+      case 'wolves_bot':
+        relBottom = mapHeightVh * 0.43;
+        relSide = mapWidthVw * 0.74;
+        break;
+      case 'gromp_bot':
+        relBottom = mapHeightVh * 0.56;
+        relSide = mapWidthVw * 0.85;
+        break;
+      case 'scuttle_bot':
+        relBottom = mapHeightVh * 0.38;
+        relSide = mapWidthVw * 0.38;
+        break;
+      case 'scuttle_top':
+        relBottom = mapHeightVh * 0.62;
+        relSide = mapWidthVw * 0.62;
+        break;
+      default:
+        relBottom = mapHeightVh * 0.5;
+        relSide = mapWidthVw * 0.5;
         break;
     }
     const finalBottom = `${(relBottom + nudgeY).toFixed(2)}vh`;
@@ -433,12 +549,22 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     };
   };
 
+  // High-ELO Strategic Warding Spots on the Minimap
+  const strategicWardingSpots = [
+    { id: 'pixel_bot', name: 'Bot Pixel Bush', pos: calculateCampPosition('scuttle_bot') },
+    { id: 'pixel_top', name: 'Top Pixel Bush', pos: calculateCampPosition('scuttle_top') },
+    { id: 'dragon_entry', name: 'Dragon Pit Entry', pos: calculateCampPosition('dragon') },
+    { id: 'baron_entry', name: 'Baron Pit Entry', pos: calculateCampPosition('upper_pit') },
+    { id: 'blue_buff_ward', name: 'Blue River Bush', pos: calculateCampPosition('blue_bot') },
+    { id: 'red_buff_ward', name: 'Red River Bush', pos: calculateCampPosition('red_bot') },
+  ];
+
   // Separate camp timers positioned directly on the in-game minimap
   const [campTimers, setCampTimers] = useState([
-    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: calculatePitPosition('dragon'), alive: false },
-    { id: 'upper_pit', name: 'Grubs', icon: '👾', total: 300, remaining: Math.max(0, 300 - gameTime), color: '#f43f5e', mapPos: calculatePitPosition('upper_pit'), alive: false },
-    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 90, color: '#3b82f6', mapPos: calculatePitPosition('blue'), alive: false },
-    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 90, color: '#ef4444', mapPos: calculatePitPosition('red'), alive: false },
+    { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: 42, color: '#38bdf8', mapPos: calculateCampPosition('dragon'), alive: false },
+    { id: 'upper_pit', name: 'Grubs', icon: '👾', total: 300, remaining: Math.max(0, 300 - gameTime), color: '#f43f5e', mapPos: calculateCampPosition('upper_pit'), alive: false },
+    { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: 90, color: '#3b82f6', mapPos: calculateCampPosition('blue_bot'), alive: false },
+    { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: 90, color: '#ef4444', mapPos: calculateCampPosition('red_bot'), alive: false },
   ]);
 
   // Objective Timers
@@ -543,10 +669,10 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     const redRemaining = gTime < 90 ? 90 - gTime : 0;
 
     setCampTimers([
-      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: calculatePitPosition('dragon'), alive: isDragonAlive },
-      { id: 'upper_pit', name: upperPitName, icon: upperPitIcon, total: upperPitName === 'Baron' ? 360 : 300, remaining: upperPitRemaining, color: upperPitColor, mapPos: calculatePitPosition('upper_pit'), alive: isUpperPitAlive },
-      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: calculatePitPosition('blue'), alive: blueRemaining === 0 },
-      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: calculatePitPosition('red'), alive: redRemaining === 0 },
+      { id: 'dragon', name: 'Drake', icon: '🐲', total: 300, remaining: dragonRemaining, color: '#38bdf8', mapPos: calculateCampPosition('dragon'), alive: isDragonAlive },
+      { id: 'upper_pit', name: upperPitName, icon: upperPitIcon, total: upperPitName === 'Baron' ? 360 : 300, remaining: upperPitRemaining, color: upperPitColor, mapPos: calculateCampPosition('upper_pit'), alive: isUpperPitAlive },
+      { id: 'blue', name: 'Blue', icon: '🔵', total: 300, remaining: blueRemaining, color: '#3b82f6', mapPos: calculateCampPosition('blue_bot'), alive: blueRemaining === 0 },
+      { id: 'red', name: 'Red', icon: '🔴', total: 300, remaining: redRemaining, color: '#ef4444', mapPos: calculateCampPosition('red_bot'), alive: redRemaining === 0 },
     ]);
 
     setObjectives([
@@ -561,7 +687,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
     setCampTimers((prev) =>
       prev.map((c) => ({
         ...c,
-        mapPos: calculatePitPosition(c.id as any),
+        mapPos: calculateCampPosition(c.id === 'blue' ? 'blue_bot' : c.id === 'red' ? 'red_bot' : c.id),
       }))
     );
   }, [effectiveMinimapScale, isMinimapFlipped, nudgeX, nudgeY]);
@@ -924,9 +1050,96 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </button>
               </div>
             )}
-              {/* 1. GOLD DIFFERENCE IN TAB SECTION (Top Center Scoreboard) */}
+
+              {/* EXCLUSIVE FULLSCREEN WARNING & 1-CLICK FIX BANNER */}
+              {leagueWindowMode === 0 && !borderlessApplied && (
+                <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
+                  style={{
+                    position: 'absolute',
+                    top: '46px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    pointerEvents: 'auto',
+                    zIndex: 10001,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '5px 14px',
+                    borderRadius: '20px',
+                    background: 'rgba(220, 38, 38, 0.95)',
+                    border: '1.5px solid #ffffff',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.85), 0 0 16px rgba(220, 38, 38, 0.6)',
+                    color: '#fff',
+                  }}
+                >
+                  <span style={{ fontSize: '11px', fontWeight: 900 }}>
+                    ⚠️ League in Exclusive Fullscreen (Windows hides overlays)
+                  </span>
+                  <button
+                    onClick={handleFixBorderless}
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '10px',
+                      background: '#ffffff',
+                      border: 'none',
+                      color: '#dc2626',
+                      fontSize: '10.5px',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ⚡ Switch game.cfg to Borderless
+                  </button>
+                  <button
+                    onClick={() => setBorderlessApplied(true)}
+                    style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '12px', padding: '0 4px' }}
+                    title="Dismiss"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              {borderlessApplied && (
+                <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
+                  style={{
+                    position: 'absolute',
+                    top: '46px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    pointerEvents: 'auto',
+                    zIndex: 10001,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '4px 12px',
+                    borderRadius: '16px',
+                    background: 'rgba(16, 185, 129, 0.95)',
+                    border: '1px solid #ffffff',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.85)',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                  }}
+                >
+                  <span>✅ Set to Borderless! (Restart League match or switch in ESC ➔ Video)</span>
+                  <button
+                    onClick={() => setBorderlessApplied(false)}
+                    style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* 1. GOLD DIFFERENCE & KDA/KP SCOREBOARD (Top Center) */}
               {settings?.hudGoldLead !== false && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
                     top: '8px',
@@ -936,9 +1149,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
-                    background: 'rgba(5, 10, 20, 0.92)',
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
+                    background: 'rgba(5, 10, 22, 0.96)',
                     padding: '5px 14px',
                     borderRadius: '24px',
                     border: `1.5px solid ${isTeamGoldAhead ? 'rgba(16, 185, 129, 0.55)' : 'rgba(239, 68, 68, 0.55)'}`,
@@ -950,7 +1161,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '13px' }}>💰</span>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '8.5px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      <span style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                         Team Gold
                       </span>
                       <span
@@ -967,7 +1178,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   </div>
 
                   {/* Split Visual Ratio Bar */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '80px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '70px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', fontWeight: 800 }}>
                       <span style={{ color: '#38bdf8' }}>{(myTeamTotalGold / 1000).toFixed(1)}k</span>
                       <span style={{ color: '#f43f5e' }}>{(enemyTeamTotalGold / 1000).toFixed(1)}k</span>
@@ -987,15 +1198,15 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.15)' }} />
 
                   {/* Lane Matchup Gold Difference */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <span style={{ fontSize: '11px' }}>⚔️</span>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '8.5px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Lane vs {laneOpponent.championName}
+                      <span style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        vs {laneOpponent.championName}
                       </span>
                       <span
                         style={{
-                          fontSize: '12px',
+                          fontSize: '11.5px',
                           fontWeight: 900,
                           color: isLaneGoldAhead ? '#38bdf8' : '#fb923c',
                         }}
@@ -1005,8 +1216,23 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     </div>
                   </div>
 
+                  <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.15)' }} />
+
+                  {/* KDA & Kill Participation (KP%) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ fontSize: '11px' }}>🏆</span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {myKP}% KP
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: 900, color: '#f8fafc' }}>
+                        {myKills}/{myDeaths}/{myAssists}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Return / Exit Controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
                     {/* Mayhem & Arena Cards Drawer Toggle */}
                     {settings?.hudMayhemCards !== false && (
                       <button
@@ -1107,6 +1333,8 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
               {/* 1b. FLOATING IN-GAME CARDS DRAWER (When toggled during Mayhem or Arena rounds) */}
               {settings?.hudMayhemCards !== false && showCardsSheet && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
                     top: '48px',
@@ -1114,11 +1342,9 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     transform: 'translateX(-50%)',
                     width: '380px',
                     maxHeight: '340px',
-                    background: 'rgba(6, 11, 22, 0.96)',
-                    backdropFilter: 'blur(24px)',
-                    WebkitBackdropFilter: 'blur(24px)',
-                    border: '1px solid rgba(192, 132, 252, 0.4)',
-                    boxShadow: '0 12px 36px rgba(0,0,0,0.9), 0 0 20px rgba(192, 132, 252, 0.2)',
+                    background: 'rgba(6, 11, 22, 0.98)',
+                    border: '1px solid rgba(192, 132, 252, 0.5)',
+                    boxShadow: '0 12px 36px rgba(0,0,0,0.9), 0 0 20px rgba(192, 132, 252, 0.25)',
                     borderRadius: '12px',
                     padding: '12px',
                     pointerEvents: 'auto',
@@ -1206,24 +1432,24 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </div>
               )}
 
-              {/* 2. SMALL CS SCORE UP (Top Right, beside game clock) */}
+              {/* 2. SMALL CS SCORE & BENCHMARK TIER (Top Right, beside game clock) */}
               {settings?.hudCsBenchmark !== false && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
                     top: '8px',
                     right: '270px',
-                    pointerEvents: 'none',
+                    pointerEvents: 'auto',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    background: 'rgba(5, 10, 20, 0.90)',
-                    backdropFilter: 'blur(14px)',
-                    WebkitBackdropFilter: 'blur(14px)',
+                    background: 'rgba(5, 10, 20, 0.96)',
                     border: '1px solid rgba(0, 210, 255, 0.4)',
                     padding: '4px 10px',
                     borderRadius: '8px',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.8), 0 0 10px rgba(0,210,255,0.15)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.85), 0 0 10px rgba(0,210,255,0.15)',
                   }}
                 >
                   <span style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>
@@ -1231,6 +1457,19 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                   </span>
                   <span style={{ fontSize: '10px', color: 'var(--blue-primary)', fontWeight: 800 }}>
                     {csm}/m
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '8.5px',
+                      fontWeight: 900,
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      background: Number(csm) >= 8.0 ? 'rgba(16, 185, 129, 0.25)' : Number(csm) >= 6.5 ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+                      color: Number(csm) >= 8.0 ? '#10b981' : Number(csm) >= 6.5 ? '#38bdf8' : '#f59e0b',
+                      border: `1px solid ${Number(csm) >= 8.0 ? 'rgba(16, 185, 129, 0.5)' : Number(csm) >= 6.5 ? 'rgba(56, 189, 248, 0.5)' : 'rgba(245, 158, 11, 0.5)'}`,
+                    }}
+                  >
+                    {Number(csm) >= 8.0 ? 'S-Tier' : Number(csm) >= 6.5 ? 'A-Tier' : 'Farm'}
                   </span>
                   <span
                     style={{
@@ -1258,13 +1497,13 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                       bottom: '26.2vh',
                       right: '0.8vw',
                       pointerEvents: 'auto',
+                      onMouseEnter: enableInteraction,
+                      onMouseLeave: disableInteraction,
                       zIndex: 9999,
                       display: 'flex',
                       alignItems: 'center',
                       gap: '5px',
-                      background: 'rgba(5, 10, 22, 0.94)',
-                      backdropFilter: 'blur(10px)',
-                      WebkitBackdropFilter: 'blur(10px)',
+                      background: 'rgba(5, 10, 22, 0.96)',
                       border: '1px solid rgba(16, 185, 129, 0.45)',
                       boxShadow: '0 4px 20px rgba(0, 0, 0, 0.85), 0 0 12px rgba(16, 185, 129, 0.25)',
                       borderRadius: '8px',
@@ -1322,8 +1561,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           gap: '3px',
-                          background: 'rgba(5, 10, 20, 0.94)',
-                          backdropFilter: 'blur(8px)',
+                          background: 'rgba(5, 10, 20, 0.96)',
                           border: '1.5px solid #10b981',
                           boxShadow: '0 2px 10px rgba(0,0,0,0.9), 0 0 10px rgba(16, 185, 129, 0.5)',
                           borderRadius: '12px',
@@ -1366,7 +1604,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     >
                       <div
                         style={{
-                          background: 'rgba(5, 10, 20, 0.92)',
+                          background: 'rgba(5, 10, 20, 0.96)',
                           border: '1px solid var(--blue-primary)',
                           borderRadius: '6px',
                           padding: '2px 8px',
@@ -1382,20 +1620,21 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     </div>
                   )}
 
+                  {/* Top-of-Minimap Compact Objective Timers & Quick-Controls Dock */}
                   <div
+                    onMouseEnter={enableInteraction}
+                    onMouseLeave={disableInteraction}
                     style={{
                       position: 'absolute',
                       bottom: `${(mapHeightVh + 0.8 + nudgeY).toFixed(2)}vh`,
                       ...(isMinimapFlipped ? { left: '0.8vw' } : { right: '0.8vw' }),
-                      pointerEvents: 'none',
+                      pointerEvents: 'auto',
                       zIndex: 9999,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      background: 'rgba(5, 10, 22, 0.94)',
-                      backdropFilter: 'blur(10px)',
-                      WebkitBackdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(0, 210, 255, 0.35)',
+                      gap: '4px',
+                      background: 'rgba(5, 10, 22, 0.96)',
+                      border: '1px solid rgba(0, 210, 255, 0.4)',
                       boxShadow: '0 4px 20px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 210, 255, 0.15)',
                       borderRadius: '8px',
                       padding: '3px 8px',
@@ -1407,28 +1646,28 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
-                          padding: '2px 6px',
+                          gap: '3px',
+                          padding: '2px 5px',
                           borderRadius: '5px',
                           background: camp.remaining > 0 && camp.remaining <= 30
-                            ? 'rgba(245, 158, 11, 0.18)'
-                            : 'rgba(255, 255, 255, 0.04)',
+                            ? 'rgba(245, 158, 11, 0.2)'
+                            : 'rgba(255, 255, 255, 0.05)',
                           border: `1px solid ${
                             camp.remaining > 0 && camp.remaining <= 30
-                              ? 'rgba(245, 158, 11, 0.5)'
+                              ? 'rgba(245, 158, 11, 0.55)'
                               : 'rgba(255, 255, 255, 0.08)'
                           }`,
                         }}
                       >
-                        <span style={{ fontSize: '11px' }}>{camp.icon}</span>
-                        <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#cbd5e1' }}>{camp.name}</span>
+                        <span style={{ fontSize: '10.5px' }}>{camp.icon}</span>
+                        <span style={{ fontSize: '9px', fontWeight: 800, color: '#cbd5e1' }}>{camp.name}</span>
                         <span
                           className="tabular-nums"
                           style={{
-                            fontSize: '10.5px',
+                            fontSize: '10px',
                             fontWeight: 900,
                             color: camp.remaining > 0 ? '#ffffff' : '#10b981',
-                            textShadow: '0 1px 3px rgba(0, 0, 0, 0.95), 0 0 2px #000000',
+                            textShadow: '0 1px 3px rgba(0, 0, 0, 0.95)',
                           }}
                         >
                           {camp.remaining > 0
@@ -1437,14 +1676,114 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         </span>
                       </div>
                     ))}
+
+                    <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+                    {/* Toggle Map Pins */}
+                    <button
+                      onClick={() => setShowOnMapPins(!showOnMapPins)}
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: showOnMapPins ? 'rgba(0, 210, 255, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                        border: showOnMapPins ? '1px solid var(--blue-primary)' : '1px solid rgba(255, 255, 255, 0.15)',
+                        color: showOnMapPins ? '#38bdf8' : '#94a3b8',
+                        fontSize: '8.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                      title="Toggle Timers Directly on Minimap Pits"
+                    >
+                      📌 {showOnMapPins ? 'Pins ON' : 'Pins OFF'}
+                    </button>
+
+                    {/* Toggle Jungle Path Minimap Markers */}
+                    <button
+                      onClick={() => setShowJungleMapPins(!showJungleMapPins)}
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: showJungleMapPins ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                        border: showJungleMapPins ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.15)',
+                        color: showJungleMapPins ? '#f59e0b' : '#94a3b8',
+                        fontSize: '8.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                      title="Toggle 1-7 Jungle Route Numbers on Minimap"
+                    >
+                      🧭 {showJungleMapPins ? 'Path ON' : 'Path OFF'}
+                    </button>
+
+                    {/* Toggle Strategic Warding Hotspots */}
+                    <button
+                      onClick={() => setShowStrategicWards(!showStrategicWards)}
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: showStrategicWards ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                        border: showStrategicWards ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.15)',
+                        color: showStrategicWards ? '#10b981' : '#94a3b8',
+                        fontSize: '8.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                      title="Toggle High-ELO Strategic Bush Warding Pins"
+                    >
+                      👁️ Wards
+                    </button>
+
+                    {/* Minimap Alignment Nudge Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '4px' }}>
+                      <button
+                        onClick={() => setNudgeY((v) => Number((v + 0.5).toFixed(1)))}
+                        style={{ padding: '1px 4px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#cbd5e1', fontSize: '8px', cursor: 'pointer' }}
+                        title="Nudge Up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => setNudgeY((v) => Number((v - 0.5).toFixed(1)))}
+                        style={{ padding: '1px 4px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#cbd5e1', fontSize: '8px', cursor: 'pointer' }}
+                        title="Nudge Down"
+                      >
+                        ▼
+                      </button>
+                      <button
+                        onClick={() => setNudgeX((v) => Number((v + 0.5).toFixed(1)))}
+                        style={{ padding: '1px 4px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#cbd5e1', fontSize: '8px', cursor: 'pointer' }}
+                        title="Nudge Left"
+                      >
+                        ◀
+                      </button>
+                      <button
+                        onClick={() => setNudgeX((v) => Number((v - 0.5).toFixed(1)))}
+                        style={{ padding: '1px 4px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#cbd5e1', fontSize: '8px', cursor: 'pointer' }}
+                        title="Nudge Right"
+                      >
+                        ▶
+                      </button>
+                      {(nudgeX !== 0 || nudgeY !== 0) && (
+                        <button
+                          onClick={() => { setNudgeX(0); setNudgeY(0); }}
+                          style={{ padding: '1px 4px', borderRadius: '3px', background: 'rgba(239,68,68,0.2)', border: 'none', color: '#f87171', fontSize: '7.5px', fontWeight: 800, cursor: 'pointer' }}
+                          title="Reset Alignment"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {/* On-Map Spawn Pit Pins (Pinpointed directly inside dragon, baron, and buff pits) */}
-                  {campTimers.map((camp) => {
+                  {/* 1. On-Map Objective & Buff Camp Spawn Pins */}
+                  {showOnMapPins && campTimers.map((camp) => {
                     if (camp.remaining <= 0) return null;
                     const sidePos = (camp.mapPos as any).left !== undefined
                       ? { left: (camp.mapPos as any).left }
                       : { right: (camp.mapPos as any).right };
+                    const transformStr = (camp.mapPos as any).left !== undefined
+                      ? 'translate(-50%, 50%)'
+                      : 'translate(50%, 50%)';
                     return (
                       <div
                         key={camp.id}
@@ -1452,15 +1791,13 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                           position: 'absolute',
                           bottom: camp.mapPos.bottom,
                           ...sidePos,
-                          transform: 'translate(50%, 50%)',
+                          transform: transformStr,
                           pointerEvents: 'none',
                           zIndex: 9999,
                           display: 'flex',
                           alignItems: 'center',
                           gap: '3px',
-                          background: 'rgba(5, 10, 20, 0.94)',
-                          backdropFilter: 'blur(8px)',
-                          WebkitBackdropFilter: 'blur(8px)',
+                          background: 'rgba(5, 10, 20, 0.96)',
                           border: `1.5px solid ${camp.remaining <= 30 ? '#f59e0b' : camp.color}`,
                           boxShadow: `0 2px 10px rgba(0,0,0,0.9), 0 0 ${camp.remaining <= 30 ? '12px #f59e0b' : '8px ' + camp.color}`,
                           borderRadius: '12px',
@@ -1481,6 +1818,87 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         >
                           {camp.remaining > 60 ? formatMinSec(camp.remaining) : `${camp.remaining}s`}
                         </span>
+                      </div>
+                    );
+                  })}
+
+                  {/* 2. On-Map Numbered Jungle Path Pins (Shows Route 1 -> 7 Directly on the Minimap Camps!) */}
+                  {showJungleMapPins && jungleClearSteps.map((step) => {
+                    const pos = calculateCampPosition(step.campKey);
+                    const isActive = gameTime >= step.start && gameTime < step.end;
+                    const isDone = gameTime >= step.end;
+                    const sidePos = (pos as any).left !== undefined ? { left: (pos as any).left } : { right: (pos as any).right };
+                    const transformStr = (pos as any).left !== undefined ? 'translate(-50%, 50%)' : 'translate(50%, 50%)';
+
+                    return (
+                      <div
+                        key={`path-pin-${step.step}`}
+                        style={{
+                          position: 'absolute',
+                          bottom: pos.bottom,
+                          ...sidePos,
+                          transform: transformStr,
+                          pointerEvents: 'none',
+                          zIndex: isActive ? 10001 : 9998,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px',
+                          background: isActive
+                            ? 'rgba(0, 210, 255, 0.96)'
+                            : isDone
+                            ? 'rgba(15, 23, 42, 0.88)'
+                            : 'rgba(5, 10, 20, 0.94)',
+                          color: isActive ? '#000' : isDone ? '#64748b' : '#fff',
+                          border: `1.5px solid ${isActive ? '#ffffff' : isDone ? 'rgba(255,255,255,0.1)' : 'rgba(0, 210, 255, 0.5)'}`,
+                          boxShadow: isActive
+                            ? '0 0 16px rgba(0, 210, 255, 0.8), 0 2px 8px rgba(0,0,0,0.8)'
+                            : '0 2px 6px rgba(0,0,0,0.7)',
+                          borderRadius: '10px',
+                          padding: '1px 5px',
+                          fontSize: '9px',
+                          fontWeight: 900,
+                          animation: isActive ? 'pulse-blue 1.5s infinite' : 'none',
+                        }}
+                      >
+                        <span style={{ fontSize: '9px', fontWeight: 900, color: isActive ? '#000' : '#38bdf8' }}>
+                          #{step.step}
+                        </span>
+                        <span style={{ fontSize: '9px' }}>{step.icon}</span>
+                        <span style={{ fontSize: '7.5px', opacity: 0.85 }}>({step.time})</span>
+                      </div>
+                    );
+                  })}
+
+                  {/* 3. On-Map High-ELO Strategic Bush Warding Spots */}
+                  {showStrategicWards && strategicWardingSpots.map((ward) => {
+                    const sidePos = (ward.pos as any).left !== undefined ? { left: (ward.pos as any).left } : { right: (ward.pos as any).right };
+                    const transformStr = (ward.pos as any).left !== undefined ? 'translate(-50%, 50%)' : 'translate(50%, 50%)';
+                    return (
+                      <div
+                        key={ward.id}
+                        style={{
+                          position: 'absolute',
+                          bottom: ward.pos.bottom,
+                          ...sidePos,
+                          transform: transformStr,
+                          pointerEvents: 'none',
+                          zIndex: 9997,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px',
+                          background: 'rgba(16, 185, 129, 0.92)',
+                          color: '#fff',
+                          border: '1px solid #ffffff',
+                          boxShadow: '0 0 10px rgba(16, 185, 129, 0.6)',
+                          borderRadius: '8px',
+                          padding: '1px 4px',
+                          fontSize: '8px',
+                          fontWeight: 800,
+                        }}
+                        title={ward.name}
+                      >
+                        <span>👁️</span>
+                        <span>Ward</span>
                       </div>
                     );
                   })}
@@ -1546,21 +1964,21 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
               {/* 5. ITEM GOAL & BUY ALERT (Beside skill upgrade bar) */}
               {settings?.hudItemGoal !== false && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
                     bottom: '95px',
                     left: 'calc(50% + 145px)',
-                    pointerEvents: 'none',
+                    pointerEvents: 'auto',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    background: 'rgba(5, 10, 20, 0.90)',
-                    backdropFilter: 'blur(14px)',
-                    WebkitBackdropFilter: 'blur(14px)',
+                    background: 'rgba(5, 10, 20, 0.96)',
                     border: `1px solid ${goldRemaining === 0 ? '#10b981' : 'rgba(0, 210, 255, 0.4)'}`,
                     padding: '4px 9px',
                     borderRadius: '8px',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.8)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.85)',
                   }}
                 >
                   <img
@@ -1581,21 +1999,21 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
               {/* 5B. TRINKET REMINDER OVERLAY (Vision alert & 14m swap) */}
               {settings?.hudTrinketReminder !== false && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
                     bottom: '95px',
                     left: 'calc(50% + 285px)',
-                    pointerEvents: 'none',
+                    pointerEvents: 'auto',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    background: 'rgba(5, 10, 20, 0.90)',
-                    backdropFilter: 'blur(14px)',
-                    WebkitBackdropFilter: 'blur(14px)',
+                    background: 'rgba(5, 10, 20, 0.96)',
                     border: gameTime >= 840 ? '1.5px solid #f59e0b' : (wardCount > 0 ? '1px solid rgba(0, 210, 255, 0.4)' : '1px solid rgba(148, 163, 184, 0.25)'),
                     padding: '4px 9px',
                     borderRadius: '8px',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.8)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.85)',
                     animation: gameTime >= 840 && gameTime <= 960 ? 'pulse-blue 1.5s infinite' : 'none',
                   }}
                 >
@@ -1639,9 +2057,11 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </div>
               )}
 
-              {/* 6. ENEMY SPELL TRACKER DOCK (Pinned to left side) */}
+              {/* 6. ENEMY SPELL TRACKER DOCK (Interactive Click-to-Track, Pinned to left side) */}
               {settings?.hudSpellTimers !== false && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
                     top: '25%',
@@ -1650,23 +2070,25 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '4px',
-                    background: 'rgba(5, 10, 20, 0.88)',
-                    backdropFilter: 'blur(14px)',
-                    WebkitBackdropFilter: 'blur(14px)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    background: 'rgba(5, 10, 20, 0.96)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     padding: '6px 8px',
                     borderRadius: '10px',
-                    boxShadow: '0 6px 20px rgba(0,0,0,0.8)',
+                    boxShadow: '0 6px 20px rgba(0,0,0,0.85)',
                     zIndex: 9998,
                   }}
                 >
                   <div style={{ fontSize: '8.5px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
                     Enemy Spells
                   </div>
-                  {enemySpells.slice(0, 4).map((sp, idx) => (
+                  {enemySpells.map((sp, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleTriggerSpell(idx)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setEnemySpells((prev) => prev.map((s, i) => i === idx ? { ...s, active: false, remaining: 0 } : s));
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1674,19 +2096,19 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         gap: '6px',
                         padding: '3px 6px',
                         borderRadius: '4px',
-                        background: sp.active ? 'rgba(255, 42, 95, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                        border: sp.active ? '1px solid var(--red-primary)' : '1px solid transparent',
+                        background: sp.active ? 'rgba(255, 42, 95, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                        border: sp.active ? '1px solid var(--red-primary)' : '1px solid rgba(255, 255, 255, 0.08)',
                         cursor: 'pointer',
                       }}
-                      title={`Click to track ${sp.role} ${sp.name}`}
+                      title={`Click: start CD (${sp.total}s). Right-click: reset.`}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '8px', fontWeight: 800, color: 'var(--blue-primary)', width: '20px', textAlign: 'left' }}>
+                        <span style={{ fontSize: '8px', fontWeight: 800, color: 'var(--blue-primary)', width: '22px', textAlign: 'left' }}>
                           {sp.role}
                         </span>
-                        <img src={sp.icon} alt={sp.name} style={{ width: '14px', height: '14px', borderRadius: '2px' }} />
+                        <img src={sp.icon} alt={sp.name} style={{ width: '15px', height: '15px', borderRadius: '3px' }} />
                       </div>
-                      <span className="tabular-nums" style={{ fontSize: '9px', fontWeight: 800, color: sp.active ? 'var(--red-primary)' : '#10b981' }}>
+                      <span className="tabular-nums" style={{ fontSize: '9px', fontWeight: 900, color: sp.active ? '#f87171' : '#10b981' }}>
                         {sp.active ? `${sp.remaining}s` : 'UP'}
                       </span>
                     </button>
@@ -1694,34 +2116,38 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </div>
               )}
 
-              {/* 6B. TEAMMATE ULTIMATE TIMERS DOCK (Display teammate R cooldown & readiness) */}
+              {/* 6B. TEAMMATE ULTIMATE TIMERS DOCK (Display teammate R readiness) */}
               {settings?.hudUltimateTimers !== false && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
-                    top: '45%',
+                    top: '48%',
                     left: '14px',
                     pointerEvents: 'auto',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '4px',
-                    background: 'rgba(5, 10, 20, 0.88)',
-                    backdropFilter: 'blur(14px)',
-                    WebkitBackdropFilter: 'blur(14px)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    background: 'rgba(5, 10, 20, 0.96)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     padding: '6px 8px',
                     borderRadius: '10px',
-                    boxShadow: '0 6px 20px rgba(0,0,0,0.8)',
+                    boxShadow: '0 6px 20px rgba(0,0,0,0.85)',
                     zIndex: 9998,
                   }}
                 >
                   <div style={{ fontSize: '8.5px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
-                    Teammate Ults
+                    Ally Ults (R)
                   </div>
                   {teammateUlts.map((ult, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleTriggerTeammateUlt(idx)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setTeammateUlts((prev) => prev.map((u, i) => i === idx ? { ...u, active: false, remaining: 0 } : u));
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1729,14 +2155,14 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                         gap: '6px',
                         padding: '3px 6px',
                         borderRadius: '4px',
-                        background: ult.active ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
-                        border: ult.active ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(16, 185, 129, 0.35)',
+                        background: ult.active ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.15)',
+                        border: ult.active ? '1px solid rgba(239, 68, 68, 0.55)' : '1px solid rgba(16, 185, 129, 0.35)',
                         cursor: 'pointer',
                       }}
-                      title={`Click to mark ${ult.champ} R used`}
+                      title={`Click: mark ${ult.champ} R used. Right-click: reset.`}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '8px', fontWeight: 800, color: '#38bdf8', width: '20px', textAlign: 'left' }}>
+                        <span style={{ fontSize: '8px', fontWeight: 800, color: '#38bdf8', width: '22px', textAlign: 'left' }}>
                           {ult.role}
                         </span>
                         <img
@@ -1749,7 +2175,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                           style={{ width: '16px', height: '16px', borderRadius: '3px', objectFit: 'cover' }}
                         />
                       </div>
-                      <span className="tabular-nums" style={{ fontSize: '9px', fontWeight: 800, color: ult.active ? '#f87171' : '#10b981' }}>
+                      <span className="tabular-nums" style={{ fontSize: '9px', fontWeight: 900, color: ult.active ? '#f87171' : '#10b981' }}>
                         {ult.active ? `${ult.remaining}s` : 'RDY'}
                       </span>
                     </button>
@@ -1757,54 +2183,100 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
                 </div>
               )}
 
-              {/* 7. JUNGLE PATHING OVERLAY (Clear Route & Scuttle Gank Window) */}
-              {!isAramMode && settings?.hudJunglePathing !== false && gameTime < 240 && (
+              {/* 7. JUNGLE PATHING OVERLAY (Clear Route & Interactive Buff Router) */}
+              {!isAramMode && settings?.hudJunglePathing !== false && (showAlwaysJunglePath || gameTime < 360) && (
                 <div
+                  onMouseEnter={enableInteraction}
+                  onMouseLeave={disableInteraction}
                   style={{
                     position: 'absolute',
-                    bottom: '165px',
+                    bottom: '150px',
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    pointerEvents: 'none',
+                    pointerEvents: 'auto',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    background: 'rgba(5, 10, 22, 0.94)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(0, 210, 255, 0.35)',
-                    padding: '3px 10px',
-                    borderRadius: '20px',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.8)',
+                    gap: '6px',
+                    background: 'rgba(5, 10, 22, 0.98)',
+                    border: '1.5px solid rgba(0, 210, 255, 0.45)',
+                    padding: '4px 12px',
+                    borderRadius: '24px',
+                    boxShadow: '0 6px 24px rgba(0,0,0,0.9), 0 0 16px rgba(0, 210, 255, 0.2)',
                     zIndex: 9998,
                   }}
                 >
-                  <span style={{ fontSize: '9px', fontWeight: 900, color: 'var(--blue-primary)', textTransform: 'uppercase', marginRight: '4px' }}>
-                    🧭 Jungle Path:
-                  </span>
-                  {jungleClearSteps.map((step, idx) => {
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
+                    <span style={{ fontSize: '10px' }}>🧭</span>
+                    <span style={{ fontSize: '9.5px', fontWeight: 900, color: 'var(--blue-primary)', textTransform: 'uppercase' }}>
+                      Jungle Path:
+                    </span>
+                  </div>
+
+                  {/* Red Start vs Blue Start Toggles */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(0,0,0,0.4)', padding: '2px 4px', borderRadius: '12px' }}>
+                    <button
+                      onClick={() => setJungleStartBuff('red')}
+                      style={{
+                        padding: '2px 7px',
+                        borderRadius: '10px',
+                        background: jungleStartBuff === 'red' ? 'rgba(239, 68, 68, 0.35)' : 'transparent',
+                        border: jungleStartBuff === 'red' ? '1px solid #ef4444' : '1px solid transparent',
+                        color: jungleStartBuff === 'red' ? '#fff' : '#94a3b8',
+                        fontSize: '8.5px',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                      title="Route starting at Red Buff (Bot leash)"
+                    >
+                      🔴 Red Start
+                    </button>
+                    <button
+                      onClick={() => setJungleStartBuff('blue')}
+                      style={{
+                        padding: '2px 7px',
+                        borderRadius: '10px',
+                        background: jungleStartBuff === 'blue' ? 'rgba(59, 130, 246, 0.35)' : 'transparent',
+                        border: jungleStartBuff === 'blue' ? '1px solid #3b82f6' : '1px solid transparent',
+                        color: jungleStartBuff === 'blue' ? '#fff' : '#94a3b8',
+                        fontSize: '8.5px',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                      title="Route starting at Blue Buff (Top leash)"
+                    >
+                      🔵 Blue Start
+                    </button>
+                  </div>
+
+                  <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+                  {/* 7 Steps Route Badges */}
+                  {jungleClearSteps.map((step) => {
                     const isActive = gameTime >= step.start && gameTime < step.end;
                     const isDone = gameTime >= step.end;
                     return (
                       <div
-                        key={idx}
+                        key={step.step}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '2px',
                           fontSize: '8.5px',
                           fontWeight: isActive ? 900 : 700,
-                          color: isActive ? '#00d2ff' : isDone ? '#64748b' : '#cbd5e1',
-                          background: isActive ? 'rgba(0, 210, 255, 0.2)' : 'transparent',
-                          padding: isActive ? '1px 5px' : '0 2px',
-                          borderRadius: '4px',
-                          border: isActive ? '1px solid rgba(0, 210, 255, 0.5)' : 'none',
+                          color: isActive ? '#00d2ff' : isDone ? '#64748b' : '#e2e8f0',
+                          background: isActive ? 'rgba(0, 210, 255, 0.25)' : isDone ? 'rgba(255,255,255,0.03)' : 'transparent',
+                          padding: isActive ? '2px 6px' : '1px 3px',
+                          borderRadius: '6px',
+                          border: isActive ? '1px solid rgba(0, 210, 255, 0.65)' : '1px solid transparent',
+                          boxShadow: isActive ? '0 0 10px rgba(0, 210, 255, 0.3)' : 'none',
                         }}
                       >
+                        <span style={{ fontWeight: 900, opacity: 0.8 }}>#{step.step}</span>
                         <span>{step.icon}</span>
                         <span>{step.name}</span>
                         <span style={{ opacity: 0.7, fontSize: '7.5px' }}>({step.time})</span>
-                        {idx < jungleClearSteps.length - 1 && <span style={{ color: '#475569', margin: '0 1px' }}>➔</span>}
+                        {step.smite && <span style={{ color: '#f59e0b', fontSize: '7.5px' }} title="Use Smite">⚡</span>}
+                        {step.step < 7 && <span style={{ color: '#475569', margin: '0 1px' }}>➔</span>}
                       </div>
                     );
                   })}
@@ -1826,9 +2298,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 10px',
-            background: `rgba(6, 11, 20, ${overlayOpacity})`,
-            backdropFilter: 'blur(20px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            background: 'rgba(6, 11, 20, 0.98)',
             border: '1px solid rgba(0, 210, 255, 0.4)',
             boxShadow: '0 6px 24px rgba(0, 0, 0, 0.9), 0 0 16px rgba(0, 210, 255, 0.2)',
             color: '#f8fafc',
@@ -1953,9 +2423,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 10px',
-            background: `rgba(6, 11, 20, ${overlayOpacity})`,
-            backdropFilter: 'blur(20px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            background: 'rgba(6, 11, 20, 0.98)',
             border: '1px solid rgba(0, 210, 255, 0.4)',
             borderRadius: '20px',
             boxShadow: '0 6px 20px rgba(0, 0, 0, 0.85)',
@@ -2024,9 +2492,7 @@ export const RiftFloatingOverlay: React.FC<RiftFloatingOverlayProps> = ({
           style={{
             width: '100%',
             height: '100%',
-            background: `rgba(8, 13, 24, ${overlayOpacity})`,
-            backdropFilter: 'blur(24px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+            background: 'rgba(8, 13, 24, 0.98)',
             border: '1px solid rgba(0, 210, 255, 0.35)',
             borderTop: '1px solid rgba(255, 255, 255, 0.25)',
             boxShadow: '0 16px 48px -4px rgba(0, 0, 0, 0.85), 0 0 24px rgba(0, 210, 255, 0.15)',

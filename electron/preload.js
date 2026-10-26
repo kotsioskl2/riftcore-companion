@@ -119,6 +119,10 @@ contextBridge.exposeInMainWorld('riftAPI', {
     return ipcRenderer.invoke('set-click-through', enabled);
   },
 
+  setIgnoreMouseEvents: (ignore, options) => {
+    ipcRenderer.send('set-ignore-mouse-events', ignore, options);
+  },
+
   riotApiRequest: (url, key) => {
     return ipcRenderer.invoke('riot-api-request', { url, key });
   },

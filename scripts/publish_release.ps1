@@ -114,8 +114,7 @@ function Upload-Asset($filePath, $contentType) {
     Write-Host "  [OK] Uploaded $fileName! ($([math]::Round($fileBytes.Length / 1MB, 2)) MB)" -ForegroundColor Green
 }
 
-# Upload all 3 release artifacts
-Upload-Asset (Join-Path $rootDir "RiftCore_Rust_Portable\RiftCore.exe") "application/vnd.microsoft.portable-executable"
+# Upload release artifacts (Complete Setup installer & Portable zip package with all DLLs)
 Upload-Asset (Join-Path $rootDir "installer_output\RiftCore-Setup-$version.exe") "application/vnd.microsoft.portable-executable"
 Upload-Asset (Join-Path $rootDir "installer_output\RiftCore-Portable-$version.zip") "application/zip"
 

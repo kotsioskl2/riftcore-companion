@@ -13,7 +13,7 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "RiftCore Companion"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "2.0.1"
+  !define PRODUCT_VERSION "2.0.2"
 !endif
 !define PRODUCT_PUBLISHER "RiftCore Team"
 !define PRODUCT_WEB_SITE "https://github.com/kotsioskl2/riftcore-companion"

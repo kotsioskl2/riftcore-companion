@@ -1,31 +1,38 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.1
+       RIFTCORE COMPANION - UPDATE v2.0.2
 --------------------------------------------------
 
-* Single Unified App in Task Manager:
-  - Merged companion and in-game HUD under ONE clean
-    process group ("RiftCore Companion").
-  - Eliminated separate WebView2 Manager and Electron entries.
+* 100% Interactive Overlay & True Click-Through:
+  - Fixed click handling so all buttons, cards, spells,
+    and menus register clicks immediately on hover.
+  - Battlefield clicks pass 100% through to League of Legends
+    with zero interference.
 
-* Instant Alt-Tab Auto-Hide:
-  - Zero-CPU event hook automatically hides the overlay
-    when Alt-Tabbing out of League (to Discord/Browser/Desktop)
-    and instantly restores it when returning to the game.
+* Zero-Lag Hextech Obsidian Architecture:
+  - Eliminated all backdrop-filter GPU blurs across overlay.
+  - High-performance dark obsidian styling eliminates GPU
+    framebuffer readbacks, restoring buttery-smooth 144+ FPS.
 
-* Jungle Path Alignment:
-  - Repositioned jungle clear route to float cleanly above
-    champion ability icons and level-up buttons.
+* Calibrated Minimap & Interactive Jungle Router:
+  - Accurate Summoner's Rift coordinate calibration on Blue/Red
+    buffs, Dragon, Baron/Grubs, and scuttle camps.
+  - Quick toggle: [Red Start (Bot)] / [Blue Start (Top)].
+  - Numbered Minimap Path Pins (1-7) with active step highlight.
+  - Live minimap alignment nudges and pin toggles.
 
-* Real-Time Ward & Trinket Synchronization:
-  - Dynamically syncs with live item slot 6 trinket charges
-    (showing exact remaining wards e.g. 1/2, 0/2, pink wards,
-    and Oracle Lens sweeper status).
+* Fullscreen Detection & 1-Click Fix:
+  - Alerts when League is running in Exclusive Fullscreen and
+    provides a 1-click button to configure Borderless in game.cfg.
 
-* High-Contrast White Timers:
-  - Crisp, pure white timer digits (#ffffff) with dark drop
-    shadows on all minimap objectives and spawn pit pins.
+* Advanced Companion Tools:
+  - Real-time Kill Participation (KP%) and KDA tracker.
+  - CS/min rating tiers (S-Tier, A-Tier, Farm benchmark).
+  - Interactive clickable enemy summoner spell & ally ult trackers.
+  - High-ELO strategic warding spots on the minimap.
 
-* Teammate Ults & Visual Fixes:
-  - Reliable champion portraits with zero broken image icons.
+* Standalone Packaging & DLL Fix:
+  - Resolved missing ffmpeg.dll error by distributing complete
+    Setup installer and Portable zip archives.
 
 --------------------------------------------------
+
