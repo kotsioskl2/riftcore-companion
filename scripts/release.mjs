@@ -47,8 +47,14 @@ try {
   console.log('Working tree already clean, skipping commit.');
 }
 
-// Step 4: Git push to main
+// Step 4: Git push to main and update git tag
 run('git push origin main', 'Pushing release commit to GitHub main');
+try {
+  run(`git tag -a v${version} -m "Release v${version}" -f`, `Tagging release v${version}`);
+  run(`git push origin v${version} -f`, `Pushing git tag v${version} to GitHub`);
+} catch (e) {
+  console.warn('Warning: Could not push git tag:', e?.message || e);
+}
 
 // Step 5: Publish release to GitHub and upload RiftCore.exe
 run('powershell -ExecutionPolicy Bypass -File scripts/publish_release.ps1', `Publishing v${version} to GitHub Releases`);

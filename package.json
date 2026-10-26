@@ -1,6 +1,6 @@
 {
   "name": "riftcore-companion",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Minimalist Red & Blue League of Legends companion & overlay",
   "main": "electron/main.js",
   "author": "RiftCore Team",

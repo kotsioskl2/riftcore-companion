@@ -1,36 +1,40 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.3
+       RIFTCORE COMPANION - UPDATE v2.0.4
 --------------------------------------------------
 
+* Critical Overlay Fixes & Telemetry Self-Healing:
+  - Eliminated Duplicate Overlay Window: Fixed compact mode toggle
+    to hide the desktop window while running the in-game overlay,
+    preventing dual stacked windows.
+  - Telemetry Error Boundary Auto-Recovery: Any transient match loading
+    delays or empty enemy team data (e.g. in Practice Tool) now self-heals
+    automatically within 1.5s with zero freezes.
+  - Safe Matchup Calculations: Hardened all lane opponent queries,
+    CS differences, and gold metrics with defensive fallbacks.
+
 * Movable HUD Layout Customizer (Drag & Arrange Anything):
-  - Added [🔓 Move HUD] toggle directly in the Top Scoreboard.
-  - When unlocked, drag any module (Scoreboard, CS Benchmark,
-    Enemy Spells, Teammate Ults, Minimap Dock) anywhere on screen!
+  - [🔓 Move HUD] toggle directly in the Top Scoreboard.
+  - Drag any module (Scoreboard, CS Benchmark, Enemy Spells,
+    Teammate Ults, Minimap Dock) anywhere on screen!
   - Custom positions are saved automatically in localStorage.
   - One-click [↺ Reset Default Layout] to restore auto-alignment.
 
 * 100% Reliable Clicks & Smart Hit-Testing:
-  - Fixed focus_watcher so interacting with the overlay never
-    triggers a false Alt-Tab hide.
   - Hardware cursor polling in Electron main process enables
     instant clickability over every button, card, and timer.
   - Game clicks pass straight through to League of Legends
-    with 0ms delay for completely native movement and casting.
+    with 0ms delay for native movement and casting.
 
 * Mathematical Minimap Alignment & Team-Aware Jungle Router:
-  - Exact Summoner's Rift camp coordinate percentages:
-    Blue Buff, Red Buff, Gromp, Wolves, Raptors, Krugs, Dragon,
-    Baron/Voidgrubs, and Scuttle Crabs.
+  - Exact Summoner's Rift camp coordinate percentages.
   - Automatically adapts to player's team (Blue Side vs Red Side).
   - Toggles [🔴 Red Start] / [🔵 Blue Start] with numbered 1-7
     minimap route badges and active target pulsing rings.
-  - Added [+] and [-] Minimap Zoom buttons (5% increments) alongside
-    fine-grained [▲] [▼] [◀] [▶] pixel alignment nudges.
+  - Minimap Zoom buttons alongside pixel alignment nudges.
 
 * Exclusive Fullscreen Detector & 1-Click Borderless Enforcer:
-  - Informs players if League is in Exclusive Fullscreen (which
-    Windows blocks overlays over) and offers a 1-click button
-    to switch game.cfg to Borderless Fullscreen safely.
+  - Informs players if League is in Exclusive Fullscreen and
+    offers a 1-click button to switch game.cfg to Borderless.
 
 * Zero-Lag Hextech Obsidian Engine:
   - Completely removed GPU backdrop-filter readbacks for
