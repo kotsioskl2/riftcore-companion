@@ -19,52 +19,46 @@
 
 ## ⚡ Why RiftCore 2.0?
 
-Tired of bloated League companion apps (Overwolf, Porofessor, commercial ad-heavy apps) consuming **1GB+ of RAM**, injecting intrusive audio/video ads, and causing frame drops mid-game?
+Tired of bloated League apps using **1GB+ RAM**, showing intrusive ads, and dropping your FPS?
 
-**RiftCore 2.0** introduces the **Hybrid Architecture**:
-- **Native Rust Companion:** Idles around **~40 MB RAM** (25x less RAM than competitors), booting in **0.1s** with instant Auto-Accept, 1-Click Runes, and AI Draft Coaching.
-- **Zero White-Box DirectComposition Overlay:** Eliminates the classic Windows child HWND white rectangle bug entirely using a dedicated hardware-accelerated DirectComposition overlay with 100% per-pixel transparency and true click-through.
-- **Dynamic Memory Reclaiming:** Spawns the overlay only while in a match and fully terminates it when the match ends, dropping RAM right back down to ~40 MB.
-- **Zero Ads, Zero Trackers:** Pure utility, 100% free and open-source forever.
-- **Vanguard Safe:** Interacts only through Riot's official LCU REST & WebSocket endpoints and local game memory port 2999.
+- 🚀 **~40 MB RAM:** 25x lighter than Overwolf. Boots in 0.1s.
+- 🎯 **Clean In-Game Overlay:** 100% transparent, click-through, and zero frame drops.
+- 🧹 **Auto-RAM Reclaim:** Overlay runs only during matches and closes automatically after.
+- 🔮 **1-Click Runes & Spells:** Meta builds imported directly into your League client.
+- ⚡ **Instant Auto-Accept:** Never miss a queue pop.
+- 🛡️ **Zero Ads & Vanguard Safe:** 100% free, open-source, and fully compliant with Riot policies.
 
 ---
 
 ## 🚀 Features
 
-### 1. ⚡ Instant Auto-Accept
-- Automatically detects match queue pops and accepts instantly.
-- Plays crisp audio cues and alerts.
+### ⚡ Instant Auto-Accept
+Queue pops are detected and accepted instantly with audio alerts.
 
-### 2. 🔮 1-Click Rune & Summoner Spell Import
-- High-winrate meta builds for all 160+ champions across Top, Jungle, Mid, ADC, and Support.
-- Imports complete rune trees (Primary, Secondary, Stat Shards) directly into your active League client perk page with one click.
-- Auto-assigns recommended Flash + Summoner Spell combinations.
+### 🔮 1-Click Runes & Spells
+High-winrate meta rune pages and summoner spells imported directly into your client for all 160+ champions.
 
-### 3. 🎯 True In-Game HUD & Minimap Objectives
-- Real-time in-game overlay querying local port 2999 Live Client Data.
-- **Minimap Dock:** Aligned directly above the League minimap for Dragon, Baron Nashor, Voidgrubs, Blue Buff, and Red Buff timers.
-- **Scoreboard Team Gold Lead:** Shows real-time team gold lead/deficit and lane matchup difference right at the top center.
-- **CS Diff Tracker:** Discreet CS score and CS/min pill beside your game clock with live matchup comparison.
-- **Optimal Skill Path:** Skill indicator showing the next recommended ability level-up.
-- **Instant Hotkeys:** Hit <kbd>Alt + ~</kbd> or <kbd>Ctrl + Space</kbd> anytime to toggle HUD visibility.
+### 🎯 In-Game HUD & Minimap Timers
+- **Minimap Timers:** Dragon, Baron, Voidgrubs, and Buffs cleanly docked above the minimap.
+- **Scoreboard Gold Lead:** Real-time team gold differential at the top center.
+- **CS Diff Tracker:** CS score and CS/min pill beside your game clock.
+- **Level-Up Indicator:** Shows recommended ability upgrades in real time.
+- **Hotkeys:** <kbd>Alt + ~</kbd> or <kbd>Ctrl + Space</kbd> to toggle visibility.
 
-### 4. 📊 Profile & Ranked History
-- Live rank, division, and LP tracking.
-- Win-rate statistics, recent match performances, and MVP/ACE badges.
+### 📊 Ranked History & Stats
+Live rank, LP, win rates, and recent match stats with MVP/ACE badges.
 
 ---
 
-## 📊 Performance Benchmark
+## 📊 Performance Comparison
 
-| Metric | Commercial Apps / Overwolf | Porofessor / Mobalytics | ⚡ **RiftCore 2.0 (Hybrid)** |
-| :--- | :---: | :---: | :---: |
-| **Idle Companion RAM** | ~800 MB – 1.4 GB | ~600 MB – 950 MB | **~40 MB** *(Rust)* |
-| **In-Game Overlay RAM** | ~1.2 GB+ persistent | ~850 MB persistent | **~300 MB** *(freed on match end)* |
-| **Overlay Transparency** | Often borders/artifacts | Washed out or layered | **100% DirectComposition Alpha** |
-| **Startup Time** | 4.5 – 9.0s | 3.5 – 6.0s | **< 0.1s** |
-| **Third-Party Ads** | Heavy (video/banners) | Heavy (banners/promos) | **ZERO (0)** |
-| **CPU Usage** | 3 – 8% background | 2 – 6% background | **< 0.1%** |
+| Metric | Other Apps (Overwolf / Porofessor) | ⚡ **RiftCore 2.0** |
+| :--- | :---: | :---: |
+| **Idle Companion RAM** | ~800 MB – 1.4 GB | **~40 MB** |
+| **In-Game Overlay RAM** | ~1.2 GB+ persistent | **~300 MB** *(freed on game end)* |
+| **Overlay Transparency** | Washed out / borders | **100% Clean & Click-Through** |
+| **Startup Time** | 4.5 – 9.0s | **< 0.1s** |
+| **Ads & Trackers** | Heavy (video/banners) | **ZERO** |
 
 ---
 
