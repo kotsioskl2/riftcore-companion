@@ -1,43 +1,36 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.4
+       RIFTCORE COMPANION - UPDATE v2.0.5
 --------------------------------------------------
 
-* Critical Overlay Fixes & Telemetry Self-Healing:
-  - Eliminated Duplicate Overlay Window: Fixed compact mode toggle
-    to hide the desktop window while running the in-game overlay,
-    preventing dual stacked windows.
-  - Telemetry Error Boundary Auto-Recovery: Any transient match loading
-    delays or empty enemy team data (e.g. in Practice Tool) now self-heals
-    automatically within 1.5s with zero freezes.
-  - Safe Matchup Calculations: Hardened all lane opponent queries,
-    CS differences, and gold metrics with defensive fallbacks.
+* Native desktop interface:
+  - Rebuilt the application shell in Rust with a native egui renderer.
+  - Removed Electron and the embedded WebView from the application build.
+  - Recreated the obsidian, cyan and crimson RiftCore visual system.
 
-* Movable HUD Layout Customizer (Drag & Arrange Anything):
-  - [🔓 Move HUD] toggle directly in the Top Scoreboard.
-  - Drag any module (Scoreboard, CS Benchmark, Enemy Spells,
-    Teammate Ults, Minimap Dock) anywhere on screen!
-  - Custom positions are saved automatically in localStorage.
-  - One-click [↺ Reset Default Layout] to restore auto-alignment.
+* Native in-game HUD:
+  - The HUD is drawn directly by the Rust application in a transparent window.
+  - Added League game-window alignment, always-on-top behavior and click-through mode.
+  - Added global hotkeys: Alt + ~, Ctrl + Space and Alt + Shift + ~.
+  - Added integrated, top bar, tactical card and minimap pill layouts with draggable modules.
+  - Restored minimap objective countdown pins, a numbered own-side jungle route, and optional static ward suggestions.
+  - Added minimap scale, flip and offset controls for pin alignment.
+  - Restored manual allied ultimate timers and objective phase countdowns for Grubs, Herald and Baron.
+  - Added a live champion build drawer with item-set sync to the League shop.
 
-* 100% Reliable Clicks & Smart Hit-Testing:
-  - Hardware cursor polling in Electron main process enables
-    instant clickability over every button, card, and timer.
-  - Game clicks pass straight through to League of Legends
-    with 0ms delay for native movement and casting.
+* League Client integration:
+  - Added native client status, champ-select roster, profile and ranked summary.
+  - Added rune-page and summoner-spell import controls.
+  - Kept optional queue auto-accept and user-configurable HUD modules.
 
-* Mathematical Minimap Alignment & Team-Aware Jungle Router:
-  - Exact Summoner's Rift camp coordinate percentages.
-  - Automatically adapts to player's team (Blue Side vs Red Side).
-  - Toggles [🔴 Red Start] / [🔵 Blue Start] with numbered 1-7
-    minimap route badges and active target pulsing rings.
-  - Minimap Zoom buttons alongside pixel alignment nudges.
+* Companion tools:
+  - Added a local 5v5 draft simulator with live champion-select sync.
+  - Added champion name and role filters.
+  - Added a locally saved manual TFT positioning board.
+  - Wired HUD CS pace, current gold, ability ranks, inventory, trinket status and objective timers to live data.
+  - Restored the Mayhem and Arena card catalog, appearance choices, first-run tour, update notes and tray close flow.
 
-* Exclusive Fullscreen Detector & 1-Click Borderless Enforcer:
-  - Informs players if League is in Exclusive Fullscreen and
-    offers a 1-click button to switch game.cfg to Borderless.
-
-* Zero-Lag Hextech Obsidian Engine:
-  - Completely removed GPU backdrop-filter readbacks for
-    stable 144+ FPS in 5v5 teamfights.
+* App updates:
+  - Added in-app update download, safe executable replacement and automatic restart.
+  - Added the standalone RiftCore.exe update asset to future GitHub releases.
 
 --------------------------------------------------

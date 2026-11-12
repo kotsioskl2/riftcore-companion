@@ -13,7 +13,7 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "RiftCore Companion"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "2.0.4"
+  !define PRODUCT_VERSION "2.0.5"
 !endif
 !define PRODUCT_PUBLISHER "RiftCore Team"
 !define PRODUCT_WEB_SITE "https://github.com/kotsioskl2/riftcore-companion"
@@ -128,7 +128,6 @@ Section "MainSection" SEC01
   ; Terminate running instance if open
   DetailPrint "Checking for running instances of RiftCore..."
   nsExec::Exec 'taskkill /F /IM RiftCore.exe'
-  nsExec::Exec 'taskkill /F /IM RiftCore_Overlay.exe'
 
   SetOutPath "$INSTDIR"
   SetOverwrite on
@@ -176,7 +175,6 @@ SectionEnd
 Section Uninstall
   DetailPrint "Closing running instances of RiftCore..."
   nsExec::Exec 'taskkill /F /IM RiftCore.exe'
-  nsExec::Exec 'taskkill /F /IM RiftCore_Overlay.exe'
 
   ; Remove Shortcuts
   DetailPrint "Removing shortcuts..."

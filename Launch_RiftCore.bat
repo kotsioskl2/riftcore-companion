@@ -1,2 +1,6 @@
 @echo off
-start "" "%~dp0dist_app\RiftCore-win32-x64\RiftCore.exe"
+if exist "%~dp0RiftCore.exe" (
+  start "" "%~dp0RiftCore.exe"
+) else (
+  start "" "%~dp0RiftCore_Rust_Portable\RiftCore.exe"
+)

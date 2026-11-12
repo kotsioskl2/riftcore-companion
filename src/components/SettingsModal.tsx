@@ -1138,7 +1138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#94a3b8' }}>Native Engine Architecture:</span>
-                <strong style={{ color: '#0ac8b9' }}>Pure Native Rust + Windows WebView2 (~35 MB RAM)</strong>
+                <strong style={{ color: '#0ac8b9' }}>Native Rust + egui renderer — no embedded browser</strong>
               </div>
             </div>
           </div>

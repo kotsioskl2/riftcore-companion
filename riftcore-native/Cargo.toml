@@ -1,18 +1,16 @@
 [package]
 name = "riftcore-native"
-version = "2.0.4"
+version = "2.0.5"
 edition = "2021"
 
 [dependencies]
-wry = "0.47"
-tao = "0.30"
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-base64 = "0.22"
-rust-embed = "8.5"
-mime_guess = "2.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
+futures = "0.3"
 
-[build-dependencies]
-winres = "0.1"
+[target.'cfg(windows)'.dependencies]
+tray-icon = { version = "0.26.1", default-features = false }

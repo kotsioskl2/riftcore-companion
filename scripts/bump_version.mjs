@@ -1,133 +1,37 @@
 #!/usr/bin/env node
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT = path.resolve(__dirname, '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const cargoPath = path.join(root, 'riftcore-native', 'Cargo.toml');
+const cargo = fs.readFileSync(cargoPath, 'utf8');
+const versionMatch = cargo.match(/(\[package\][\s\S]*?^version\s*=\s*")([^\"]+)(")/m);
+if (!versionMatch) throw new Error('Could not find the package version in riftcore-native/Cargo.toml');
+const oldVersion = versionMatch[2];
+const target = (process.argv[2] || 'patch').replace(/^v/, '').toLowerCase();
+const semver = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
+const parts = oldVersion.match(semver);
+if (!parts) throw new Error(`Current version is not semver: ${oldVersion}`);
 
-// 1. Read current version from package.json
-const pkgPath = path.join(ROOT, 'package.json');
-const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-const oldVersion = pkg.version;
+let nextVersion;
+if (target === 'patch') nextVersion = `${parts[1]}.${parts[2]}.${Number(parts[3]) + 1}`;
+else if (target === 'minor') nextVersion = `${parts[1]}.${Number(parts[2]) + 1}.0`;
+else if (target === 'major') nextVersion = `${Number(parts[1]) + 1}.0.0`;
+else if (semver.test(target)) nextVersion = target;
+else throw new Error(`Invalid version: ${target}`);
 
-// 2. Determine target version
-const targetArg = (process.argv[2] || 'patch').trim().toLowerCase();
-let newVersion = '';
+const nextCargo = cargo.replace(versionMatch[0], `${versionMatch[1]}${nextVersion}${versionMatch[3]}`);
+fs.writeFileSync(cargoPath, nextCargo, 'utf8');
 
-const semverRegex = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
-const match = oldVersion.match(semverRegex);
-if (!match) {
-  console.error(`[ERROR] Current version "${oldVersion}" is not standard semver!`);
-  process.exit(1);
-}
+const buildPath = path.join(root, 'build_all.bat');
+fs.writeFileSync(buildPath, fs.readFileSync(buildPath, 'utf8').replace(/set "APP_VERSION=[^"]+"/, `set "APP_VERSION=${nextVersion}"`), 'utf8');
 
-let [_, major, minor, patch, prerelease] = match;
-let maj = parseInt(major, 10);
-let min = parseInt(minor, 10);
-let pat = parseInt(patch, 10);
+const nsiPath = path.join(root, 'installer', 'installer.nsi');
+fs.writeFileSync(nsiPath, fs.readFileSync(nsiPath, 'utf8').replace(/!define PRODUCT_VERSION "[^"]+"/, `!define PRODUCT_VERSION "${nextVersion}"`), 'utf8');
 
-if (targetArg === 'patch') {
-  newVersion = `${maj}.${min}.${pat + 1}`;
-} else if (targetArg === 'minor') {
-  newVersion = `${maj}.${min + 1}.0`;
-} else if (targetArg === 'major') {
-  newVersion = `${maj + 1}.0.0`;
-} else {
-  // Direct version passed (e.g. 1.2.0 or v1.2.0)
-  const cleanArg = targetArg.replace(/^v/, '');
-  if (!semverRegex.test(cleanArg)) {
-    console.error(`[ERROR] Invalid version provided: "${targetArg}". Must be semver (e.g. 1.1.3) or "patch", "minor", "major".`);
-    process.exit(1);
-  }
-  newVersion = cleanArg;
-}
+const notesPath = path.join(root, 'installer', 'UPDATE_NOTES.txt');
+fs.writeFileSync(notesPath, fs.readFileSync(notesPath, 'utf8').replace(/RIFTCORE COMPANION - NATIVE RUST UI/, `RIFTCORE COMPANION - UPDATE v${nextVersion}`), 'utf8');
 
-if (oldVersion === newVersion) {
-  console.log(`[INFO] Version is already ${newVersion}. Nothing to update.`);
-  process.exit(0);
-}
-
-console.log(`\n===================================================`);
-console.log(`  Bumping RiftCore Version: v${oldVersion} -> v${newVersion}`);
-console.log(`===================================================\n`);
-
-const updatedFiles = [];
-
-// A. Update package.json
-pkg.version = newVersion;
-fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
-updatedFiles.push('package.json');
-
-// B. Update src/version.ts (Single source of truth for frontend)
-const versionTsPath = path.join(ROOT, 'src', 'version.ts');
-const versionTsContent = `/**
- * RiftCore Companion Version - Single Source of Truth
- * Automatically synchronized across backend, installer, and UI by \`npm run bump\`.
- */
-export const APP_VERSION = '${newVersion}';
-`;
-fs.writeFileSync(versionTsPath, versionTsContent, 'utf8');
-updatedFiles.push('src/version.ts');
-
-// C. Update riftcore-native/Cargo.toml
-const cargoPath = path.join(ROOT, 'riftcore-native', 'Cargo.toml');
-if (fs.existsSync(cargoPath)) {
-  let cargoContent = fs.readFileSync(cargoPath, 'utf8');
-  cargoContent = cargoContent.replace(
-    /(\[package\][\s\S]*?version\s*=\s*")[^"]+(")/,
-    `$1${newVersion}$2`
-  );
-  fs.writeFileSync(cargoPath, cargoContent, 'utf8');
-  updatedFiles.push('riftcore-native/Cargo.toml');
-}
-
-// D. Update installer/installer.nsi
-const nsiPath = path.join(ROOT, 'installer', 'installer.nsi');
-if (fs.existsSync(nsiPath)) {
-  let nsiContent = fs.readFileSync(nsiPath, 'utf8');
-  nsiContent = nsiContent.replace(
-    /!define\s+PRODUCT_VERSION\s+"[^"]+"/,
-    `!define PRODUCT_VERSION "${newVersion}"`
-  );
-  fs.writeFileSync(nsiPath, nsiContent, 'utf8');
-  updatedFiles.push('installer/installer.nsi');
-}
-
-// E. Update installer/UPDATE_NOTES.txt header
-const notesPath = path.join(ROOT, 'installer', 'UPDATE_NOTES.txt');
-if (fs.existsSync(notesPath)) {
-  let notesContent = fs.readFileSync(notesPath, 'utf8');
-  notesContent = notesContent.replace(
-    /RIFTCORE COMPANION - UPDATE v[0-9A-Za-z.-]+/g,
-    `RIFTCORE COMPANION - UPDATE v${newVersion}`
-  );
-  notesContent = notesContent.replace(
-    /Hey! Welcome to v[0-9A-Za-z.-]+/g,
-    `Hey! Welcome to v${newVersion}`
-  );
-  fs.writeFileSync(notesPath, notesContent, 'utf8');
-  updatedFiles.push('installer/UPDATE_NOTES.txt');
-}
-
-// F. Update README.md
-const readmePath = path.join(ROOT, 'README.md');
-if (fs.existsSync(readmePath)) {
-  let readmeContent = fs.readFileSync(readmePath, 'utf8');
-  const oldEscaped = oldVersion.replace(/\./g, '\\.');
-  const oldRegex = new RegExp(oldEscaped, 'g');
-  readmeContent = readmeContent.replace(oldRegex, newVersion);
-  fs.writeFileSync(readmePath, readmeContent, 'utf8');
-  updatedFiles.push('README.md');
-}
-
-// Report
-for (const file of updatedFiles) {
-  console.log(`  [OK] Synchronized version in ${file}`);
-}
-
-console.log(`\n[SUCCESS] RiftCore version successfully bumped to v${newVersion}!`);
-console.log(`Next steps:`);
-console.log(`  1. Run: npm run build:all        (To compile new exe, installer, and zip)`);
-console.log(`  2. Run: npm run release          (To publish v${newVersion} to GitHub Releases)\n`);
+console.log(`RiftCore version bumped: ${oldVersion} -> ${nextVersion}`);
+console.log('Updated Cargo.toml, build_all.bat, installer definition and update notes.');

@@ -1,0 +1,1016 @@
+{
+  "Maokai": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "Cast Nature's Grasp (R) from behind enemy retreat paths to box them in.",
+    "archetype": "TANK"
+  },
+  "Nunu": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Steer Biggest Snowball Ever! (W) from river into lane for devastating ganks.",
+    "archetype": "TANK"
+  },
+  "Yasuo": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Wind Wall (W) deletes all projectile ultimates; follow allied knockups with Last Breath.",
+    "archetype": "SKIRMISHER"
+  },
+  "Kalista": {
+    "skillPriority": "E > Q > W",
+    "role": "ADC",
+    "tip": "Stack Rend (E) spears in minions and champion simultaneously, then pop E to reset.",
+    "archetype": "ONHIT_MARKSMAN"
+  },
+  "Ezreal": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Keep Rising Spell Force passive at 5 stacks before starting dragon or skirmishes.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Renekton": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Ruthless Predator (W) breaks damage shields completely when cast at 50+ Fury.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "TwistedFate": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Lock Gold Card (W) before casting Destiny (R) to instantly stun upon teleport.",
+    "archetype": "BURST_MAGE"
+  },
+  "Yorick": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Summon Maiden of the Mist and Mist Walkers to push multiple lanes simultaneously.",
+    "archetype": "JUGGERNAUT"
+  },
+  "TahmKench": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "Stack An Acquired Taste with basic attacks, then Devour (R) enemies to take them out of fights.",
+    "archetype": "TANK"
+  },
+  "Soraka": {
+    "skillPriority": "W > Q > E",
+    "role": "SUPPORT",
+    "tip": "Land Starcall (Q) before casting Astral Infusion (W) to heal yourself and nullify HP cost.",
+    "archetype": "ENCHANTER"
+  },
+  "Kennen": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "Flashing into grouped enemies with Slicing Maelstrom (R) + Zhonya's wins teamfights.",
+    "archetype": "BURST_MAGE"
+  },
+  "Fizz": {
+    "skillPriority": "E > W > Q",
+    "role": "MID",
+    "tip": "Playful/Trickster (E) makes you untargetable; use it to dodge key ultimate damage.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Pantheon": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Mortal Will empowered Comet Spear (Q) executes enemies below 20% max health.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Gragas": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Body Slam (E) into Flash is unavoidable; use it to knock carries into Explosive Cask.",
+    "archetype": "TANK"
+  },
+  "Mordekaiser": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Realm of Death (R) steals 10% core stats; isolate the enemy carry or jungler.",
+    "archetype": "JUGGERNAUT"
+  },
+  "AurelionSol": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Collect Stardust stacks with Singularity (E) to expand the radius of your ultimate.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Gwen": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Hallowed Mist (W) grants total immunity against enemies positioned outside the circle.",
+    "archetype": "SKIRMISHER"
+  },
+  "Camille": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Wait for the 1.5 second charge sound on Precision Protocol (Q2) for massive true damage.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Renata": {
+    "skillPriority": "E > W > Q",
+    "role": "SUPPORT",
+    "tip": "Hostile Takeover (R) forces enemies to berserk and auto-attack each other.",
+    "archetype": "ENCHANTER"
+  },
+  "Janna": {
+    "skillPriority": "W > E > Q",
+    "role": "SUPPORT",
+    "tip": "Double-tap Howling Gale (Q) for an instant disengage against dash champions.",
+    "archetype": "ENCHANTER"
+  },
+  "Skarner": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Rip up rocks with Ixtal's Impact (Q) to slow, and drag multiple targets with Impale (R).",
+    "archetype": "TANK"
+  },
+  "Naafiri": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Bleed enemies with Darkin Dagger (Q1), then land Q2 to deal massive execute damage.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Shaco": {
+    "skillPriority": "E > Q > W",
+    "role": "JUNGLE",
+    "tip": "Deceive (Q) makes you invisible; place Jack in the Boxes along enemy escape paths.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Tryndamere": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Undying Rage (R) prevents death for 5 full seconds; spin with E through critical hits.",
+    "archetype": "SKIRMISHER"
+  },
+  "Rammus": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Spiked Shell + Defensive Ball Curl (W) reflects huge magic damage back at auto-attackers.",
+    "archetype": "TANK"
+  },
+  "Sylas": {
+    "skillPriority": "W > E > Q",
+    "role": "MID",
+    "tip": "Kingslayer (W) heals massively at low HP; hijack high-impact teamfight ultimates.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Irelia": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Prep caster minion health to reset Bladesurge (Q) for hyper-mobile engagements.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Yuumi": {
+    "skillPriority": "Q > E > W",
+    "role": "SUPPORT",
+    "tip": "Attach to your most fed hyper-carry to grant continuous shields, on-hit heal, and speed.",
+    "archetype": "ENCHANTER"
+  },
+  "Riven": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Cancel animations by weaving basic attacks between each Broken Wings (Q) strike.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Senna": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Collect Mist Wraiths from dead souls to gain permanent attack range and crit.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Swain": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Demonic Ascension (R) lasts indefinitely as long as you drain nearby enemy champions.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Alistar": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Buffer Pulverize (Q) during Headbutt (W) flight for the signature W-Q combo.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Teemo": {
+    "skillPriority": "E > Q > W",
+    "role": "TOP",
+    "tip": "Plant Noxious Traps (R) on jungle entrance chokepoints and around dragon pits.",
+    "archetype": "BURST_MAGE"
+  },
+  "Braum": {
+    "skillPriority": "Q > E > W",
+    "role": "SUPPORT",
+    "tip": "Unbreakable (E) completely blocks the first incoming projectile; intercept ultimates.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Taric": {
+    "skillPriority": "E > Q > W",
+    "role": "SUPPORT",
+    "tip": "Cosmic Radiance (R) provides 2.5 seconds of total team invulnerability after delay.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Nautilus": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Stagger Dredge Line (Q) hook into your Staggering Blow root for maximum lockdown.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Karthus": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Requiem (R) can be channeled freely during the 7 seconds of Death Defied passive.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Annie": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Hold Pyromania stun at 3 stacks, then cast E right before Q lands to surprise stun.",
+    "archetype": "BURST_MAGE"
+  },
+  "Aurora": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Travel between realms with Across the Veil (W) and trap enemies inside Between Worlds (R).",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Seraphine": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Encore (R) extends its range every time it touches an allied or enemy champion.",
+    "archetype": "BURST_MAGE"
+  },
+  "Ekko": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Cast Parallel Convergence (W) from out of vision so enemies cannot see the landing ring.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Ryze": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Spread Spell Flux (E) across minion waves before overloading with Q.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Zoe": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Paddle Star (Q) gains damage the farther it travels; cast backward before Portal Jump (R).",
+    "archetype": "BURST_MAGE"
+  },
+  "Azir": {
+    "skillPriority": "W > Q > E",
+    "role": "MID",
+    "tip": "Place soldiers behind the enemy caster wave to control lane push and trade safely.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "XinZhao": {
+    "skillPriority": "W > E > Q",
+    "role": "JUNGLE",
+    "tip": "Crescent Guard (R) blocks all damage originating from enemies outside the perimeter.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Kayn": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Collect blue orbs from ranged for Shadow Assassin, or red orbs from melee for Rhaast.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Leona": {
+    "skillPriority": "W > E > Q",
+    "role": "SUPPORT",
+    "tip": "Chain Eclipse (W) + Zenith Blade (E) + Shield of Daybreak (Q) for 3 seconds of lock.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Morgana": {
+    "skillPriority": "Q > E > W",
+    "role": "SUPPORT",
+    "tip": "Black Shield (E) prevents all crowd control effects until broken by magic damage.",
+    "archetype": "ENCHANTER"
+  },
+  "Bard": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Roam for chimes while your ADC is safely freezing or backing to base.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Urgot": {
+    "skillPriority": "W > Q > E",
+    "role": "TOP",
+    "tip": "Circle around targets while Purge (W) is active to trigger all 6 shotgun knee blasts.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Vex": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Doom passive fears enemies whenever they dash nearby; shadow reset on R takedown.",
+    "archetype": "BURST_MAGE"
+  },
+  "MasterYi": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Save Alpha Strike (Q) to follow enemy Flashes or dodge lethal ultimate spells.",
+    "archetype": "SKIRMISHER"
+  },
+  "Ziggs": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Satchel Charge (W) immediately demolishes enemy turrets below 35% health.",
+    "archetype": "BURST_MAGE"
+  },
+  "Twitch": {
+    "skillPriority": "E > Q > W",
+    "role": "ADC",
+    "tip": "Ambush (Q) into Spray and Pray (R) pierces through the entire enemy team from distance.",
+    "archetype": "ONHIT_MARKSMAN"
+  },
+  "Fiora": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Time Riposte (W) precisely to parry hard CC abilities and turn them into a stun.",
+    "archetype": "SKIRMISHER"
+  },
+  "Ahri": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Hit Charm (E) before your Q return to guarantee maximum true damage.",
+    "archetype": "BURST_MAGE"
+  },
+  "Garen": {
+    "skillPriority": "E > Q > W",
+    "role": "TOP",
+    "tip": "Silence opponents with Decisive Strike (Q) right before spinning with Judgment (E).",
+    "archetype": "JUGGERNAUT"
+  },
+  "Orianna": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Attach Ball to initiating tanks (Jarvan, Malphite) before casting Shockwave (R).",
+    "archetype": "BURST_MAGE"
+  },
+  "Zilean": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Chronoshift (R) revives dying allies with up to 100% maximum health.",
+    "archetype": "ENCHANTER"
+  },
+  "Sett": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "Store maximum Grit when low health, then unleash Haymaker (W) center true damage.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Ornn": {
+    "skillPriority": "W > Q > E",
+    "role": "TOP",
+    "tip": "Forge masterwork item upgrades for your teammates starting at champion level 13.",
+    "archetype": "TANK"
+  },
+  "Rakan": {
+    "skillPriority": "W > E > Q",
+    "role": "SUPPORT",
+    "tip": "Pop The Quickness (R) for movespeed, charm carries, then knockup with Grand Entrance.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Nilah": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Joy Unending passive shares full minion XP with your support to hit level 6 first.",
+    "archetype": "SKIRMISHER"
+  },
+  "Fiddlesticks": {
+    "skillPriority": "W > Q > E",
+    "role": "JUNGLE",
+    "tip": "Channel Crowstorm (R) from behind walls out of vision to trigger multi-man fear.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Aatrox": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Use E dash during your Q casts to adjust your sweet-spot knockup positioning.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Singed": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Fling (E) enemies directly into Mega Adhesive (W) to root them for up to 3 seconds.",
+    "archetype": "TANK"
+  },
+  "Illaoi": {
+    "skillPriority": "E > Q > W",
+    "role": "TOP",
+    "tip": "Land Test of Spirit (E) before casting Leap of Faith (R) for an extra tentacle spawn.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Rell": {
+    "skillPriority": "W > E > Q",
+    "role": "SUPPORT",
+    "tip": "Crash Down (W) into Magnet Storm (R) drags the entire enemy team together.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Xerath": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Center Eye of Destruction (W) deals 66% extra damage and massive slow to line up Q.",
+    "archetype": "BURST_MAGE"
+  },
+  "Akali": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Drop Twilight Shroud (W) to break target focus and trigger passive Kama rings.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Lux": {
+    "skillPriority": "E > Q > W",
+    "role": "MID",
+    "tip": "Land Light Binding (Q) into instant Final Spark (R) + Lucent Singularity (E) burst.",
+    "archetype": "BURST_MAGE"
+  },
+  "Kaisa": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Evolving Icathian Rain (Q) at 100 bonus AD gives massive isolated single-target burst.",
+    "archetype": "ONHIT_MARKSMAN"
+  },
+  "Akshan": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Use Heroic Swing (E) around corners for continuous auto-targeting fire.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Sejuani": {
+    "skillPriority": "W > Q > E",
+    "role": "JUNGLE",
+    "tip": "Melee allies help stack Permafrost (E); coordinate with melee top and mid laners.",
+    "archetype": "TANK"
+  },
+  "Udyr": {
+    "skillPriority": "Q > R > E",
+    "role": "JUNGLE",
+    "tip": "Awakened Wilding Claw (Q) shreds single targets; Awakened Wingborne (R) slows and clears.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Khazix": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Isolated enemies take massive bonus damage from Taste Their Fear (Q); look for picks.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Rengar": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Leap from bushes with Thrill of the Hunt (R) to generate Ferocity and delete carries.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Velkoz": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Organic Deconstruction triggers true damage; channel Life Form Disintegration Ray (R).",
+    "archetype": "BURST_MAGE"
+  },
+  "Jhin": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "4th shot is an execute based on missing HP; pair with Curtain's Call 4th shot.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Qiyana": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Supreme Display of Talent (R) creates an elemental shockwave along rivers and walls.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Pyke": {
+    "skillPriority": "Q > E > W",
+    "role": "SUPPORT",
+    "tip": "Death From Below (R) executes and grants \"Your Cut\" full gold bags to assisting allies.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Syndra": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Gather dark spheres on the ground before casting Unleashed Power (R) + Scatter (E).",
+    "archetype": "BURST_MAGE"
+  },
+  "Heimerdinger": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Fight inside your turret triangle; land Grenade (E) to trigger instant laser beams.",
+    "archetype": "BURST_MAGE"
+  },
+  "Nidalee": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Trigger Hunt passive with Javelin Toss (Q), then Cougar W-E-Q to execute.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Kled": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "When dismounted, land Pocket Pistol (Q) and 4 W-strikes to remount Skaarl in combat.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Caitlyn": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Place Yordle Snap Traps (W) under turret edges and in teamfight choke points.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Shen": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Watch allied health bars to channel Stand United (R) shield across the map.",
+    "archetype": "TANK"
+  },
+  "Kassadin": {
+    "skillPriority": "E > W > Q",
+    "role": "MID",
+    "tip": "Riftwalk (R) damage stacks up to 4 times; reach level 16 for a 1.5s cooldown.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Trundle": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "Subjugate (R) steals 40% of the target's Armor and Magic Resist; target the tank.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Poppy": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Steadfast Presence (W) cancels dashes from champions like Riven, Lee Sin, and Yasuo.",
+    "archetype": "TANK"
+  },
+  "JarvanIV": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Demacian Standard (E) + Dragon Strike (Q) flags through walls for ganks.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Viktor": {
+    "skillPriority": "E > Q > W",
+    "role": "MID",
+    "tip": "Upgrade Death Ray (E) first with Hex Core fragments for secondary laser aftershock.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Hwei": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Use EE to pull enemies together, then cast QQ or QE for devastating area burst.",
+    "archetype": "BURST_MAGE"
+  },
+  "Jax": {
+    "skillPriority": "W > E > Q",
+    "role": "TOP",
+    "tip": "Counter Strike (E) dodges 100% of basic attacks and reduces AOE damage by 25%.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Xayah": {
+    "skillPriority": "E > Q > W",
+    "role": "ADC",
+    "tip": "Featherstorm (R) makes you untargetable; pull back all feathers with Bladecaller (E).",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Kindred": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Lamb's Respite (R) prevents all units from dropping below 10% HP; buffer E before it ends.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Galio": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Cast Hero's Entrance (R) on initiating allies (Nocturne, Jarvan, Malphite) for instant knockup.",
+    "archetype": "TANK"
+  },
+  "Tristana": {
+    "skillPriority": "E > Q > W",
+    "role": "ADC",
+    "tip": "Explosive Charge (E) resets Rocket Jump (W) cooldown upon full 4-stack detonation.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Sona": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Power Chord Diminuendo (W passive) reduces enemy carry damage by 25% for 3 seconds.",
+    "archetype": "ENCHANTER"
+  },
+  "Belveth": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Consume Void Remora from Rift Herald or Baron to spawn endless Void Coral pushers.",
+    "archetype": "SKIRMISHER"
+  },
+  "Blitzcrank": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Hold Rocket Grab (Q) as a zoning threat; the threat of the hook is often stronger than missing it.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "Jayce": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Fire Shock Blast (Q) first, then drop Acceleration Gate (E) directly on top of Jayce.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Aphelios": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Severum into Crescendum generates maximum chakram stacks for dueling.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Rumble": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Keep Heat in the Danger Zone (50-149) for 50% extra ability damage and shields.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Evelynn": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Post level 6, walk behind overextended laners before popping your Allure (W) charm.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Darius": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Get 5 Hemorrhage stacks on any target to gain Noxian Might and huge bonus AD.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Vladimir": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Crimson Rush (empowered Q) deals double damage and heals for missing health.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Lulu": {
+    "skillPriority": "E > W > Q",
+    "role": "SUPPORT",
+    "tip": "Whimsy (W) polymorphs diving assassins into harmless creatures for up to 2 seconds.",
+    "archetype": "ENCHANTER"
+  },
+  "Yone": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Soul Unbound (E) stores 35% of damage dealt and repeats it as true damage upon return.",
+    "archetype": "SKIRMISHER"
+  },
+  "Talon": {
+    "skillPriority": "W > Q > E",
+    "role": "MID",
+    "tip": "Assassin's Path (E) vaults over terrain; roam into enemy jungle after shoving waves.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Kayle": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Play defensive until level 11 (ranged waves) and scale into the level 16 Ascended god.",
+    "archetype": "SKIRMISHER"
+  },
+  "Zyra": {
+    "skillPriority": "Q > E > W",
+    "role": "SUPPORT",
+    "tip": "Spawn Thornspitters with Rampant Growth (W) to tank dragon and block enemy skillshots.",
+    "archetype": "AP_SUPPORT"
+  },
+  "Cassiopeia": {
+    "skillPriority": "E > Q > W",
+    "role": "MID",
+    "tip": "Only spam Twin Fang (E) on poisoned targets to get empowered damage and healing.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Neeko": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Disguise as a minion or ward using Inherent Glamour to hide your Pop Blossom (R) windup.",
+    "archetype": "BURST_MAGE"
+  },
+  "Anivia": {
+    "skillPriority": "E > Q > W",
+    "role": "MID",
+    "tip": "Frostbite (E) deals double damage only if the target is chilled by Q or fully formed R.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Vi": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Cease and Desist (R) is unstoppable; use it to lock down slippery enemy carries.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Briar": {
+    "skillPriority": "W > Q > E",
+    "role": "JUNGLE",
+    "tip": "Always have Chilling Scream (E) ready to cancel your Blood Frenzy self-taunt.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Chogath": {
+    "skillPriority": "E > W > Q",
+    "role": "TOP",
+    "tip": "Stack Feast (R) on minions and jungle monsters whenever off cooldown early.",
+    "archetype": "TANK"
+  },
+  "Sion": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "Unstoppable Onslaught (R) can steer into turrets and teamfights with immunity.",
+    "archetype": "TANK"
+  },
+  "LeeSin": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Ward hop with Safeguard (W) to position behind enemies for the InSec kick.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Warwick": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Hold Jaws of the Beast (Q) to follow through enemy Flashes and dashes.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "KogMaw": {
+    "skillPriority": "W > Q > E",
+    "role": "ADC",
+    "tip": "Bio-Arcane Barrage (W) grants huge attack range and % max HP magic damage.",
+    "archetype": "ONHIT_MARKSMAN"
+  },
+  "Gnar": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "Manage your Rage bar so you transform into Mega Gnar right as teamfights break out.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Zed": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Place Living Shadow (W) before casting Death Mark (R) for a triple Razor Shuriken (Q) snipe.",
+    "archetype": "AD_ASSASSIN"
+  },
+  "Vayne": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Tumble (Q) during Final Hour (R) grants 1 second of invisibility to reposition.",
+    "archetype": "ONHIT_MARKSMAN"
+  },
+  "Olaf": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Ragnarok (R) breaks and prevents all CC; run down enemy backliners with Ghost.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Nami": {
+    "skillPriority": "W > E > Q",
+    "role": "SUPPORT",
+    "tip": "Cast Tidecaller's Blessing (E) on allies right as their attacks or spells are in flight.",
+    "archetype": "ENCHANTER"
+  },
+  "Thresh": {
+    "skillPriority": "Q > W > E",
+    "role": "SUPPORT",
+    "tip": "Flay (E) before Death Sentence (Q) for an inescapable point-blank hook.",
+    "archetype": "ENGAGE_SUPPORT"
+  },
+  "MissFortune": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Bounce Double Up (Q) off dying caster minions for a guaranteed critical hit.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Ambessa": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Use Drakehound's Step passive after casting abilities to reposition and maintain relentless pressure.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Diana": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Land Crescent Strike (Q) before Lunar Rush (E) to reset the cooldown.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Karma": {
+    "skillPriority": "Q > E > W",
+    "role": "SUPPORT",
+    "tip": "Mantra Defiance (R-E) grants team-wide shields and speed in late game teamfights.",
+    "archetype": "ENCHANTER"
+  },
+  "Taliyah": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Seismic Shove (W) enemies into your Unraveled Earth (E) minefield to trigger boulder burst.",
+    "archetype": "BURST_MAGE"
+  },
+  "Lillia": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Keep 4 Prance stacks active on monsters to maintain maximum movement speed.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Smolder": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Farm 225 Dragon Practice stacks with Super Scorcher Breath (Q) for true damage burn & execute.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Gangplank": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Place one barrel behind you to chain a 2-barrel combo whenever enemies walk up.",
+    "archetype": "SKIRMISHER"
+  },
+  "Zac": {
+    "skillPriority": "E > W > Q",
+    "role": "JUNGLE",
+    "tip": "Elastic Slingshot (E) launches you from out of vision over dragon and baron pits.",
+    "archetype": "TANK"
+  },
+  "Varus": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Stack 3 Blight (W) stacks with basic attacks, then pop with fully charged Piercing Arrow.",
+    "archetype": "ONHIT_MARKSMAN"
+  },
+  "Nocturne": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Cast Paranoia (R) to blackout enemy vision before flying onto isolated split-pushers.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Katarina": {
+    "skillPriority": "Q > E > W",
+    "role": "MID",
+    "tip": "Voracity passive resets 15 seconds off all basic abilities on every champion takedown.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Graves": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Quickdraw (E) reloads a shell and grants stacking True Grit armor; maintain it.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "KSante": {
+    "skillPriority": "Q > W > E",
+    "role": "TOP",
+    "tip": "All Out (R) converts defensive resists into AD and Omnivamp to duel enemy carries.",
+    "archetype": "TANK"
+  },
+  "Malphite": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Unstoppable Force (R) is game-changing; look for 3+ man clumps around objectives.",
+    "archetype": "TANK"
+  },
+  "Amumu": {
+    "skillPriority": "E > Q > W",
+    "role": "JUNGLE",
+    "tip": "Keep Despair (W) toggled on while clearing camps and save second Bandage Toss (Q) for flashes.",
+    "archetype": "TANK"
+  },
+  "RekSai": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Burrowed Tremor Sense tracks enemy footsteps through the fog of war.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Sivir": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Spell Shield (E) blocks incoming enemy abilities and refunds health / mana.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Malzahar": {
+    "skillPriority": "E > Q > W",
+    "role": "MID",
+    "tip": "Nether Grasp (R) suppresses for 2.5s; force the enemy carry to buy Quicksilver Sash.",
+    "archetype": "BATTLE_MAGE"
+  },
+  "Nasus": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Last hit with Siphoning Strike (Q) diligently; aim for 300+ stacks by 15 minutes.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Lissandra": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Self-cast Frozen Tomb (Alt+R) when diving to become invulnerable while Thralls detonate.",
+    "archetype": "BURST_MAGE"
+  },
+  "Milio": {
+    "skillPriority": "E > W > Q",
+    "role": "SUPPORT",
+    "tip": "Breath of Life (R) acts as an area Cleanse that removes stuns, fears, and ignites.",
+    "archetype": "ENCHANTER"
+  },
+  "DrMundo": {
+    "skillPriority": "Q > E > W",
+    "role": "TOP",
+    "tip": "Retrieve your passive canister whenever it drops to reduce its cooldown by 15s.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Draven": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Catching Spinning Axes resets Blood Rush (W) move speed immediately.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Hecarim": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Charge Devastating Charge (E) to maximum speed before casting Onslaught of Shadows.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Lucian": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Lightslinger double-tap reduces Relentless Pursuit (E) cooldown; weave dashes.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Zeri": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Lightning Crash (R) gives unlimited stacking move speed as long as you keep hitting targets.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "LeBlanc": {
+    "skillPriority": "W > Q > E",
+    "role": "MID",
+    "tip": "Distortion (W) into Mimic (R-W) is your primary waveclear and double-dash combo.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Jinx": {
+    "skillPriority": "Q > W > E",
+    "role": "ADC",
+    "tip": "Get Excited! grants huge move and attack speed upon takedowns; swap to Fishbones.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Elise": {
+    "skillPriority": "Q > W > E",
+    "role": "JUNGLE",
+    "tip": "Use Rappel (E) to drop tower aggro during early level 3 dives.",
+    "archetype": "AP_ASSASSIN"
+  },
+  "Veigar": {
+    "skillPriority": "Q > W > E",
+    "role": "MID",
+    "tip": "Stack Phenomenal Evil AP endlessly; Primordial Burst (R) executes low-health enemies.",
+    "archetype": "BURST_MAGE"
+  },
+  "Wukong": {
+    "skillPriority": "E > Q > W",
+    "role": "TOP",
+    "tip": "Cyclone (R) can be cast twice; your Warrior Trickster (W) clone also casts Cyclone.",
+    "archetype": "DIVER_FIGHTER"
+  },
+  "Shyvana": {
+    "skillPriority": "E > W > Q",
+    "role": "JUNGLE",
+    "tip": "Flame Breath (E) in Dragon Form creates scorched ground that shreds max HP.",
+    "archetype": "JUGGERNAUT"
+  },
+  "Viego": {
+    "skillPriority": "Q > E > W",
+    "role": "JUNGLE",
+    "tip": "Possess fallen enemy champions to gain temporary invulnerability, heal, and cast Heartbreaker (R).",
+    "archetype": "SKIRMISHER"
+  },
+  "Brand": {
+    "skillPriority": "W > Q > E",
+    "role": "SUPPORT",
+    "tip": "Apply Blaze passive in grouped teamfights to trigger catastrophic explosion chains.",
+    "archetype": "AP_SUPPORT"
+  },
+  "Ivern": {
+    "skillPriority": "E > Q > W",
+    "role": "JUNGLE",
+    "tip": "Cast Triggerseed (E) shield onto Daisy to slow and damage enemies while knocking up.",
+    "archetype": "ENCHANTER"
+  },
+  "Samira": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Alternate spells and basic attacks to reach Style Rank S, then unleash Inferno Trigger (R).",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Corki": {
+    "skillPriority": "Q > E > W",
+    "role": "ADC",
+    "tip": "Poke with Big One missile (R) before diving in with Valkyrie.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Quinn": {
+    "skillPriority": "W > Q > E",
+    "role": "TOP",
+    "tip": "Use Vault (E) to cancel enemy gap-closers and immediately re-apply Harrier.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Ashe": {
+    "skillPriority": "W > Q > E",
+    "role": "ADC",
+    "tip": "Cast Hawkshot (E) across the enemy jungle to track ganks and objective setups.",
+    "archetype": "CRIT_MARKSMAN"
+  },
+  "Volibear": {
+    "skillPriority": "W > Q > E",
+    "role": "TOP",
+    "tip": "Stormbringer (R) disables enemy turrets for up to 4 seconds during tower dives.",
+    "archetype": "JUGGERNAUT"
+  }
+}

@@ -6,14 +6,14 @@ node_modules/
 # Production & Build outputs
 dist/
 release/
-dist_app/
-dist_electron/
-dist_overlay/
-temp_packager/
 build_staging/
 installer_output/
 RiftCore_Rust_Portable/
 build_output/
+dist_app/
+dist_electron/
+dist_overlay/
+temp_packager/
 *.exe
 *.dll
 
@@ -21,16 +21,15 @@ build_output/
 riftcore-native/target/
 target/
 **/*.rs.bk
-Cargo.lock
 
 # Logs and diagnostics
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 error.log
 output.log
 riftcore.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Temporary / testing files
 capture_screen.ps1

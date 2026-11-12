@@ -33,14 +33,18 @@ if (targetArg !== 'current' && targetArg !== 'no-bump') {
 }
 
 // Read the active version
-const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const version = pkg.version;
+const cargo = fs.readFileSync(path.join(ROOT, 'riftcore-native', 'Cargo.toml'), 'utf8');
+const version = cargo.match(/(\[package\][\s\S]*?^version\s*=\s*")([^\"]+)(")/m)?.[2];
+if (!version) {
+  console.error('Could not read the release version from riftcore-native/Cargo.toml');
+  process.exit(1);
+}
 
-// Step 2: Build frontend, native Rust release binary, installer, and zip
+// Step 2: Build the native Rust app, installer, and portable ZIP
 run('cmd.exe /c build_all.bat', `Building complete v${version} binary and packages`);
 
 // Step 3: Git stage and commit
-run('git add -A', 'Staging release files in git');
+run('git add -A -- . ":(exclude)riftcore-companion/**" ":(exclude)riftcore-companion-1/**"', 'Staging release files in git');
 try {
   run(`git commit -m "chore(release): v${version}"`, `Committing release v${version}`);
 } catch {
@@ -50,8 +54,8 @@ try {
 // Step 4: Git push to main and update git tag
 run('git push origin main', 'Pushing release commit to GitHub main');
 try {
-  run(`git tag -a v${version} -m "Release v${version}" -f`, `Tagging release v${version}`);
-  run(`git push origin v${version} -f`, `Pushing git tag v${version} to GitHub`);
+  run(`git tag -a v${version} -m "Release v${version}"`, `Tagging release v${version}`);
+  run(`git push origin v${version}`, `Pushing git tag v${version} to GitHub`);
 } catch (e) {
   console.warn('Warning: Could not push git tag:', e?.message || e);
 }
@@ -65,5 +69,5 @@ console.log('===================================================');
 console.log(`  1. Git commit & push:  Pushed to origin main`);
 console.log(`  2. Release Binaries:   Built & packaged in installer_output/`);
 console.log(`  3. GitHub Release:     Live at https://github.com/kotsioskl2/riftcore-companion/releases/tag/v${version}`);
-console.log(`  4. Auto-Update:        All active RiftCore apps will now prompt and auto-update!`);
+console.log(`  4. Auto-update:        Native apps can download RiftCore.exe and restart into the new version.`);
 console.log('===================================================\n');

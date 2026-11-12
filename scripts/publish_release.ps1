@@ -3,10 +3,13 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = Split-Path -Parent $scriptDir
 
-# 1. Read current version from package.json
-$pkgJsonPath = Join-Path $rootDir "package.json"
-$pkg = Get-Content $pkgJsonPath -Raw | ConvertFrom-Json
-$version = $pkg.version
+# 1. Read current version from the Rust package manifest
+$cargoTomlPath = Join-Path $rootDir "riftcore-native\Cargo.toml"
+$cargoToml = Get-Content $cargoTomlPath -Raw
+if ($cargoToml -notmatch '(?ms)^\[package\].*?^version\s*=\s*"([^"]+)"') {
+    throw "Could not read package version from $cargoTomlPath"
+}
+$version = $Matches[1]
 
 Write-Host "===================================================" -ForegroundColor Cyan
 Write-Host "  RiftCore Companion - GitHub Release Publisher" -ForegroundColor Cyan
@@ -114,9 +117,10 @@ function Upload-Asset($filePath, $contentType) {
     Write-Host "  [OK] Uploaded $fileName! ($([math]::Round($fileBytes.Length / 1MB, 2)) MB)" -ForegroundColor Green
 }
 
-# Upload release artifacts (Complete Setup installer & Portable zip package with all DLLs)
+# Upload release artifacts: setup installer, portable package, and the self-update binary.
 Upload-Asset (Join-Path $rootDir "installer_output\RiftCore-Setup-$version.exe") "application/vnd.microsoft.portable-executable"
 Upload-Asset (Join-Path $rootDir "installer_output\RiftCore-Portable-$version.zip") "application/zip"
+Upload-Asset (Join-Path $rootDir "RiftCore_Rust_Portable\RiftCore.exe") "application/vnd.microsoft.portable-executable"
 
 Write-Host ""
 Write-Host "===================================================" -ForegroundColor Green

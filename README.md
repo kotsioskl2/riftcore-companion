@@ -1,190 +1,71 @@
-# ⚔️ RiftCore Companion 2.0
+# RiftCore Companion
 
-<div align="center">
+RiftCore is a Windows League of Legends companion with a fully native Rust desktop UI and in-game HUD. The application uses Rust and egui for its windows and rendering. It does not launch Electron or embed a browser engine.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Hybrid Architecture](https://img.shields.io/badge/engine-Rust_+_DirectComposition_Hybrid-9cf.svg?logo=rust)
-![React](https://img.shields.io/badge/frontend-React_19_+_TypeScript-61dafb.svg?logo=react)
-![RAM Footprint](https://img.shields.io/badge/idle_memory-~40_MB_RAM-brightgreen.svg)
-![Overlay](https://img.shields.io/badge/overlay-100%25_DirectComposition_Transparent-00c8ff.svg)
-![Ad-Free](https://img.shields.io/badge/ads-ZERO_ADS-crimson.svg)
+## Features
 
-**The ultra-lightweight, ad-free, high-performance League of Legends companion & zero-whitebox overlay.**
+- Searchable champion selector with role builds, skill order, item sets, full rune page editor and spell import.
+- Per-role blind, counter and pocket picks, plus favorite champions.
+- Local 5v5 draft simulator, live champ-select sync and qualitative frontline, damage and utility coverage hints.
+- League Client connection, queue status, ready-check acceptance, current ranked profile and local match history.
+- Riot ID lookup for ranked entries, mastery and recent matches when a user adds their Riot developer API key.
+- Post-game match summaries and item breakdowns.
+- TFT Set 18 catalog with unit, trait, item and augment images, a saved manual board, and clearly marked Set 13 composition, recipe and roll-odds archives.
+- Native HUD with the live game clock, scoreline, CS pace, current gold, ability ranks, inventory, trinket reminder and live objective timers.
+- Configurable manual ARAM relic timers.
+- Mode setup pages for Summoner's Rift, ARAM, Arena, URF and One for All, with explicit rune/spell imports.
+- Global shortcuts: **Alt + ~** or **Ctrl + Space** toggles the HUD; **Alt + Shift + ~** toggles click-through input.
+- Native settings for queue automation, API region/key, overlay behavior, champion pool and saved TFT board.
+- GitHub release checks with in-app download, safe executable replacement and restart when an update package is available.
+- Obsidian styling with cyan, crimson and gold accents, matching RiftCore's previous interface.
+- Offline champion portraits, TFT icons and the RiftCore brand mark embedded in the native executable.
 
-[Features](#-features) • [Performance Comparison](#-performance-benchmark) • [Hybrid Architecture](#-hybrid-architecture) • [Installation](#-installation) • [Build from Source](#-building-from-source) • [License](#-license)
+## Build
 
-</div>
+Install the current stable Rust toolchain. The build script uses Visual Studio Build Tools when available, or MinGW-w64 with the `stable-x86_64-pc-windows-gnu` Rust toolchain otherwise. NSIS is needed only to build the Windows installer.
 
----
+Build and stage the native app:
 
-## ⚡ Why RiftCore 2.0?
+```cmd
+build_rust.bat
+```
 
-Tired of bloated League apps using **1GB+ RAM**, showing intrusive ads, and dropping your FPS?
+Build the portable app, installer and ZIP package:
 
-- 🚀 **~40 MB RAM:** 25x lighter than Overwolf. Boots in 0.1s.
-- 🎯 **Clean In-Game Overlay:** 100% transparent, click-through, and zero frame drops.
-- 🧹 **Auto-RAM Reclaim:** Overlay runs only during matches and closes automatically after.
-- 🔮 **1-Click Runes & Spells:** Meta builds imported directly into your League client.
-- ⚡ **Instant Auto-Accept:** Never miss a queue pop.
-- 🛡️ **Zero Ads & Vanguard Safe:** 100% free, open-source, and fully compliant with Riot policies.
-
----
-
-## 🚀 Features
-
-### ⚡ Instant Auto-Accept
-Queue pops are detected and accepted instantly with audio alerts.
-
-### 🔮 1-Click Runes & Spells
-High-winrate meta rune pages and summoner spells imported directly into your client for all 160+ champions.
-
-### 🎯 In-Game HUD & Minimap Timers
-- **Minimap Timers:** Dragon, Baron, Voidgrubs, and Buffs cleanly docked above the minimap.
-- **Scoreboard Gold Lead:** Real-time team gold differential at the top center.
-- **CS Diff Tracker:** CS score and CS/min pill beside your game clock.
-- **Level-Up Indicator:** Shows recommended ability upgrades in real time.
-- **Hotkeys:** <kbd>Alt + ~</kbd> or <kbd>Ctrl + Space</kbd> to toggle visibility.
-
-### 📊 Ranked History & Stats
-Live rank, LP, win rates, and recent match stats with MVP/ACE badges.
-
----
-
-## 📊 Performance Comparison
-
-| Metric | Other Apps (Overwolf / Porofessor) | ⚡ **RiftCore 2.0** |
-| :--- | :---: | :---: |
-| **Idle Companion RAM** | ~800 MB – 1.4 GB | **~40 MB** |
-| **In-Game Overlay RAM** | ~1.2 GB+ persistent | **~300 MB** *(freed on game end)* |
-| **Overlay Transparency** | Washed out / borders | **100% Clean & Click-Through** |
-| **Startup Time** | 4.5 – 9.0s | **< 0.1s** |
-| **Ads & Trackers** | Heavy (video/banners) | **ZERO** |
-
----
-
-## 📦 Downloads & Installation
-
-### Direct Downloads (Latest Release v2.0.4)
-| Package | Type | Download Link | Description |
-| :--- | :--- | :--- | :--- |
-| **Windows Installer** | Standalone Setup | [📥 **Download RiftCore-Setup-2.0.4.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Complete 1-Click Installer (Start Menu & Desktop shortcuts) |
-| **Portable ZIP Archive** | Portable ZIP | [📦 **Download RiftCore-Portable-2.0.4.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) | Zero-install, unzips to any folder |
-| **Portable Directory** | Local Extracted | [📁 **Browse RiftCore_Rust_Portable/**](./RiftCore_Rust_Portable/) | Run `RiftCore.exe` directly |
-
-### Option A: Windows Installer (Recommended)
-1. Download [**RiftCore-Setup-2.0.4.exe**](https://github.com/kotsioskl2/riftcore-companion/releases/latest).
-2. Run the setup and choose your installation directory.
-3. Desktop and Start Menu shortcuts with the custom RiftCore emblem will be created automatically.
-
-### Option B: Standalone Portable `.exe`
-1. Download [**RiftCore-Portable-2.0.4.zip**](https://github.com/kotsioskl2/riftcore-companion/releases/latest) or open [`RiftCore_Rust_Portable/`](./RiftCore_Rust_Portable/).
-2. Double-click `RiftCore.exe` to launch instantly with zero installation required.
-
----
-
-## 🛠️ Building from Source
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18+) & `npm`
-- [Rust](https://rustup.rs/) (v1.80+ with `x86_64-pc-windows-gnu` or `msvc` toolchain)
-- MinGW / GCC (e.g. `w64devkit` or MSVC C++ Build Tools)
-- [NSIS](https://nsis.sourceforge.io/) (for compiling the installer)
-
-### 1-Click Master Build
-Simply run the master build batch script from the repository root:
 ```cmd
 build_all.bat
 ```
-This automated script will:
-1. Package the React 19 frontend and DirectComposition overlay engine into `app.asar`.
-2. Compile the high-performance native Rust companion (`riftcore-native.exe`) in release profile.
-3. Assemble the portable distribution folder `RiftCore_Rust_Portable/`.
-4. Compile the Windows NSIS Setup installer in `installer_output/RiftCore-Setup-2.0.4.exe`.
-5. Generate the portable ZIP package in `installer_output/RiftCore-Portable-2.0.4.zip`.
 
----
+The app executable is staged at `RiftCore_Rust_Portable\RiftCore.exe`.
 
-## 🏗️ Hybrid Architecture
+The checked-in TFT icons are already prepared for building. To refresh them from Data Dragon, run `node scripts/download_tft_icons.mjs` and then `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/optimize_tft_icons.ps1` before building.
 
-```
+## Architecture
+
+```text
 riftcore-companion/
-├── src/                          # Modern React 19 + TypeScript Frontend
-│   ├── components/               # Minimalist Red & Blue UI Views
-│   │   ├── TitleBar.tsx          # Window controls, live client status pill
-│   │   ├── ChampSelectView.tsx   # Meta builds, 1-click rune & spell import
-│   │   ├── LiveGameOverlay.tsx   # Objective & enemy cooldown HUD
-│   │   ├── RiftFloatingOverlay.tsx # Minimap dock & scoreboard diff HUD
-│   │   ├── SummonerProfileView.tsx # Ranked LP stats & match history
-│   │   └── ChampionTierListView.tsx# Champion tier list & counter picks
-│   ├── rustBridge.ts             # Bi-directional IPC bridge
-│   └── index.css                 # Obsidian styling with Electric Cyan & Crimson
-├── riftcore-native/              # Native Rust Companion Core (~40 MB)
-│   ├── src/main.rs               # Tokio async engine, LCU client, process watcher,
-│   │                             # and dynamic overlay lifecycle manager
-│   └── Cargo.toml                # Dependencies: wry, tao, tokio, reqwest
-├── electron/                     # DirectComposition Standalone Overlay Engine
-│   ├── main.js                   # 100% transparent click-through HUD process
-│   └── preload.js                # Secure bridge to Live Client Data port 2999
-├── scripts/
-│   ├── build_electron_exe.mjs    # High-speed ASAR overlay packager
-│   ├── bump_version.mjs          # Automatic semver synchronizer
-│   └── publish_release.ps1       # GitHub Releases API asset publisher
-├── installer/                    # NSIS Windows Installer Scripts
-│   └── installer.nsi             # Modern UI 2 solid LZMA installer definition
-├── build_all.bat                 # 1-Click end-to-end master builder
-└── package.json
+├── riftcore-native/
+│   ├── src/main.rs       # Native window and application entry point
+│   ├── src/app.rs        # Rust UI, settings, navigation and HUD
+│   ├── src/backend.rs   # League Client and Live Client Data integration
+│   └── Cargo.toml
+├── installer/            # NSIS installer
+├── public/               # App and installer icons
+├── all_champions.json    # Champion directory
+├── build_rust.bat
+└── build_all.bat
 ```
 
----
+The former TypeScript interface under `src/` is retained as a migration reference only. It is not compiled, embedded or shipped by the native build.
 
-## ☕ Support & Fuel Development
+Champion portraits, TFT catalog data and icons use Riot Games Data Dragon version 16.22.1 and are embedded so the portable app does not need to download game art at runtime. See `riftcore-native/assets/ATTRIBUTION.txt` for the asset source and ownership note.
 
-> *"Building and hosting apps takes time and caffeine. If you want to help fuel the next project:"*
+Riot does not provide live tier-list win rates in Data Dragon, so the app does not show the previous web app's hard-coded percentages as current stats. Set 13 TFT guides remain archived. Enemy cooldown tracking is not included: Riot's [League policy](https://developer.riotgames.com/docs/lol) specifically excludes manual or automatic enemy ultimate tracking. The old Mayhem card rankings and patch-synced tier rates are not part of the native build. Releases without the self-update executable open the release page's setup download as a fallback.
 
-<div align="center">
+The HUD uses its own transparent, always-on-top native window, so the main companion remains open while the overlay is shown. It follows League's visible game window, hides when the game is minimized or another app is in front, and is intended for borderless windowed mode. Exclusive fullscreen support is not promised. The companion uses the League Client for lobby actions and the Live Client Data API for in-game data. Riot ID scouting requires a user-supplied developer key; the key is saved in the user's local settings file.
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/X6I629C814)
+## License
 
-<br/>
+RiftCore is released under the MIT License. See [LICENSE](LICENSE).
 
-<a href="https://ko-fi.com/X6I629C814">
-  <img src="./kofi_qr.png" alt="Scan with Camera to Tip on Ko-fi" width="130" style="border-radius: 10px; box-shadow: 0 0 15px rgba(0, 200, 255, 0.3);" />
-</a>
-
-<br/>
-
-*Scan with your phone camera or click above to pay with **Apple Pay**, **Google Pay**, or **Card** (Zero account required!)*
-
-</div>
-
-### ⚡ Direct Links:
-| ☕ [**Support on Ko-fi (Apple Pay / G-Pay / Card)**](https://ko-fi.com/X6I629C814) | ⚡ [**Tip via Revolut**](https://revolut.me/kkleovoulou) |
-| :---: | :---: |
-
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome!
-Feel free to check the [issues page](https://github.com/kotsioskl2/riftcore-companion/issues).
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📜 License & Riot Games Legal Notice
-
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
-
-> **⚖️ Riot Games "Legal Jibber Jabber":**
-> RiftCore Companion isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
-
----
-
-<div align="center">
-Made with ❤️ for League of Legends players who want performance without compromise.
-</div>
+RiftCore Companion is not endorsed by Riot Games. League of Legends and its associated properties are trademarks of Riot Games, Inc.
