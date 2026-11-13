@@ -1,6 +1,11 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.6
+       RIFTCORE COMPANION - UPDATE v2.0.7
 --------------------------------------------------
+
+* Compact native header:
+  - Reduced the title bar height and tightened logo, brand and control spacing.
+  - Made connection status and header actions smaller and more readable.
+  - Set the existing RiftCore logo as the native window and taskbar icon.
 
 * Native app polish:
   - Organized Settings into Gameplay, Overlay, Riot API and App sections.

@@ -481,12 +481,12 @@ impl RiftCoreApp {
     fn render_titlebar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         egui::Panel::top("titlebar")
-            .exact_size(68.0)
+            .exact_size(52.0)
             .frame(
                 Frame::new()
                     .fill(SURFACE)
                     .stroke(Stroke::new(1.0, BORDER))
-                    .inner_margin(egui::Margin::symmetric(24, 0)),
+                    .inner_margin(egui::Margin::symmetric(16, 0)),
             )
             .show(ui, |ui| {
                 let header_size = Vec2::new(ui.available_width(), ui.available_height());
@@ -494,61 +494,46 @@ impl RiftCoreApp {
                     header_size,
                     Layout::left_to_right(Align::Center),
                     |ui| {
-                        let logo = egui::Image::new((self.logo_texture.id(), Vec2::splat(42.0)))
-                            .corner_radius(egui::CornerRadius::same(10))
+                        let logo = egui::Image::new((self.logo_texture.id(), Vec2::splat(30.0)))
+                            .corner_radius(egui::CornerRadius::same(7))
                             .sense(Sense::click_and_drag());
                         if ui.add(logo).drag_started() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
-                        ui.add_space(12.0);
+                        ui.add_space(9.0);
                         ui.vertical(|ui| {
                             let brand = ui.add(
                                 egui::Label::new(
-                                    RichText::new("RIFTCORE").size(16.0).strong().color(TEXT),
+                                    RichText::new("RIFTCORE").size(13.5).strong().color(TEXT),
                                 )
                                 .sense(Sense::click_and_drag()),
                             );
                             if brand.drag_started() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                             }
-                            ui.label(RichText::new("COMPANION").size(9.5).strong().color(MUTED));
+                            ui.label(RichText::new("COMPANION").size(8.0).strong().color(MUTED));
                         });
                         ui.add_space(10.0);
-                        badge(ui, "NATIVE", CYAN);
-                        ui.add_space(18.0);
+                        titlebar_badge(ui, "NATIVE", CYAN);
+                        ui.add_space(12.0);
                         let (dot, status) = if self.snapshot.connected {
                             (
                                 GREEN,
-                                format!(
-                                    "League Connected  •  {}",
-                                    phase_name(&self.snapshot.phase)
-                                ),
+                                format!("In Game  ·  {}", phase_name(&self.snapshot.phase)),
                             )
                         } else if self.snapshot.riot_client_open {
-                            (GOLD, "Riot Client Ready  •  Waiting for League".to_string())
+                            (GOLD, "Riot Ready".to_string())
                         } else {
-                            (RED, "Client Offline".to_string())
+                            (RED, "Offline".to_string())
                         };
-                        Frame::new()
-                            .fill(CARD)
-                            .stroke(Stroke::new(1.0, BORDER))
-                            .corner_radius(egui::CornerRadius::same(11))
-                            .inner_margin(egui::Margin::symmetric(12, 7))
-                            .show(ui, |ui| {
-                                ui.horizontal_centered(|ui| {
-                                    let (dot_rect, _) =
-                                        ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
-                                    ui.painter().circle_filled(dot_rect.center(), 4.5, dot);
-                                    ui.label(RichText::new(status).size(13.0).color(SECONDARY));
-                                });
-                            });
+                        titlebar_status(ui, &status, dot);
                         if !self.snapshot.connected && self.snapshot.riot_client_open {
-                            ui.add_space(8.0);
-                            if action_button(ui, "LAUNCH LEAGUE", false, CYAN).clicked() {
+                            ui.add_space(6.0);
+                            if titlebar_action_button(ui, "LAUNCH", false, CYAN).clicked() {
                                 let _ = self.commands.send(CoreCommand::LaunchLeague);
                             }
                         }
-                        ui.add_space((ui.available_width() - 276.0).max(12.0));
+                        ui.add_space((ui.available_width() - 216.0).max(8.0));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if window_button(ui, "×", RED).clicked() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -559,7 +544,7 @@ impl RiftCoreApp {
                             if window_button(ui, "—", SECONDARY).clicked() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                             }
-                            if action_button(
+                            if titlebar_action_button(
                                 ui,
                                 if self.overlay_mode && self.overlay_waiting_for_window {
                                     "WAITING"
@@ -575,7 +560,7 @@ impl RiftCoreApp {
                             {
                                 self.set_overlay_mode(&ctx, !self.overlay_mode, false);
                             }
-                            if action_button(
+                            if titlebar_action_button(
                                 ui,
                                 if self.pinned { "PINNED" } else { "PIN" },
                                 self.pinned,
@@ -5886,6 +5871,85 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
         });
 }
 
+fn titlebar_badge(ui: &mut egui::Ui, text: &str, color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(52.0, 22.0), Sense::hover());
+    let fill = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 18);
+    let stroke = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 110);
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(7), fill);
+    ui.painter().rect_stroke(
+        rect,
+        egui::CornerRadius::same(7),
+        Stroke::new(0.8, stroke),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        text,
+        FontId::proportional(9.0),
+        color,
+    );
+}
+
+fn titlebar_status(ui: &mut egui::Ui, text: &str, color: Color32) {
+    let width = 28.0 + text.chars().count() as f32 * 6.2;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 26.0), Sense::hover());
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(8), CARD);
+    ui.painter().rect_stroke(
+        rect,
+        egui::CornerRadius::same(8),
+        Stroke::new(1.0, BORDER),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter()
+        .circle_filled(egui::pos2(rect.left() + 11.0, rect.center().y), 3.5, color);
+    ui.painter().text(
+        egui::pos2(rect.left() + 20.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        text,
+        FontId::proportional(10.5),
+        SECONDARY,
+    );
+}
+
+fn titlebar_action_button(
+    ui: &mut egui::Ui,
+    text: &str,
+    active: bool,
+    accent: Color32,
+) -> egui::Response {
+    let width = (text.chars().count() as f32 * 6.4 + 18.0).max(42.0);
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 30.0), Sense::click());
+    let fill = if active {
+        Color32::from_rgb(15, 45, 58)
+    } else if response.hovered() {
+        Color32::from_rgb(30, 38, 52)
+    } else {
+        CARD
+    };
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(8), fill);
+    ui.painter().rect_stroke(
+        rect,
+        egui::CornerRadius::same(8),
+        Stroke::new(
+            if active { 0.9 } else { 0.6 },
+            if active { accent } else { BORDER },
+        ),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        text,
+        FontId::proportional(10.0),
+        if active { accent } else { TEXT },
+    );
+    response
+}
+
 fn metric(ui: &mut egui::Ui, label: &str, value: &str, color: Color32) {
     Frame::new()
         .fill(SURFACE)
@@ -5921,8 +5985,8 @@ fn action_button(ui: &mut egui::Ui, text: &str, active: bool, accent: Color32) -
 
 fn window_button(ui: &mut egui::Ui, text: &str, color: Color32) -> egui::Response {
     ui.add_sized(
-        [32.0, 32.0],
-        egui::Button::new(RichText::new(text).size(17.0).color(color))
+        [28.0, 28.0],
+        egui::Button::new(RichText::new(text).size(15.0).color(color))
             .fill(Color32::TRANSPARENT)
             .stroke(Stroke::new(1.0, Color32::TRANSPARENT)),
     )
