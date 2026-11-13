@@ -1,46 +1,22 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.7
+       RIFTCORE COMPANION - UPDATE v2.0.8
 --------------------------------------------------
 
-* Compact native header:
-  - Reduced the title bar height and tightened logo, brand and control spacing.
-  - Made connection status and header actions smaller and more readable.
-  - Set the existing RiftCore logo as the native window and taskbar icon.
+* Compact desktop header:
+  - Reduced the title bar to 38 logical pixels.
+  - Tightened the logo, wordmark, status badge and window controls.
+  - Made the close icon smaller and muted until hover.
 
-* Native app polish:
-  - Organized Settings into Gameplay, Overlay, Riot API and App sections.
-  - Refined navigation spacing and restored emoji-capable sidebar icons.
-  - Improved native HUD click-through handling when the overlay is shown.
+* HUD input and visibility:
+  - Added smart click-through so gameplay clicks pass through open overlay areas while HUD controls remain interactive.
+  - Reinforced the native overlay's topmost, no-activate window behavior.
+  - Added a reminder that the desktop HUD needs League in Borderless or Windowed mode.
 
-* Native desktop interface:
-  - Rebuilt the application shell in Rust with a native egui renderer.
-  - Removed Electron and the embedded WebView from the application build.
-  - Recreated the obsidian, cyan and crimson RiftCore visual system.
+* League rune import:
+  - Report rune-page read, save and activation errors from the League Client.
+  - Avoid creating duplicate RiftCore pages when an existing page cannot be updated.
 
-* Native in-game HUD:
-  - The HUD is drawn directly by the Rust application in a transparent window.
-  - Added League game-window alignment, always-on-top behavior and click-through mode.
-  - Added global hotkeys: Alt + ~, Ctrl + Space and Alt + Shift + ~.
-  - Added integrated, top bar, tactical card and minimap pill layouts with draggable modules.
-  - Restored minimap objective countdown pins, a numbered own-side jungle route, and optional static ward suggestions.
-  - Added minimap scale, flip and offset controls for pin alignment.
-  - Restored manual allied ultimate timers and objective phase countdowns for Grubs, Herald and Baron.
-  - Added a live champion build drawer with item-set sync to the League shop.
-
-* League Client integration:
-  - Added native client status, champ-select roster, profile and ranked summary.
-  - Added rune-page and summoner-spell import controls.
-  - Kept optional queue auto-accept and user-configurable HUD modules.
-
-* Companion tools:
-  - Added a local 5v5 draft simulator with live champion-select sync.
-  - Added champion name and role filters.
-  - Added a locally saved manual TFT positioning board.
-  - Wired HUD CS pace, current gold, ability ranks, inventory, trinket status and objective timers to live data.
-  - Restored the Mayhem and Arena card catalog, appearance choices, first-run tour, update notes and tray close flow.
-
-* App updates:
-  - Added in-app update download, safe executable replacement and automatic restart.
-  - Added the standalone RiftCore.exe update asset to future GitHub releases.
+* Interface spacing:
+  - Tightened navigation, panels, controls and typography across the app.
 
 --------------------------------------------------

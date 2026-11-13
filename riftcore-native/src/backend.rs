@@ -523,14 +523,26 @@ async fn import_spells(
 
 async fn import_runes(client: &Client, creds: &LcuCredentials, mut page: Value) -> String {
     let pages_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", creds.port);
-    let pages = match client
+    let response = match client
         .get(&pages_url)
         .basic_auth("riot", Some(&creds.token))
         .send()
         .await
     {
-        Ok(response) => response.json::<Vec<Value>>().await.unwrap_or_default(),
-        Err(_) => Vec::new(),
+        Ok(response) => response,
+        Err(error) => return format!("Could not read rune pages from League Client: {error}"),
+    };
+    let status = response.status();
+    let body = match response.text().await {
+        Ok(body) => body,
+        Err(error) => return format!("Could not read rune pages from League Client: {error}"),
+    };
+    if !status.is_success() {
+        return format!("League Client returned HTTP {status} while reading rune pages: {body}");
+    }
+    let pages: Vec<Value> = match serde_json::from_str(&body) {
+        Ok(pages) => pages,
+        Err(error) => return format!("League Client returned invalid rune page data: {error}"),
     };
     let target = pages.iter().find_map(|entry| {
         let owned = entry
@@ -545,7 +557,7 @@ async fn import_runes(client: &Client, creds: &LcuCredentials, mut page: Value) 
             .get("name")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        if owned && name.contains("RiftCore") {
+        if owned && name.to_lowercase().contains("riftcore") {
             entry.get("id").and_then(Value::as_i64)
         } else {
             None
@@ -564,18 +576,17 @@ async fn import_runes(client: &Client, creds: &LcuCredentials, mut page: Value) 
         if let Some(object) = page.as_object_mut() {
             object.insert("id".to_string(), Value::from(id));
         }
-        match lcu_request(
-            client,
-            creds,
-            Method::PUT,
-            &format!("/lol-perks/v1/pages/{id}"),
-            Some(page.clone()),
+        (
+            lcu_request(
+                client,
+                creds,
+                Method::PUT,
+                &format!("/lol-perks/v1/pages/{id}"),
+                Some(page.clone()),
+            )
+            .await,
+            Some(id),
         )
-        .await
-        {
-            Ok(value) => (Ok(value), Some(id)),
-            Err(_) => (create_rune_page(client, creds, &mut page).await, None),
-        }
     } else {
         (create_rune_page(client, creds, &mut page).await, None)
     };
@@ -583,17 +594,22 @@ async fn import_runes(client: &Client, creds: &LcuCredentials, mut page: Value) 
     match result {
         Ok(created) => {
             let page_id = page_id.or_else(|| created.get("id").and_then(Value::as_i64));
-            if let Some(id) = page_id {
-                let _ = lcu_request(
-                    client,
-                    creds,
-                    Method::PUT,
-                    "/lol-perks/v1/currentpage",
-                    Some(Value::from(id)),
-                )
-                .await;
+            let Some(id) = page_id else {
+                return "Rune page was saved, but League Client did not return its page ID"
+                    .to_string();
+            };
+            match lcu_request(
+                client,
+                creds,
+                Method::PUT,
+                "/lol-perks/v1/currentpage",
+                Some(Value::from(id)),
+            )
+            .await
+            {
+                Ok(_) => "Rune page imported and activated".to_string(),
+                Err(error) => format!("Rune page saved, but League could not activate it: {error}"),
             }
-            "Rune page imported".to_string()
         }
         Err(error) => format!("Could not import rune page: {error}"),
     }
@@ -1473,6 +1489,76 @@ pub fn league_window_is_foreground(window: LeagueWindowInfo) -> bool {
             .eq_ignore_ascii_case("RiftCore In-Game HUD")
 }
 
+#[cfg(windows)]
+pub fn cursor_screen_position() -> Option<[i32; 2]> {
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetCursorPos(point: *mut Point) -> i32;
+    }
+    let mut point = Point { x: 0, y: 0 };
+    (unsafe { GetCursorPos(&mut point) } != 0).then_some([point.x, point.y])
+}
+
+#[cfg(windows)]
+pub fn maintain_native_overlay() {
+    use std::ffi::c_void;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn FindWindowW(class_name: *const u16, window_name: *const u16) -> *mut c_void;
+        fn GetWindowThreadProcessId(hwnd: *mut c_void, process_id: *mut u32) -> u32;
+        fn GetWindowLongPtrW(hwnd: *mut c_void, index: i32) -> isize;
+        fn SetWindowLongPtrW(hwnd: *mut c_void, index: i32, value: isize) -> isize;
+        fn SetWindowPos(
+            hwnd: *mut c_void,
+            insert_after: *mut c_void,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+            flags: u32,
+        ) -> i32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcessId() -> u32;
+    }
+
+    const GWL_EXSTYLE: i32 = -20;
+    const WS_EX_APPWINDOW: isize = 0x0004_0000;
+    const WS_EX_TOOLWINDOW: isize = 0x0000_0080;
+    const WS_EX_NOACTIVATE: isize = 0x0800_0000;
+    const SWP_NOSIZE: u32 = 0x0001;
+    const SWP_NOMOVE: u32 = 0x0002;
+    const SWP_NOACTIVATE: u32 = 0x0010;
+    const SWP_SHOWWINDOW: u32 = 0x0040;
+
+    let title: Vec<u16> = "RiftCore In-Game HUD\0".encode_utf16().collect();
+    unsafe {
+        let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
+        if hwnd.is_null() {
+            return;
+        }
+        let mut owner = 0;
+        GetWindowThreadProcessId(hwnd, &mut owner);
+        if owner != GetCurrentProcessId() {
+            return;
+        }
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let style = (style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) & !WS_EX_APPWINDOW;
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
+        SetWindowPos(
+            hwnd,
+            (-1isize) as *mut c_void,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+    }
+}
+
 #[cfg(not(windows))]
 pub fn league_game_window() -> Option<LeagueWindowInfo> {
     None
@@ -1482,3 +1568,11 @@ pub fn league_game_window() -> Option<LeagueWindowInfo> {
 pub fn league_window_is_foreground(_window: LeagueWindowInfo) -> bool {
     false
 }
+
+#[cfg(not(windows))]
+pub fn cursor_screen_position() -> Option<[i32; 2]> {
+    None
+}
+
+#[cfg(not(windows))]
+pub fn maintain_native_overlay() {}

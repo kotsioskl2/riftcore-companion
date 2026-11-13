@@ -128,9 +128,12 @@ pub struct RiftCoreApp {
     overlay_waiting_for_window: bool,
     overlay_dismissed_by_user: bool,
     overlay_mouse_passthrough: bool,
+    overlay_input_passthrough: bool,
+    overlay_interactive_regions: Vec<egui::Rect>,
     overlay_viewport_open: bool,
     overlay_target: Option<backend::LeagueWindowInfo>,
     overlay_target_is_foreground: bool,
+    overlay_last_maintain: Instant,
     ready_check_alerted: bool,
     pinned: bool,
     show_quick_tour: bool,
@@ -171,24 +174,24 @@ impl RiftCoreApp {
         visuals.selection.stroke = Stroke::new(1.0, CYAN);
         creation.egui_ctx.set_visuals(visuals);
         creation.egui_ctx.style_mut_of(egui::Theme::Dark, |style| {
-            style.spacing.item_spacing = Vec2::new(11.0, 12.0);
-            style.spacing.button_padding = Vec2::new(14.0, 9.0);
-            style.spacing.interact_size.y = 38.0;
+            style.spacing.item_spacing = Vec2::new(8.0, 9.0);
+            style.spacing.button_padding = Vec2::new(11.0, 7.0);
+            style.spacing.interact_size.y = 32.0;
             style
                 .text_styles
-                .insert(egui::TextStyle::Body, FontId::proportional(15.0));
+                .insert(egui::TextStyle::Body, FontId::proportional(14.0));
             style
                 .text_styles
-                .insert(egui::TextStyle::Button, FontId::proportional(13.5));
+                .insert(egui::TextStyle::Button, FontId::proportional(12.5));
             style
                 .text_styles
-                .insert(egui::TextStyle::Small, FontId::proportional(12.5));
+                .insert(egui::TextStyle::Small, FontId::proportional(11.5));
             style
                 .text_styles
-                .insert(egui::TextStyle::Monospace, FontId::monospace(13.5));
+                .insert(egui::TextStyle::Monospace, FontId::monospace(12.5));
             style
                 .text_styles
-                .insert(egui::TextStyle::Heading, FontId::proportional(24.0));
+                .insert(egui::TextStyle::Heading, FontId::proportional(22.0));
             style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(10);
             style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(10);
             style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(10);
@@ -293,9 +296,12 @@ impl RiftCoreApp {
             overlay_waiting_for_window: false,
             overlay_dismissed_by_user: false,
             overlay_mouse_passthrough: false,
+            overlay_input_passthrough: true,
+            overlay_interactive_regions: Vec::new(),
             overlay_viewport_open: false,
             overlay_target: None,
             overlay_target_is_foreground: false,
+            overlay_last_maintain: Instant::now() - Duration::from_secs(2),
             ready_check_alerted: false,
             pinned,
             show_quick_tour,
@@ -436,8 +442,21 @@ impl RiftCoreApp {
             };
         let width = width_px / scale;
         let height = height_px / scale;
-        let initialize_mouse_passthrough =
-            !self.overlay_viewport_open && self.overlay_mouse_passthrough;
+        let overlay_origin = [left as f32 + offset_x, top as f32 + offset_y];
+        let cursor_inside_control = backend::cursor_screen_position()
+            .map(|cursor| {
+                let local = egui::pos2(
+                    (cursor[0] as f32 - overlay_origin[0]) / scale,
+                    (cursor[1] as f32 - overlay_origin[1]) / scale,
+                );
+                self.overlay_interactive_regions
+                    .iter()
+                    .any(|region| region.contains(local))
+            })
+            .unwrap_or(false);
+        let mouse_passthrough = self.overlay_mouse_passthrough || !cursor_inside_control;
+        let update_mouse_passthrough =
+            !self.overlay_viewport_open || self.overlay_input_passthrough != mouse_passthrough;
         let builder = egui::ViewportBuilder::default()
             .with_title(OVERLAY_WINDOW_TITLE)
             .with_decorations(false)
@@ -457,8 +476,10 @@ impl RiftCoreApp {
             ctx.show_viewport_immediate(overlay_viewport_id(), builder, |overlay_ui, _class| {
                 let overlay_ctx = overlay_ui.ctx().clone();
                 let close_requested = overlay_ctx.input(|input| input.viewport().close_requested());
-                if initialize_mouse_passthrough {
-                    overlay_ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(true));
+                if update_mouse_passthrough {
+                    overlay_ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(
+                        mouse_passthrough,
+                    ));
                 }
                 if !close_requested && visible {
                     self.render_overlay(overlay_ui);
@@ -475,18 +496,23 @@ impl RiftCoreApp {
             self.overlay_viewport_open = false;
         } else {
             self.overlay_viewport_open = true;
+            self.overlay_input_passthrough = mouse_passthrough;
+            if visible && self.overlay_last_maintain.elapsed() >= Duration::from_millis(750) {
+                backend::maintain_native_overlay();
+                self.overlay_last_maintain = Instant::now();
+            }
         }
     }
 
     fn render_titlebar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         egui::Panel::top("titlebar")
-            .exact_size(52.0)
+            .exact_size(38.0)
             .frame(
                 Frame::new()
                     .fill(SURFACE)
                     .stroke(Stroke::new(1.0, BORDER))
-                    .inner_margin(egui::Margin::symmetric(16, 0)),
+                    .inner_margin(egui::Margin::symmetric(12, 0)),
             )
             .show(ui, |ui| {
                 let header_size = Vec2::new(ui.available_width(), ui.available_height());
@@ -494,28 +520,28 @@ impl RiftCoreApp {
                     header_size,
                     Layout::left_to_right(Align::Center),
                     |ui| {
-                        let logo = egui::Image::new((self.logo_texture.id(), Vec2::splat(30.0)))
-                            .corner_radius(egui::CornerRadius::same(7))
+                        let logo = egui::Image::new((self.logo_texture.id(), Vec2::splat(24.0)))
+                            .corner_radius(egui::CornerRadius::same(6))
                             .sense(Sense::click_and_drag());
                         if ui.add(logo).drag_started() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
-                        ui.add_space(9.0);
+                        ui.add_space(7.0);
                         ui.vertical(|ui| {
                             let brand = ui.add(
                                 egui::Label::new(
-                                    RichText::new("RIFTCORE").size(13.5).strong().color(TEXT),
+                                    RichText::new("RIFTCORE").size(11.5).strong().color(TEXT),
                                 )
                                 .sense(Sense::click_and_drag()),
                             );
                             if brand.drag_started() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                             }
-                            ui.label(RichText::new("COMPANION").size(8.0).strong().color(MUTED));
+                            ui.label(RichText::new("COMPANION").size(7.0).strong().color(MUTED));
                         });
-                        ui.add_space(10.0);
+                        ui.add_space(8.0);
                         titlebar_badge(ui, "NATIVE", CYAN);
-                        ui.add_space(12.0);
+                        ui.add_space(8.0);
                         let (dot, status) = if self.snapshot.connected {
                             (
                                 GREEN,
@@ -533,7 +559,7 @@ impl RiftCoreApp {
                                 let _ = self.commands.send(CoreCommand::LaunchLeague);
                             }
                         }
-                        ui.add_space((ui.available_width() - 216.0).max(8.0));
+                        ui.add_space((ui.available_width() - 172.0).max(6.0));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if window_button(ui, "×", RED).clicked() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -587,12 +613,12 @@ impl RiftCoreApp {
 
     fn render_sidebar(&mut self, ui: &mut egui::Ui) {
         egui::Panel::left("navigation")
-            .exact_size(248.0)
+            .exact_size(224.0)
             .resizable(false)
             .frame(
                 Frame::new()
                     .fill(SURFACE)
-                    .inner_margin(egui::Margin::same(16))
+                    .inner_margin(egui::Margin::same(14))
                     .stroke(Stroke::new(1.0, BORDER)),
             )
             .show(ui, |ui| {
@@ -681,7 +707,7 @@ impl RiftCoreApp {
     ) {
         let selected = self.active_page == page;
         let (rect, response) =
-            ui.allocate_exact_size(Vec2::new(ui.available_width(), 46.0), Sense::click());
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), 42.0), Sense::click());
         let fill = if selected {
             Color32::from_rgb(22, 43, 54)
         } else if response.hovered() {
@@ -708,7 +734,7 @@ impl RiftCoreApp {
         };
         let icon_rect = egui::Rect::from_center_size(
             egui::pos2(rect.left() + 20.0, rect.center().y),
-            Vec2::new(30.0, 30.0),
+            Vec2::new(26.0, 26.0),
         );
         ui.painter().rect_filled(
             icon_rect,
@@ -728,10 +754,10 @@ impl RiftCoreApp {
             if selected { accent } else { SECONDARY },
         );
         ui.painter().text(
-            egui::pos2(rect.left() + 42.0, rect.center().y),
+            egui::pos2(rect.left() + 38.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             label,
-            FontId::proportional(14.0),
+            FontId::proportional(13.0),
             foreground,
         );
         if !badge.is_empty() {
@@ -1748,6 +1774,7 @@ impl RiftCoreApp {
                     ui.vertical(|ui| {
                         ui.label(RichText::new("WAITING FOR LIVE GAME DATA").size(14.0).strong().color(TEXT));
                         ui.label(RichText::new("The native HUD appears when the Live Client Data API is available.").size(11.0).color(SECONDARY));
+                        ui.label(RichText::new("For in-game overlays, run League in Borderless or Windowed mode.").size(10.0).color(MUTED));
                     });
                 });
             });
@@ -4149,9 +4176,9 @@ impl RiftCoreApp {
             }
             if settings_row(
                 ui,
-                "Click-through HUD",
+                "Force click-through",
                 &mut self.overlay_mouse_passthrough,
-                "Let mouse clicks pass through the overlay to League",
+                "Pass every click to League; HUD controls become unavailable",
             ) && self.overlay_viewport_open
             {
                 ui.ctx().send_viewport_cmd_to(
@@ -4713,7 +4740,7 @@ impl RiftCoreApp {
             (area.right() - 412.0).max(area.left() + 8.0),
             area.top() + 8.0,
         );
-        egui::Area::new(egui::Id::unique("riftcore-overlay-mayhem-cards"))
+        let response = egui::Area::new(egui::Id::unique("riftcore-overlay-mayhem-cards"))
             .order(egui::Order::Foreground)
             .fixed_pos(position)
             .show(ctx, |ui| {
@@ -4871,6 +4898,8 @@ impl RiftCoreApp {
                             });
                     });
             });
+        self.overlay_interactive_regions
+            .push(response.response.rect);
     }
 
     fn render_overlay_build(&mut self, ctx: &egui::Context, area: egui::Rect) {
@@ -5008,6 +5037,8 @@ impl RiftCoreApp {
                         ui.label(RichText::new(&build.tip).size(9.0).color(MUTED));
                     });
             });
+        self.overlay_interactive_regions
+            .push(response.response.rect);
         if response.response.drag_stopped() {
             self.settings.hud_positions.insert(
                 "build".to_string(),
@@ -5026,6 +5057,7 @@ impl RiftCoreApp {
     }
 
     fn render_overlay(&mut self, ui: &mut egui::Ui) {
+        self.overlay_interactive_regions.clear();
         let ctx = ui.ctx().clone();
         let live_snapshot = self.snapshot.live_game.clone();
         let frame_fill = Color32::TRANSPARENT;
@@ -5066,7 +5098,7 @@ impl RiftCoreApp {
 
                 match self.settings.hud_mode.as_str() {
                     "bar" => {
-                        Frame::new()
+                        let bar_response = Frame::new()
                             .fill(Color32::from_rgba_unmultiplied(7, 12, 22, 238))
                             .stroke(Stroke::new(1.0, CYAN))
                             .corner_radius(egui::CornerRadius::same(12))
@@ -5122,13 +5154,15 @@ impl RiftCoreApp {
                                     }
                                 });
                             });
+                        self.overlay_interactive_regions
+                            .push(bar_response.response.rect);
                         if self.show_mayhem_cards {
                             self.render_mayhem_overlay(&ctx, area);
                         }
                         return;
                     }
                     "pill" => {
-                        Frame::new()
+                        let pill_response = Frame::new()
                             .fill(Color32::from_rgba_unmultiplied(7, 12, 22, 238))
                             .stroke(Stroke::new(1.0, GOLD))
                             .corner_radius(egui::CornerRadius::same(20))
@@ -5163,13 +5197,15 @@ impl RiftCoreApp {
                                     }
                                 });
                             });
+                        self.overlay_interactive_regions
+                            .push(pill_response.response.rect);
                         if self.show_mayhem_cards {
                             self.render_mayhem_overlay(&ctx, area);
                         }
                         return;
                     }
                     "card" => {
-                        Frame::new()
+                        let card_response = Frame::new()
                             .fill(Color32::from_rgba_unmultiplied(7, 12, 22, 240))
                             .stroke(Stroke::new(1.0, CYAN))
                             .corner_radius(egui::CornerRadius::same(16))
@@ -5240,6 +5276,8 @@ impl RiftCoreApp {
                                     }
                                 });
                             });
+                        self.overlay_interactive_regions
+                            .push(card_response.response.rect);
                         if self.show_mayhem_cards {
                             self.render_mayhem_overlay(&ctx, area);
                         }
@@ -5323,6 +5361,10 @@ impl RiftCoreApp {
                     );
                     self.save_settings();
                 }
+                if self.settings.hud_edit_layout {
+                    self.overlay_interactive_regions
+                        .push(top_response.response.rect);
+                }
 
                 let dock_default = if self.settings.hud_minimap_flip {
                     egui::pos2(
@@ -5381,18 +5423,28 @@ impl RiftCoreApp {
                     );
                     self.save_settings();
                 }
+                if self.settings.hud_edit_layout {
+                    self.overlay_interactive_regions
+                        .push(dock_response.response.rect);
+                }
 
                 if self.settings.hud_aram_health_timers && game_mode.eq_ignore_ascii_case("ARAM") {
-                    egui::Area::new(ui.make_persistent_id("riftcore-hud-aram-relics"))
-                        .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(20.0, -110.0))
-                        .show(&ctx, |ui| self.render_aram_relic_timers(ui));
+                    let response =
+                        egui::Area::new(ui.make_persistent_id("riftcore-hud-aram-relics"))
+                            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(20.0, -110.0))
+                            .show(&ctx, |ui| self.render_aram_relic_timers(ui));
+                    self.overlay_interactive_regions
+                        .push(response.response.rect);
                 }
 
                 if self.settings.hud_ally_ult_timers {
                     if let Some(live) = live {
-                        egui::Area::new(ui.make_persistent_id("riftcore-hud-ally-ults"))
-                            .fixed_pos(egui::pos2(area.left() + 18.0, area.top() + 116.0))
-                            .show(&ctx, |ui| self.render_ally_ultimate_timers(ui, live));
+                        let response =
+                            egui::Area::new(ui.make_persistent_id("riftcore-hud-ally-ults"))
+                                .fixed_pos(egui::pos2(area.left() + 18.0, area.top() + 116.0))
+                                .show(&ctx, |ui| self.render_ally_ultimate_timers(ui, live));
+                        self.overlay_interactive_regions
+                            .push(response.response.rect);
                     }
                 }
 
@@ -5520,151 +5572,159 @@ impl RiftCoreApp {
                     );
                     self.save_settings();
                 }
+                if self.settings.hud_edit_layout {
+                    self.overlay_interactive_regions
+                        .push(player_response.response.rect);
+                }
 
-                egui::Area::new(ui.make_persistent_id("riftcore-hud-bottom"))
-                    .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -18.0))
-                    .show(&ctx, |ui| {
-                        Frame::new()
-                            .fill(Color32::from_rgba_unmultiplied(5, 8, 17, 218))
-                            .stroke(Stroke::new(1.0, BORDER))
-                            .inner_margin(egui::Margin::same(8))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("ALT + ~  HUD")
-                                            .size(10.0)
-                                            .strong()
-                                            .color(CYAN),
-                                    );
-                                    ui.label(
-                                        RichText::new("ALT + SHIFT + ~  INPUT")
-                                            .size(10.0)
-                                            .color(SECONDARY),
-                                    );
-                                    if !self.overlay_mouse_passthrough {
+                let toolbar_response =
+                    egui::Area::new(ui.make_persistent_id("riftcore-hud-bottom"))
+                        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -18.0))
+                        .show(&ctx, |ui| {
+                            Frame::new()
+                                .fill(Color32::from_rgba_unmultiplied(5, 8, 17, 218))
+                                .stroke(Stroke::new(1.0, BORDER))
+                                .inner_margin(egui::Margin::same(8))
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
                                         ui.label(
-                                            RichText::new("INTERACTIVE")
-                                                .size(9.0)
+                                            RichText::new("ALT + ~  HUD")
+                                                .size(10.0)
                                                 .strong()
-                                                .color(GOLD),
+                                                .color(CYAN),
                                         );
-                                    }
-                                    if self.settings.hud_mayhem_cards
-                                        && action_button(
-                                            ui,
-                                            "MAYHEM CARDS",
-                                            self.show_mayhem_cards,
-                                            GOLD,
-                                        )
-                                        .clicked()
-                                    {
-                                        self.show_mayhem_cards = !self.show_mayhem_cards;
-                                        if self.show_mayhem_cards {
-                                            self.show_overlay_build = false;
-                                        }
-                                    }
-                                    if action_button(ui, "BUILD", self.show_overlay_build, CYAN)
-                                        .clicked()
-                                    {
-                                        self.show_overlay_build = !self.show_overlay_build;
-                                        if self.show_overlay_build {
-                                            self.show_mayhem_cards = false;
-                                        }
-                                    }
-                                    if self.settings.hud_jungle_pathing
-                                        && !game_mode.eq_ignore_ascii_case("ARAM")
-                                    {
-                                        if let Some((step, camp, remaining, active)) =
-                                            jungle_route_status(
-                                                clock,
-                                                &self.settings.jungle_start_buff,
-                                            )
-                                        {
+                                        ui.label(
+                                            RichText::new("ALT + SHIFT + ~  INPUT")
+                                                .size(10.0)
+                                                .color(SECONDARY),
+                                        );
+                                        if !self.overlay_mouse_passthrough {
                                             ui.label(
-                                                RichText::new(format!(
-                                                    "JUNGLE #{step} · {camp} {}",
-                                                    format_hud_clock(remaining)
-                                                ))
-                                                .size(9.5)
-                                                .strong()
-                                                .color(if active { GREEN } else { SECONDARY }),
-                                            );
-                                        } else {
-                                            ui.label(
-                                                RichText::new("JUNGLE ROUTE · COMPLETE")
+                                                RichText::new("SMART INPUT")
                                                     .size(9.0)
-                                                    .color(MUTED),
+                                                    .strong()
+                                                    .color(GOLD),
                                             );
                                         }
-                                        if action_button(
-                                            ui,
-                                            "RED",
-                                            self.settings.jungle_start_buff == "red",
-                                            RED,
-                                        )
-                                        .clicked()
+                                        if self.settings.hud_mayhem_cards
+                                            && action_button(
+                                                ui,
+                                                "MAYHEM CARDS",
+                                                self.show_mayhem_cards,
+                                                GOLD,
+                                            )
+                                            .clicked()
                                         {
-                                            self.settings.jungle_start_buff = "red".to_string();
-                                            self.save_settings();
+                                            self.show_mayhem_cards = !self.show_mayhem_cards;
+                                            if self.show_mayhem_cards {
+                                                self.show_overlay_build = false;
+                                            }
+                                        }
+                                        if action_button(ui, "BUILD", self.show_overlay_build, CYAN)
+                                            .clicked()
+                                        {
+                                            self.show_overlay_build = !self.show_overlay_build;
+                                            if self.show_overlay_build {
+                                                self.show_mayhem_cards = false;
+                                            }
+                                        }
+                                        if self.settings.hud_jungle_pathing
+                                            && !game_mode.eq_ignore_ascii_case("ARAM")
+                                        {
+                                            if let Some((step, camp, remaining, active)) =
+                                                jungle_route_status(
+                                                    clock,
+                                                    &self.settings.jungle_start_buff,
+                                                )
+                                            {
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "JUNGLE #{step} · {camp} {}",
+                                                        format_hud_clock(remaining)
+                                                    ))
+                                                    .size(9.5)
+                                                    .strong()
+                                                    .color(if active { GREEN } else { SECONDARY }),
+                                                );
+                                            } else {
+                                                ui.label(
+                                                    RichText::new("JUNGLE ROUTE · COMPLETE")
+                                                        .size(9.0)
+                                                        .color(MUTED),
+                                                );
+                                            }
+                                            if action_button(
+                                                ui,
+                                                "RED",
+                                                self.settings.jungle_start_buff == "red",
+                                                RED,
+                                            )
+                                            .clicked()
+                                            {
+                                                self.settings.jungle_start_buff = "red".to_string();
+                                                self.save_settings();
+                                            }
+                                            if action_button(
+                                                ui,
+                                                "BLUE",
+                                                self.settings.jungle_start_buff == "blue",
+                                                CYAN,
+                                            )
+                                            .clicked()
+                                            {
+                                                self.settings.jungle_start_buff =
+                                                    "blue".to_string();
+                                                self.save_settings();
+                                            }
                                         }
                                         if action_button(
                                             ui,
-                                            "BLUE",
-                                            self.settings.jungle_start_buff == "blue",
+                                            if self.settings.hud_edit_layout {
+                                                "DONE EDITING"
+                                            } else {
+                                                "EDIT LAYOUT"
+                                            },
+                                            self.settings.hud_edit_layout,
                                             CYAN,
                                         )
                                         .clicked()
                                         {
-                                            self.settings.jungle_start_buff = "blue".to_string();
+                                            self.settings.hud_edit_layout =
+                                                !self.settings.hud_edit_layout;
+                                            self.overlay_mouse_passthrough = false;
+                                            ctx.send_viewport_cmd(
+                                                egui::ViewportCommand::MousePassthrough(false),
+                                            );
                                             self.save_settings();
                                         }
-                                    }
-                                    if action_button(
-                                        ui,
-                                        if self.settings.hud_edit_layout {
-                                            "DONE EDITING"
-                                        } else {
-                                            "EDIT LAYOUT"
-                                        },
-                                        self.settings.hud_edit_layout,
-                                        CYAN,
-                                    )
-                                    .clicked()
-                                    {
-                                        self.settings.hud_edit_layout =
-                                            !self.settings.hud_edit_layout;
-                                        self.overlay_mouse_passthrough = false;
-                                        ctx.send_viewport_cmd(
-                                            egui::ViewportCommand::MousePassthrough(false),
-                                        );
-                                        self.save_settings();
-                                    }
-                                    if action_button(
-                                        ui,
-                                        if self.overlay_mouse_passthrough {
-                                            "ENABLE INPUT"
-                                        } else {
-                                            "CLICK THROUGH"
-                                        },
-                                        false,
-                                        GOLD,
-                                    )
-                                    .clicked()
-                                    {
-                                        self.overlay_mouse_passthrough =
-                                            !self.overlay_mouse_passthrough;
-                                        ctx.send_viewport_cmd(
-                                            egui::ViewportCommand::MousePassthrough(
-                                                self.overlay_mouse_passthrough,
-                                            ),
-                                        );
-                                    }
-                                    if action_button(ui, "HIDE HUD", false, RED).clicked() {
-                                        self.set_overlay_mode(&ctx, false, false);
-                                    }
+                                        if action_button(
+                                            ui,
+                                            if self.overlay_mouse_passthrough {
+                                                "SMART INPUT"
+                                            } else {
+                                                "GAME INPUT"
+                                            },
+                                            false,
+                                            GOLD,
+                                        )
+                                        .clicked()
+                                        {
+                                            self.overlay_mouse_passthrough =
+                                                !self.overlay_mouse_passthrough;
+                                            ctx.send_viewport_cmd(
+                                                egui::ViewportCommand::MousePassthrough(
+                                                    self.overlay_mouse_passthrough,
+                                                ),
+                                            );
+                                        }
+                                        if action_button(ui, "HIDE HUD", false, RED).clicked() {
+                                            self.set_overlay_mode(&ctx, false, false);
+                                        }
+                                    });
                                 });
-                            });
-                    });
+                        });
+                self.overlay_interactive_regions
+                    .push(toolbar_response.response.rect);
                 if self.show_overlay_build {
                     self.render_overlay_build(&ctx, area);
                 }
@@ -5793,17 +5853,21 @@ impl eframe::App for RiftCoreApp {
         self.render_main(ui);
         self.render_dialogs(&ctx);
         self.render_overlay_viewport(&ctx);
-        ctx.request_repaint_after(Duration::from_millis(250));
+        ctx.request_repaint_after(Duration::from_millis(if self.overlay_mode {
+            33
+        } else {
+            250
+        }));
     }
 }
 
 fn panel(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
-    let inner_width = (ui.available_width() - 36.0).max(0.0);
+    let inner_width = (ui.available_width() - 32.0).max(0.0);
     Frame::new()
         .fill(CARD)
         .stroke(Stroke::new(0.0, Color32::TRANSPARENT))
-        .corner_radius(egui::CornerRadius::same(16))
-        .inner_margin(egui::Margin::same(20))
+        .corner_radius(egui::CornerRadius::same(12))
+        .inner_margin(egui::Margin::same(16))
         .show(ui, |ui| {
             ui.set_min_width(inner_width);
             add_contents(ui);
@@ -5872,14 +5936,14 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
 }
 
 fn titlebar_badge(ui: &mut egui::Ui, text: &str, color: Color32) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(52.0, 22.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(44.0, 18.0), Sense::hover());
     let fill = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 18);
     let stroke = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 110);
     ui.painter()
-        .rect_filled(rect, egui::CornerRadius::same(7), fill);
+        .rect_filled(rect, egui::CornerRadius::same(6), fill);
     ui.painter().rect_stroke(
         rect,
-        egui::CornerRadius::same(7),
+        egui::CornerRadius::same(6),
         Stroke::new(0.8, stroke),
         egui::StrokeKind::Inside,
     );
@@ -5887,29 +5951,29 @@ fn titlebar_badge(ui: &mut egui::Ui, text: &str, color: Color32) {
         rect.center(),
         egui::Align2::CENTER_CENTER,
         text,
-        FontId::proportional(9.0),
+        FontId::proportional(7.5),
         color,
     );
 }
 
 fn titlebar_status(ui: &mut egui::Ui, text: &str, color: Color32) {
-    let width = 28.0 + text.chars().count() as f32 * 6.2;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 26.0), Sense::hover());
+    let width = 23.0 + text.chars().count() as f32 * 5.0;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 20.0), Sense::hover());
     ui.painter()
-        .rect_filled(rect, egui::CornerRadius::same(8), CARD);
+        .rect_filled(rect, egui::CornerRadius::same(7), CARD);
     ui.painter().rect_stroke(
         rect,
-        egui::CornerRadius::same(8),
+        egui::CornerRadius::same(7),
         Stroke::new(1.0, BORDER),
         egui::StrokeKind::Inside,
     );
     ui.painter()
-        .circle_filled(egui::pos2(rect.left() + 11.0, rect.center().y), 3.5, color);
+        .circle_filled(egui::pos2(rect.left() + 8.0, rect.center().y), 3.0, color);
     ui.painter().text(
-        egui::pos2(rect.left() + 20.0, rect.center().y),
+        egui::pos2(rect.left() + 15.0, rect.center().y),
         egui::Align2::LEFT_CENTER,
         text,
-        FontId::proportional(10.5),
+        FontId::proportional(8.5),
         SECONDARY,
     );
 }
@@ -5920,8 +5984,8 @@ fn titlebar_action_button(
     active: bool,
     accent: Color32,
 ) -> egui::Response {
-    let width = (text.chars().count() as f32 * 6.4 + 18.0).max(42.0);
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 30.0), Sense::click());
+    let width = (text.chars().count() as f32 * 5.7 + 14.0).max(36.0);
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 24.0), Sense::click());
     let fill = if active {
         Color32::from_rgb(15, 45, 58)
     } else if response.hovered() {
@@ -5930,10 +5994,10 @@ fn titlebar_action_button(
         CARD
     };
     ui.painter()
-        .rect_filled(rect, egui::CornerRadius::same(8), fill);
+        .rect_filled(rect, egui::CornerRadius::same(7), fill);
     ui.painter().rect_stroke(
         rect,
-        egui::CornerRadius::same(8),
+        egui::CornerRadius::same(7),
         Stroke::new(
             if active { 0.9 } else { 0.6 },
             if active { accent } else { BORDER },
@@ -5944,7 +6008,7 @@ fn titlebar_action_button(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         text,
-        FontId::proportional(10.0),
+        FontId::proportional(8.5),
         if active { accent } else { TEXT },
     );
     response
@@ -5984,12 +6048,31 @@ fn action_button(ui: &mut egui::Ui, text: &str, active: bool, accent: Color32) -
 }
 
 fn window_button(ui: &mut egui::Ui, text: &str, color: Color32) -> egui::Response {
-    ui.add_sized(
-        [28.0, 28.0],
-        egui::Button::new(RichText::new(text).size(15.0).color(color))
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::new(1.0, Color32::TRANSPARENT)),
-    )
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(22.0), Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(
+            rect,
+            egui::CornerRadius::same(5),
+            if color == RED {
+                Color32::from_rgb(82, 31, 43)
+            } else {
+                CARD
+            },
+        );
+    }
+    let glyph_color = if color == RED && !response.hovered() {
+        MUTED
+    } else {
+        color
+    };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        text,
+        FontId::proportional(11.0),
+        glyph_color,
+    );
+    response
 }
 
 fn avatar(

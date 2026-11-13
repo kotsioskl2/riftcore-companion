@@ -7,7 +7,7 @@ echo ================================================
 echo.
 
 cd /d "%~dp0"
-set "APP_VERSION=2.0.7"
+set "APP_VERSION=2.0.8"
 
 echo [1/4] Building the native Rust application...
 call build_rust.bat
