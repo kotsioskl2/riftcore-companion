@@ -102,10 +102,12 @@ pub struct RiftCoreApp {
     champion_setups: HashMap<u32, ChampionSetup>,
     champion_textures: HashMap<String, egui::TextureHandle>,
     tft_textures: HashMap<String, egui::TextureHandle>,
+    rune_textures: HashMap<i64, egui::TextureHandle>,
     manual_spell_timers: HashMap<String, Instant>,
     logo_texture: egui::TextureHandle,
     selected_champion: u32,
     build_role: String,
+    champ_select_detail_tab: usize,
     riot_id_search: String,
     profile_lookup_loading: bool,
     selected_analysis_match: Option<Value>,
@@ -167,6 +169,7 @@ pub struct RiftCoreApp {
     secondary_rune_rows: [usize; 2],
     spell_one: i64,
     spell_two: i64,
+    active_spell_slot: usize,
     notice_until: Option<Instant>,
     notice: String,
     last_bounds_check: Instant,
@@ -257,6 +260,13 @@ impl RiftCoreApp {
                     .map(|texture| ((*key).to_string(), texture))
             })
             .collect();
+        let rune_textures = crate::assets::RUNE_ICONS
+            .iter()
+            .filter_map(|(id, bytes)| {
+                load_png_texture(&creation.egui_ctx, format!("rune-{id}"), bytes, Some(48))
+                    .map(|texture| (*id, texture))
+            })
+            .collect();
         let logo_texture = load_png_texture(
             &creation.egui_ctx,
             "riftcore-logo".to_string(),
@@ -275,10 +285,12 @@ impl RiftCoreApp {
             champion_setups: HashMap::new(),
             champion_textures,
             tft_textures,
+            rune_textures,
             manual_spell_timers: HashMap::new(),
             logo_texture,
             selected_champion: 103,
             build_role: "MID".to_string(),
+            champ_select_detail_tab: 1,
             riot_id_search: String::new(),
             profile_lookup_loading: false,
             selected_analysis_match: None,
@@ -340,6 +352,7 @@ impl RiftCoreApp {
             secondary_rune_rows: [2, 3],
             spell_one: 4,
             spell_two: 12,
+            active_spell_slot: 0,
             notice_until: None,
             notice: String::new(),
             last_bounds_check: Instant::now() - Duration::from_secs(5),
@@ -1336,420 +1349,181 @@ impl RiftCoreApp {
                             );
                         });
                     });
-                    ui.add_space(10.0);
-                    panel(ui, |ui| {
-                        panel_title(
-                            ui,
-                            "CHAMPION BUILD",
-                            "Role-based starting path, skill order and shop import",
-                        );
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(RichText::new("ROLE").size(9.5).strong().color(MUTED));
-                            egui::ComboBox::from_id_salt("champion-build-role")
-                                .selected_text(&self.build_role)
-                                .show_ui(ui, |ui| {
-                                    for role in ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] {
-                                        if champ.roles.iter().any(|entry| role_matches(entry, role))
-                                        {
-                                            ui.selectable_value(
-                                                &mut self.build_role,
-                                                role.to_string(),
-                                                role,
-                                            );
-                                        }
-                                    }
-                                });
-                            badge(ui, &recommendation.archetype.replace('_', " "), CYAN);
-                        });
-                        recommendation = crate::builds::recommend(
-                            &champ.key,
-                            &champ.name,
-                            &champ.roles,
-                            Some(&self.build_role),
-                        );
-                        ui.add_space(4.0);
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(
-                                RichText::new("SKILL PRIORITY")
-                                    .size(9.0)
-                                    .strong()
-                                    .color(MUTED),
-                            );
-                            ui.label(
-                                RichText::new(&recommendation.skill_priority)
-                                    .size(11.5)
-                                    .strong()
-                                    .color(GOLD),
-                            );
-                        });
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(RichText::new("LEVEL ORDER").size(9.0).strong().color(MUTED));
-                            ui.label(
-                                RichText::new(recommendation.skill_order.join("  "))
-                                    .size(10.0)
-                                    .color(TEXT),
-                            );
-                        });
-                        ui.add_space(5.0);
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(format!(
-                                    "START  {}    BOOTS  {}",
-                                    recommendation
-                                        .starting_items
-                                        .iter()
-                                        .map(|id| crate::builds::item_name(*id))
-                                        .collect::<Vec<_>>()
-                                        .join(" + "),
-                                    crate::builds::item_name(recommendation.boots)
-                                ))
-                                .size(10.5)
-                                .color(SECONDARY),
-                            )
-                            .wrap(),
-                        );
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(format!(
-                                    "CORE  {}",
-                                    recommendation
-                                        .core_items
-                                        .iter()
-                                        .map(|id| crate::builds::item_name(*id))
-                                        .collect::<Vec<_>>()
-                                        .join("  →  ")
-                                ))
-                                .size(10.5)
-                                .color(TEXT),
-                            )
-                            .wrap(),
-                        );
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(format!(
-                                    "SITUATIONAL  {}",
-                                    recommendation
-                                        .situational_items
-                                        .iter()
-                                        .map(|id| crate::builds::item_name(*id))
-                                        .collect::<Vec<_>>()
-                                        .join("  ·  ")
-                                ))
-                                .size(10.0)
-                                .color(SECONDARY),
-                            )
-                            .wrap(),
-                        );
-                        ui.add_space(4.0);
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(&recommendation.tip).size(10.5).color(MUTED),
-                            )
-                            .wrap(),
-                        );
-                        ui.add_space(8.0);
-                        ui.horizontal_wrapped(|ui| {
-                            if action_button(ui, "APPLY BUILD RUNES", false, CYAN).clicked() {
-                                let page = crate::builds::rune_page(&champ.name, &recommendation);
-                                let _ = self.commands.send(CoreCommand::ImportRunes(page));
-                                self.primary_tree = recommendation.primary_tree;
-                                self.secondary_tree = recommendation.secondary_tree;
-                                self.selected_perks = std::array::from_fn(|index| {
-                                    recommendation.rune_ids.get(index).copied().unwrap_or(5008)
-                                        as i64
-                                });
-                                self.secondary_rune_rows = secondary_rows_for_perks(
-                                    self.secondary_tree,
-                                    self.selected_perks[4],
-                                    self.selected_perks[5],
-                                );
-                                self.set_notice("Sending recommended rune page to League Client…");
-                            }
-                            if action_button(ui, "APPLY BUILD SPELLS", false, RED).clicked() {
-                                let (spell_one, spell_two) = preferred_spell_order(
-                                    recommendation.spell_one,
-                                    recommendation.spell_two,
-                                    &self.settings.flash_slot_preference,
-                                );
-                                self.spell_one = spell_one;
-                                self.spell_two = spell_two;
-                                let _ = self.commands.send(CoreCommand::ImportSpells {
-                                    spell1: spell_one,
-                                    spell2: spell_two,
-                                });
-                                self.set_notice(
-                                    "Sending recommended summoner spells to League Client…",
-                                );
-                            }
-                            if action_button(ui, "EXPORT ITEM SET", false, GOLD).clicked() {
-                                let _ = self.commands.send(CoreCommand::ExportItemSet(
-                                    champion_item_set(&champ, &recommendation),
-                                ));
-                                self.set_notice("Adding champion build to the in-game shop…");
-                            }
-                        });
-                    });
-                    ui.add_space(10.0);
-                    panel_title(
-                        ui,
-                        "RUNE PAGE",
-                        "Edit every rune row, stat shard and summoner spell",
-                    );
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new("START FROM").size(9.0).strong().color(MUTED));
-                        for (label, primary, secondary, perks, accent) in [
-                            (
-                                "META",
-                                recommendation.primary_tree,
-                                recommendation.secondary_tree,
-                                std::array::from_fn(|index| {
-                                    recommendation.rune_ids.get(index).copied().unwrap_or(5008)
-                                        as i64
-                                }),
-                                CYAN,
-                            ),
-                            (
-                                "BURST",
-                                8100,
-                                8200,
-                                [
-                                    rune_id_preferred(8100, 0, &["Electrocute"]),
-                                    rune_id_preferred(8100, 1, &["Sudden Impact"]),
-                                    rune_id_preferred(8100, 2, &["Eyeball Collection"]),
-                                    rune_id_preferred(
-                                        8100,
-                                        3,
-                                        &["Treasure Hunter", "Ultimate Hunter"],
-                                    ),
-                                    rune_id_preferred(8200, 1, &["Manaflow Band"]),
-                                    rune_id_preferred(8200, 2, &["Transcendence"]),
-                                    5008,
-                                    5008,
-                                    5001,
-                                ],
-                                RED,
-                            ),
-                            (
-                                "SUSTAIN",
-                                8400,
-                                8000,
-                                [
-                                    rune_id_preferred(8400, 0, &["Grasp of the Undying"]),
-                                    rune_id_preferred(8400, 1, &["Demolish"]),
-                                    rune_id_preferred(8400, 2, &["Bone Plating"]),
-                                    rune_id_preferred(8400, 3, &["Overgrowth"]),
-                                    rune_id_preferred(8000, 1, &["Triumph"]),
-                                    rune_id_preferred(
-                                        8000,
-                                        2,
-                                        &["Legend: Haste", "Legend: Alacrity"],
-                                    ),
-                                    5008,
-                                    5008,
-                                    5001,
-                                ],
-                                GREEN,
-                            ),
-                        ] {
-                            if action_button(ui, label, false, accent).clicked() {
-                                self.primary_tree = primary;
-                                self.secondary_tree = secondary;
-                                self.selected_perks = perks;
-                                self.secondary_rune_rows =
-                                    secondary_rows_for_perks(secondary, perks[4], perks[5]);
-                            }
-                        }
-                    });
-                    ui.horizontal(|ui| {
-                        egui::ComboBox::from_id_salt("primary-tree")
-                            .selected_text(tree_name(self.primary_tree))
-                            .show_ui(ui, |ui| {
-                                for (id, name) in RUNE_TREES {
-                                    if ui
-                                        .selectable_value(&mut self.primary_tree, *id, *name)
-                                        .changed()
-                                    {
-                                        if self.secondary_tree == self.primary_tree {
-                                            self.secondary_tree = RUNE_TREES
-                                                .iter()
-                                                .find(|(tree, _)| *tree != self.primary_tree)
-                                                .map(|(tree, _)| *tree)
-                                                .unwrap_or(8400);
-                                        }
-                                    }
-                                }
-                            });
-                        egui::ComboBox::from_id_salt("secondary-tree")
-                            .selected_text(tree_name(self.secondary_tree))
-                            .show_ui(ui, |ui| {
-                                for (id, name) in RUNE_TREES {
-                                    if *id != self.primary_tree {
-                                        ui.selectable_value(&mut self.secondary_tree, *id, *name);
-                                    }
-                                }
-                            });
-                    });
-                    let keystones = rune_options(self.primary_tree, 0);
-                    if !keystones
-                        .iter()
-                        .any(|(id, _)| *id == self.selected_perks[0])
-                    {
-                        self.selected_perks[0] =
-                            keystones.first().map(|(id, _)| *id).unwrap_or(8112);
-                    }
-                    for (slot, label) in [
-                        (0usize, "Keystone"),
-                        (1, "Primary rune 1"),
-                        (2, "Primary rune 2"),
-                        (3, "Primary rune 3"),
-                    ] {
-                        let options = rune_options(self.primary_tree, slot);
-                        let selected_name = options
-                            .iter()
-                            .find(|(id, _)| *id == self.selected_perks[slot])
-                            .map(|(_, name)| name.as_str())
-                            .unwrap_or("Choose rune");
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(label).size(10.0).color(SECONDARY));
-                            egui::ComboBox::from_id_salt(("primary-rune", slot))
-                                .selected_text(selected_name)
-                                .show_ui(ui, |ui| {
-                                    for (id, name) in &options {
-                                        ui.selectable_value(
-                                            &mut self.selected_perks[slot],
-                                            *id,
-                                            name,
-                                        );
-                                    }
-                                });
-                        });
-                    }
-                    ui.add_space(4.0);
-                    ui.label(
-                        RichText::new("SECONDARY RUNES")
-                            .size(9.0)
-                            .strong()
-                            .color(MUTED),
-                    );
-                    for choice in 0..2 {
-                        let row = self.secondary_rune_rows[choice].clamp(1, 3);
-                        let options = rune_options(self.secondary_tree, row);
-                        if !options
-                            .iter()
-                            .any(|(id, _)| *id == self.selected_perks[4 + choice])
-                        {
-                            self.selected_perks[4 + choice] =
-                                options.first().map(|(id, _)| *id).unwrap_or(9111);
-                        }
-                        let selected_name = options
-                            .iter()
-                            .find(|(id, _)| *id == self.selected_perks[4 + choice])
-                            .map(|(_, name)| name.as_str())
-                            .unwrap_or("Choose rune");
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(format!("Minor rune {}", choice + 1))
-                                    .size(10.0)
-                                    .color(SECONDARY),
-                            );
-                            egui::ComboBox::from_id_salt(("secondary-row", choice))
-                                .selected_text(format!("ROW {row}"))
-                                .show_ui(ui, |ui| {
-                                    for candidate in 1..=3 {
-                                        if candidate != self.secondary_rune_rows[1 - choice] {
-                                            ui.selectable_value(
-                                                &mut self.secondary_rune_rows[choice],
-                                                candidate,
-                                                format!("ROW {candidate}"),
-                                            );
-                                        }
-                                    }
-                                });
-                            egui::ComboBox::from_id_salt(("secondary-rune", choice))
-                                .selected_text(selected_name)
-                                .show_ui(ui, |ui| {
-                                    for (id, name) in &options {
-                                        ui.selectable_value(
-                                            &mut self.selected_perks[4 + choice],
-                                            *id,
-                                            name,
-                                        );
-                                    }
-                                });
-                        });
-                    }
-                    ui.add_space(4.0);
-                    ui.label(RichText::new("STAT SHARDS").size(9.0).strong().color(MUTED));
-                    for (row, label) in [(0usize, "Offense"), (1, "Flex"), (2, "Defense")] {
-                        let options = stat_shard_options(row);
-                        let slot = 6 + row;
-                        let selected_name = options
-                            .iter()
-                            .find(|(id, _)| *id == self.selected_perks[slot])
-                            .map(|(_, name)| *name)
-                            .unwrap_or("Choose shard");
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(label).size(10.0).color(SECONDARY));
-                            egui::ComboBox::from_id_salt(("stat-shard", row))
-                                .selected_text(selected_name)
-                                .show_ui(ui, |ui| {
-                                    for (id, name) in options {
-                                        ui.selectable_value(
-                                            &mut self.selected_perks[slot],
-                                            *id,
-                                            *name,
-                                        );
-                                    }
-                                });
-                        });
-                    }
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        egui::ComboBox::from_id_salt("spell-one")
-                            .selected_text(spell_name(self.spell_one))
-                            .show_ui(ui, |ui| {
-                                for (id, name) in SUMMONER_SPELLS {
-                                    ui.selectable_value(&mut self.spell_one, *id, *name);
-                                }
-                            });
-                        egui::ComboBox::from_id_salt("spell-two")
-                            .selected_text(spell_name(self.spell_two))
-                            .show_ui(ui, |ui| {
-                                for (id, name) in SUMMONER_SPELLS {
-                                    if *id != self.spell_one {
-                                        ui.selectable_value(&mut self.spell_two, *id, *name);
-                                    }
-                                }
-                            });
+                        for (tab, label, accent) in [(0usize, "BUILD", CYAN), (1, "RUNES", GOLD)] {
+                            if filter_chip(ui, label, self.champ_select_detail_tab == tab, accent)
+                                .clicked()
+                            {
+                                self.champ_select_detail_tab = tab;
+                            }
+                        }
                     });
-                    ui.add_space(12.0);
-                    ui.horizontal(|ui| {
-                        if action_button(ui, "APPLY RUNES", false, CYAN).clicked() {
-                            let page = rune_page(
-                                champ.name.as_str(),
-                                self.primary_tree,
-                                self.secondary_tree,
-                                &self.selected_perks,
+                    ui.add_space(6.0);
+                    if self.champ_select_detail_tab == 0 {
+                        panel(ui, |ui| {
+                            panel_title(
+                                ui,
+                                "CHAMPION BUILD",
+                                "Role-based starting path, skill order and shop import",
                             );
-                            let _ = self.commands.send(CoreCommand::ImportRunes(page));
-                            self.set_notice("Sending rune page to League Client…");
-                        }
-                        if action_button(ui, "APPLY SPELLS", false, RED).clicked() {
-                            let _ = self.commands.send(CoreCommand::ImportSpells {
-                                spell1: self.spell_one,
-                                spell2: self.spell_two,
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(RichText::new("ROLE").size(9.5).strong().color(MUTED));
+                                egui::ComboBox::from_id_salt("champion-build-role")
+                                    .selected_text(&self.build_role)
+                                    .show_ui(ui, |ui| {
+                                        for role in ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] {
+                                            if champ
+                                                .roles
+                                                .iter()
+                                                .any(|entry| role_matches(entry, role))
+                                            {
+                                                ui.selectable_value(
+                                                    &mut self.build_role,
+                                                    role.to_string(),
+                                                    role,
+                                                );
+                                            }
+                                        }
+                                    });
+                                badge(ui, &recommendation.archetype.replace('_', " "), CYAN);
                             });
-                            self.set_notice("Sending summoner spells to League Client…");
-                        }
-                    });
-                    ui.add_space(10.0);
-                    ui.label(
-                        RichText::new(
-                            "Verify the selected page in the League Client before queueing.",
-                        )
-                        .size(10.0)
-                        .color(MUTED),
-                    );
+                            recommendation = crate::builds::recommend(
+                                &champ.key,
+                                &champ.name,
+                                &champ.roles,
+                                Some(&self.build_role),
+                            );
+                            ui.add_space(4.0);
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(
+                                    RichText::new("SKILL PRIORITY")
+                                        .size(9.0)
+                                        .strong()
+                                        .color(MUTED),
+                                );
+                                ui.label(
+                                    RichText::new(&recommendation.skill_priority)
+                                        .size(11.5)
+                                        .strong()
+                                        .color(GOLD),
+                                );
+                            });
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(
+                                    RichText::new("LEVEL ORDER").size(9.0).strong().color(MUTED),
+                                );
+                                ui.label(
+                                    RichText::new(recommendation.skill_order.join("  "))
+                                        .size(10.0)
+                                        .color(TEXT),
+                                );
+                            });
+                            ui.add_space(5.0);
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(format!(
+                                        "START  {}    BOOTS  {}",
+                                        recommendation
+                                            .starting_items
+                                            .iter()
+                                            .map(|id| crate::builds::item_name(*id))
+                                            .collect::<Vec<_>>()
+                                            .join(" + "),
+                                        crate::builds::item_name(recommendation.boots)
+                                    ))
+                                    .size(10.5)
+                                    .color(SECONDARY),
+                                )
+                                .wrap(),
+                            );
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(format!(
+                                        "CORE  {}",
+                                        recommendation
+                                            .core_items
+                                            .iter()
+                                            .map(|id| crate::builds::item_name(*id))
+                                            .collect::<Vec<_>>()
+                                            .join("  →  ")
+                                    ))
+                                    .size(10.5)
+                                    .color(TEXT),
+                                )
+                                .wrap(),
+                            );
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(format!(
+                                        "SITUATIONAL  {}",
+                                        recommendation
+                                            .situational_items
+                                            .iter()
+                                            .map(|id| crate::builds::item_name(*id))
+                                            .collect::<Vec<_>>()
+                                            .join("  ·  ")
+                                    ))
+                                    .size(10.0)
+                                    .color(SECONDARY),
+                                )
+                                .wrap(),
+                            );
+                            ui.add_space(4.0);
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(&recommendation.tip).size(10.5).color(MUTED),
+                                )
+                                .wrap(),
+                            );
+                            ui.add_space(8.0);
+                            ui.horizontal_wrapped(|ui| {
+                                if action_button(ui, "APPLY BUILD RUNES", false, CYAN).clicked() {
+                                    let page =
+                                        crate::builds::rune_page(&champ.name, &recommendation);
+                                    let _ = self.commands.send(CoreCommand::ImportRunes(page));
+                                    self.primary_tree = recommendation.primary_tree;
+                                    self.secondary_tree = recommendation.secondary_tree;
+                                    self.selected_perks = std::array::from_fn(|index| {
+                                        recommendation.rune_ids.get(index).copied().unwrap_or(5008)
+                                            as i64
+                                    });
+                                    self.secondary_rune_rows = secondary_rows_for_perks(
+                                        self.secondary_tree,
+                                        self.selected_perks[4],
+                                        self.selected_perks[5],
+                                    );
+                                    self.set_notice(
+                                        "Sending recommended rune page to League Client…",
+                                    );
+                                }
+                                if action_button(ui, "APPLY BUILD SPELLS", false, RED).clicked() {
+                                    let (spell_one, spell_two) = preferred_spell_order(
+                                        recommendation.spell_one,
+                                        recommendation.spell_two,
+                                        &self.settings.flash_slot_preference,
+                                    );
+                                    self.spell_one = spell_one;
+                                    self.spell_two = spell_two;
+                                    let _ = self.commands.send(CoreCommand::ImportSpells {
+                                        spell1: spell_one,
+                                        spell2: spell_two,
+                                    });
+                                    self.set_notice(
+                                        "Sending recommended summoner spells to League Client…",
+                                    );
+                                }
+                                if action_button(ui, "EXPORT ITEM SET", false, GOLD).clicked() {
+                                    let _ = self.commands.send(CoreCommand::ExportItemSet(
+                                        champion_item_set(&champ, &recommendation),
+                                    ));
+                                    self.set_notice("Adding champion build to the in-game shop…");
+                                }
+                            });
+                        });
+                    } else {
+                        self.render_rune_editor(ui, &champ, &recommendation);
+                    }
                 }
             });
         });
@@ -1772,6 +1546,342 @@ impl RiftCoreApp {
         self.render_team_panel(ui);
     }
 
+    fn render_rune_editor(
+        &mut self,
+        ui: &mut egui::Ui,
+        champion: &Champion,
+        recommendation: &crate::builds::BuildRecommendation,
+    ) {
+        panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(RichText::new("RUNE SETUP").size(14.0).strong().color(TEXT));
+                    ui.label(
+                        RichText::new(format!("{} · {}", champion.name, self.build_role))
+                            .size(10.0)
+                            .color(SECONDARY),
+                    );
+                });
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    badge(ui, "9 PICKS", CYAN);
+                });
+            });
+            let meta_perks = std::array::from_fn(|index| {
+                recommendation.rune_ids.get(index).copied().unwrap_or(5008) as i64
+            });
+            let presets = [
+                (
+                    "META",
+                    format!("{} build", self.build_role.to_lowercase()),
+                    recommendation.primary_tree,
+                    recommendation.secondary_tree,
+                    meta_perks,
+                    CYAN,
+                ),
+                (
+                    "BURST",
+                    "Damage first".to_string(),
+                    8100,
+                    8200,
+                    [
+                        rune_id_preferred(8100, 0, &["Electrocute"]),
+                        rune_id_preferred(8100, 1, &["Sudden Impact"]),
+                        rune_id_preferred(8100, 2, &["Eyeball Collection"]),
+                        rune_id_preferred(8100, 3, &["Treasure Hunter", "Ultimate Hunter"]),
+                        rune_id_preferred(8200, 1, &["Manaflow Band"]),
+                        rune_id_preferred(8200, 2, &["Transcendence"]),
+                        5008,
+                        5008,
+                        5001,
+                    ],
+                    RED,
+                ),
+                (
+                    "SUSTAIN",
+                    "Safer trades".to_string(),
+                    8400,
+                    8000,
+                    [
+                        rune_id_preferred(8400, 0, &["Grasp of the Undying"]),
+                        rune_id_preferred(8400, 1, &["Demolish"]),
+                        rune_id_preferred(8400, 2, &["Bone Plating"]),
+                        rune_id_preferred(8400, 3, &["Overgrowth"]),
+                        rune_id_preferred(8000, 1, &["Triumph"]),
+                        rune_id_preferred(8000, 2, &["Legend: Haste", "Legend: Alacrity"]),
+                        5008,
+                        5008,
+                        5001,
+                    ],
+                    GREEN,
+                ),
+            ];
+            let mut selected_preset = None;
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("PRESET").size(8.5).strong().color(MUTED));
+                for (name, detail, primary, secondary, perks, accent) in presets {
+                    let response = filter_chip(ui, name, false, accent);
+                    if response.clicked() {
+                        selected_preset = Some((primary, secondary, perks));
+                    }
+                    response.on_hover_text(detail);
+                }
+            });
+            if let Some((primary, secondary, perks)) = selected_preset {
+                self.primary_tree = primary;
+                self.secondary_tree = secondary;
+                self.selected_perks = perks;
+                self.secondary_rune_rows = secondary_rows_for_perks(secondary, perks[4], perks[5]);
+            }
+            ui.add_space(6.0);
+            rune_section_heading(
+                ui,
+                "PRIMARY STYLE",
+                tree_name(self.primary_tree),
+                rune_tree_color(self.primary_tree),
+            );
+            if let Some(tree) = rune_tree_picker(ui, self.primary_tree, None, &self.rune_textures) {
+                self.primary_tree = tree;
+                if self.secondary_tree == tree {
+                    self.secondary_tree = RUNE_TREES
+                        .iter()
+                        .find(|(id, _)| *id != tree)
+                        .map(|(id, _)| *id)
+                        .unwrap_or(8400);
+                }
+            }
+            ui.add_space(4.0);
+            rune_section_heading(ui, "SECONDARY STYLE", tree_name(self.secondary_tree), GOLD);
+            if let Some(tree) = rune_tree_picker(
+                ui,
+                self.secondary_tree,
+                Some(self.primary_tree),
+                &self.rune_textures,
+            ) {
+                self.secondary_tree = tree;
+            }
+            normalize_rune_setup(
+                self.primary_tree,
+                self.secondary_tree,
+                &mut self.secondary_rune_rows,
+                &mut self.selected_perks,
+            );
+
+            ui.add_space(5.0);
+            ui.columns(2, |columns| {
+                rune_section_heading(
+                    &mut columns[0],
+                    "KEYSTONE",
+                    &selected_rune_name(self.primary_tree, 0, self.selected_perks[0]),
+                    rune_tree_color(self.primary_tree),
+                );
+                let options = rune_options(self.primary_tree, 0);
+                if let Some(id) = rune_icon_choice_line(
+                    &mut columns[0],
+                    &options,
+                    self.selected_perks[0],
+                    &self.rune_textures,
+                    rune_tree_color(self.primary_tree),
+                    42.0,
+                ) {
+                    self.selected_perks[0] = id;
+                }
+                for row in 1..=3 {
+                    let slot = row;
+                    columns[0].add_space(5.0);
+                    rune_section_heading(
+                        &mut columns[0],
+                        &format!("PRIMARY ROW {row}"),
+                        &selected_rune_name(self.primary_tree, row, self.selected_perks[slot]),
+                        rune_tree_color(self.primary_tree),
+                    );
+                    let options = rune_options(self.primary_tree, row);
+                    if let Some(id) = rune_icon_choice_line(
+                        &mut columns[0],
+                        &options,
+                        self.selected_perks[slot],
+                        &self.rune_textures,
+                        rune_tree_color(self.primary_tree),
+                        36.0,
+                    ) {
+                        self.selected_perks[slot] = id;
+                    }
+                }
+
+                rune_section_heading(
+                    &mut columns[1],
+                    "SECONDARY RUNES",
+                    tree_name(self.secondary_tree),
+                    rune_tree_color(self.secondary_tree),
+                );
+                for choice in 0..2 {
+                    columns[1].horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("PICK {}", choice + 1))
+                                .size(8.0)
+                                .strong()
+                                .color(MUTED),
+                        );
+                        for row in 1..=3 {
+                            let enabled = row != self.secondary_rune_rows[1 - choice];
+                            let selected = self.secondary_rune_rows[choice] == row;
+                            let response = ui.add_enabled_ui(enabled, |ui| {
+                                filter_chip(ui, &format!("R{row}"), selected, GOLD)
+                            });
+                            if response.inner.clicked() {
+                                self.secondary_rune_rows[choice] = row;
+                                normalize_rune_setup(
+                                    self.primary_tree,
+                                    self.secondary_tree,
+                                    &mut self.secondary_rune_rows,
+                                    &mut self.selected_perks,
+                                );
+                            }
+                        }
+                    });
+                    let row = self.secondary_rune_rows[choice];
+                    let options = rune_options(self.secondary_tree, row);
+                    let slot = 4 + choice;
+                    rune_section_heading(
+                        &mut columns[1],
+                        &format!("ROW {row}"),
+                        &selected_rune_name(self.secondary_tree, row, self.selected_perks[slot]),
+                        rune_tree_color(self.secondary_tree),
+                    );
+                    if let Some(id) = rune_icon_choice_line(
+                        &mut columns[1],
+                        &options,
+                        self.selected_perks[slot],
+                        &self.rune_textures,
+                        rune_tree_color(self.secondary_tree),
+                        36.0,
+                    ) {
+                        self.selected_perks[slot] = id;
+                    }
+                }
+                columns[1].add_space(5.0);
+                rune_section_heading(
+                    &mut columns[1],
+                    "STAT SHARDS",
+                    "Offense · flex · defense",
+                    CYAN,
+                );
+                for (row, label) in [(0usize, "OFFENSE"), (1, "FLEX"), (2, "DEFENSE")] {
+                    let options = stat_shard_options(row)
+                        .iter()
+                        .map(|(id, name)| (*id, (*name).to_string()))
+                        .collect::<Vec<_>>();
+                    let slot = 6 + row;
+                    columns[1].horizontal(|ui| {
+                        ui.label(RichText::new(label).size(8.0).strong().color(MUTED));
+                        ui.label(
+                            RichText::new(selected_rune_name_from_options(
+                                &options,
+                                self.selected_perks[slot],
+                            ))
+                            .size(8.5)
+                            .color(SECONDARY),
+                        );
+                    });
+                    if let Some(id) = rune_icon_choice_line(
+                        &mut columns[1],
+                        &options,
+                        self.selected_perks[slot],
+                        &self.rune_textures,
+                        CYAN,
+                        31.0,
+                    ) {
+                        self.selected_perks[slot] = id;
+                    }
+                }
+            });
+
+            ui.add_space(5.0);
+            ui.horizontal(|ui| {
+                for (slot, label, id) in [
+                    (0usize, "SLOT 1", self.spell_one),
+                    (1usize, "SLOT 2", self.spell_two),
+                ] {
+                    if filter_chip(
+                        ui,
+                        &format!("{label} · {}", spell_name(id)),
+                        self.active_spell_slot == slot,
+                        if slot == 0 { CYAN } else { GOLD },
+                    )
+                    .clicked()
+                    {
+                        self.active_spell_slot = slot;
+                    }
+                }
+                ui.label(
+                    RichText::new("Click to assign · click the other spell to swap")
+                        .size(8.5)
+                        .color(MUTED),
+                );
+            });
+            ui.horizontal_wrapped(|ui| {
+                for (id, name) in SUMMONER_SPELLS {
+                    let selected_here = if self.active_spell_slot == 0 {
+                        self.spell_one == *id
+                    } else {
+                        self.spell_two == *id
+                    };
+                    let selected_other = if self.active_spell_slot == 0 {
+                        self.spell_two == *id
+                    } else {
+                        self.spell_one == *id
+                    };
+                    let response = spell_choice_chip(
+                        ui,
+                        name,
+                        selected_here,
+                        selected_other,
+                        if self.active_spell_slot == 0 {
+                            CYAN
+                        } else {
+                            GOLD
+                        },
+                    );
+                    if response.clicked() {
+                        if self.active_spell_slot == 0 {
+                            if self.spell_two == *id {
+                                std::mem::swap(&mut self.spell_one, &mut self.spell_two);
+                            } else {
+                                self.spell_one = *id;
+                            }
+                        } else if self.spell_one == *id {
+                            std::mem::swap(&mut self.spell_one, &mut self.spell_two);
+                        } else {
+                            self.spell_two = *id;
+                        }
+                    }
+                }
+            });
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Setup is saved per champion.")
+                        .size(9.0)
+                        .color(MUTED),
+                );
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if action_button(ui, "APPLY RUNES + SPELLS", false, CYAN).clicked() {
+                        let page = rune_page(
+                            &champion.name,
+                            self.primary_tree,
+                            self.secondary_tree,
+                            &self.selected_perks,
+                        );
+                        let _ = self.commands.send(CoreCommand::ImportRunes(page));
+                        let _ = self.commands.send(CoreCommand::ImportSpells {
+                            spell1: self.spell_one,
+                            spell2: self.spell_two,
+                        });
+                        self.set_notice("Sending rune page and summoner spells to League Client…");
+                    }
+                });
+            });
+        });
+    }
     fn render_team_panel(&self, ui: &mut egui::Ui) {
         panel(ui, |ui| {
             panel_title(
@@ -7745,6 +7855,272 @@ fn rune_options(tree: u32, row: usize) -> Vec<(i64, String)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn selected_rune_name(tree: u32, row: usize, selected: i64) -> String {
+    selected_rune_name_from_options(&rune_options(tree, row), selected)
+}
+
+fn selected_rune_name_from_options(options: &[(i64, String)], selected: i64) -> String {
+    options
+        .iter()
+        .find(|(id, _)| *id == selected)
+        .map(|(_, name)| name.clone())
+        .unwrap_or_else(|| "Select rune".to_string())
+}
+
+fn rune_tree_color(tree: u32) -> Color32 {
+    match tree {
+        8100 => Color32::from_rgb(238, 105, 113),
+        8000 => Color32::from_rgb(231, 189, 105),
+        8200 => Color32::from_rgb(111, 181, 246),
+        8400 => Color32::from_rgb(108, 205, 151),
+        8300 => Color32::from_rgb(195, 143, 236),
+        _ => CYAN,
+    }
+}
+
+fn rune_tree_picker(
+    ui: &mut egui::Ui,
+    selected: u32,
+    excluded: Option<u32>,
+    textures: &HashMap<i64, egui::TextureHandle>,
+) -> Option<u32> {
+    let mut clicked = None;
+    ui.horizontal(|ui| {
+        for (id, name) in RUNE_TREES
+            .iter()
+            .copied()
+            .filter(|(id, _)| Some(*id) != excluded)
+        {
+            let response = rune_icon_card(
+                ui,
+                id as i64,
+                selected == id,
+                rune_tree_color(id),
+                36.0,
+                textures,
+            );
+            if response.clicked() {
+                clicked = Some(id);
+            }
+            response.on_hover_text(name);
+        }
+    });
+    clicked
+}
+fn rune_section_heading(ui: &mut egui::Ui, title: &str, detail: &str, accent: Color32) {
+    ui.add_space(3.0);
+    ui.horizontal(|ui| {
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+        ui.painter().circle_filled(rect.center(), 3.5, accent);
+        ui.label(RichText::new(title).size(10.0).strong().color(TEXT));
+        ui.label(RichText::new(detail).size(9.0).color(MUTED));
+    });
+    ui.add_space(5.0);
+}
+
+fn rune_icon_choice_line(
+    ui: &mut egui::Ui,
+    options: &[(i64, String)],
+    selected: i64,
+    textures: &HashMap<i64, egui::TextureHandle>,
+    accent: Color32,
+    side: f32,
+) -> Option<i64> {
+    if options.is_empty() {
+        return None;
+    }
+    let mut clicked = None;
+    ui.horizontal(|ui| {
+        for (id, name) in options {
+            let response = rune_icon_card(ui, *id, selected == *id, accent, side, textures);
+            if response.clicked() {
+                clicked = Some(*id);
+            }
+            let description = rune_description(*id);
+            response.on_hover_text(if description.is_empty() {
+                name.clone()
+            } else {
+                format!("{name}\n{description}")
+            });
+        }
+    });
+    clicked
+}
+
+fn rune_icon_card(
+    ui: &mut egui::Ui,
+    id: i64,
+    selected: bool,
+    accent: Color32,
+    side: f32,
+    textures: &HashMap<i64, egui::TextureHandle>,
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click());
+    let hover =
+        ui.ctx()
+            .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
+    let active = ui
+        .ctx()
+        .animate_bool_with_time(response.id.with("selected"), selected, 0.16);
+    let emphasis = active.max(hover * 0.55);
+    ui.painter().rect_filled(
+        rect,
+        egui::CornerRadius::same(8),
+        lerp_color(CARD, accent.gamma_multiply(0.18), emphasis),
+    );
+    ui.painter().rect_stroke(
+        rect,
+        egui::CornerRadius::same(8),
+        Stroke::new(0.8 + active * 0.8, lerp_color(BORDER, accent, emphasis)),
+        egui::StrokeKind::Inside,
+    );
+    if let Some(texture) = textures.get(&id) {
+        let image_rect = rect.shrink(4.0);
+        egui::Image::new((texture.id(), image_rect.size()))
+            .corner_radius(egui::CornerRadius::same(6))
+            .paint_at(ui, image_rect);
+    }
+    response
+}
+
+fn spell_choice_chip(
+    ui: &mut egui::Ui,
+    label: &str,
+    selected_here: bool,
+    selected_other: bool,
+    accent: Color32,
+) -> egui::Response {
+    let width = (label.chars().count() as f32 * 5.7 + 27.0).clamp(58.0, 104.0);
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 27.0), Sense::click());
+    let hover =
+        ui.ctx()
+            .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
+    let color = if selected_here {
+        accent
+    } else if selected_other {
+        GOLD
+    } else {
+        BORDER
+    };
+    let emphasis = if selected_here {
+        1.0
+    } else if selected_other {
+        0.62
+    } else {
+        hover * 0.5
+    };
+    ui.painter().rect_filled(
+        rect,
+        egui::CornerRadius::same(7),
+        lerp_color(CARD, color.gamma_multiply(0.18), emphasis),
+    );
+    ui.painter().rect_stroke(
+        rect,
+        egui::CornerRadius::same(7),
+        Stroke::new(
+            0.8 + if selected_here { 0.6 } else { 0.0 },
+            lerp_color(BORDER, color, emphasis),
+        ),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter()
+        .circle_filled(egui::pos2(rect.left() + 9.0, rect.center().y), 2.5, color);
+    ui.painter().text(
+        egui::pos2(rect.left() + 16.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(8.5),
+        if selected_here { TEXT } else { SECONDARY },
+    );
+    response.on_hover_text(if selected_other {
+        format!("{label} is assigned to the other slot; click to swap")
+    } else {
+        label.to_owned()
+    })
+}
+
+fn rune_description(id: i64) -> String {
+    let Some(trees) = RUNE_CATALOG.as_array() else {
+        return String::new();
+    };
+    let Some(description) = trees.iter().find_map(|tree| {
+        tree.get("slots")
+            .and_then(Value::as_array)?
+            .iter()
+            .flat_map(|slot| {
+                slot.get("runes")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+            })
+            .find(|rune| rune.get("id").and_then(Value::as_i64) == Some(id))
+            .and_then(|rune| rune.get("shortDesc").and_then(Value::as_str))
+    }) else {
+        return String::new();
+    };
+    let mut clean = String::new();
+    let mut in_tag = false;
+    for ch in description.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => clean.push(ch),
+            _ => {}
+        }
+    }
+    let clean = clean
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    truncate_rune_label(&clean, 180)
+}
+
+fn truncate_rune_label(text: &str, max_chars: usize) -> String {
+    let max_chars = max_chars.max(4);
+    if text.chars().count() <= max_chars {
+        return text.to_owned();
+    }
+    text.chars()
+        .take(max_chars.saturating_sub(1))
+        .chain(std::iter::once('…'))
+        .collect()
+}
+
+fn normalize_rune_setup(
+    primary_tree: u32,
+    secondary_tree: u32,
+    secondary_rows: &mut [usize; 2],
+    perks: &mut [i64; 9],
+) {
+    for (slot, row) in [(0usize, 0usize), (1, 1), (2, 2), (3, 3)] {
+        let options = rune_options(primary_tree, row);
+        if !options.iter().any(|(id, _)| *id == perks[slot]) {
+            perks[slot] = options.first().map(|(id, _)| *id).unwrap_or(5008);
+        }
+    }
+    secondary_rows[0] = secondary_rows[0].clamp(1, 3);
+    secondary_rows[1] = secondary_rows[1].clamp(1, 3);
+    if secondary_rows[0] == secondary_rows[1] {
+        secondary_rows[1] = (1..=3).find(|row| *row != secondary_rows[0]).unwrap_or(2);
+    }
+    for choice in 0..2 {
+        let options = rune_options(secondary_tree, secondary_rows[choice]);
+        let slot = 4 + choice;
+        if !options.iter().any(|(id, _)| *id == perks[slot]) {
+            perks[slot] = options.first().map(|(id, _)| *id).unwrap_or(9111);
+        }
+    }
+    for row in 0..3 {
+        let slot = 6 + row;
+        let options = stat_shard_options(row);
+        if !options.iter().any(|(id, _)| *id == perks[slot]) {
+            perks[slot] = options.first().map(|(id, _)| *id).unwrap_or(5008);
+        }
+    }
 }
 
 fn rune_id_preferred(tree: u32, row: usize, preferred_names: &[&str]) -> i64 {

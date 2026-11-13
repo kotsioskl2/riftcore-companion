@@ -1,4 +1,4 @@
-League of Legends champion portraits and TFT Set 18 artwork/icons
+League of Legends champion portraits, rune icons, and TFT Set 18 artwork/icons
 Source: Riot Games Data Dragon, version 16.22.1
 Reference: https://developer.riotgames.com/docs/lol
 

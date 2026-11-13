@@ -7,7 +7,7 @@ echo ================================================
 echo.
 
 cd /d "%~dp0"
-set "APP_VERSION=2.1.0"
+set "APP_VERSION=2.1.1"
 if not exist "installer_output" mkdir "installer_output"
 
 echo [1/4] Building the native Rust application...

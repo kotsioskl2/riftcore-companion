@@ -50,11 +50,34 @@ fn main() {
         println!("cargo:rerun-if-changed={}", path.display());
     }
     embedded.push_str("];\n");
+    let rune_icons_dir = manifest_dir.join("assets").join("runes");
+    let mut rune_icon_paths: Vec<PathBuf> = fs::read_dir(&rune_icons_dir)
+        .expect("rune icons are required")
+        .map(|entry| entry.expect("failed to read rune icon asset entry").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "png"))
+        .collect();
+    rune_icon_paths.sort();
+    embedded.push_str("pub static RUNE_ICONS: &[(i64, &[u8])] = &[\n");
+    for path in &rune_icon_paths {
+        let icon_id = path
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .parse::<i64>()
+            .expect("rune icon filenames must be numeric IDs");
+        embedded.push_str(&format!(
+            "    ({icon_id}, include_bytes!({:?}) as &[u8]),\n",
+            path.to_string_lossy()
+        ));
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+    embedded.push_str("];\n");
     fs::write(out_dir.join("embedded_assets.rs"), embedded)
         .expect("failed to generate embedded asset table");
     println!("cargo:rerun-if-changed={}", logo_path.display());
     println!("cargo:rerun-if-changed={}", champions_dir.display());
     println!("cargo:rerun-if-changed={}", tft_icons_dir.display());
+    println!("cargo:rerun-if-changed={}", rune_icons_dir.display());
 
     #[cfg(windows)]
     {

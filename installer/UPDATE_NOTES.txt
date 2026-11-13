@@ -1,5 +1,17 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.1.0
+       RIFTCORE COMPANION - UPDATE v2.1.1
+--------------------------------------------------
+
+* Champion Select Rune Editor:
+  - Added separate Build and Runes tabs so the rune editor is not buried below the build guide.
+  - Rebuilt rune editing as a compact two-column board with Riot's original rune and stat-shard art.
+  - Kept META, BURST and SUSTAIN quick presets, plus clear secondary-row choices.
+  - Replaced spell dropdowns with slot-based spell picks; selecting the other slot's spell swaps them.
+  - Keeps rune choices valid when changing trees or rows and preserves each champion's setup.
+  - APPLY RUNES + SPELLS sends the complete setup to the League Client.
+
+--------------------------------------------------
+       PREVIOUS UPDATE v2.1.0
 --------------------------------------------------
 
 * Champion Select:
