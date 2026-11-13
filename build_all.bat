@@ -7,15 +7,20 @@ echo ================================================
 echo.
 
 cd /d "%~dp0"
-set "APP_VERSION=2.0.9"
+set "APP_VERSION=2.1.0"
+if not exist "installer_output" mkdir "installer_output"
 
 echo [1/4] Building the native Rust application...
 call build_rust.bat
 if errorlevel 1 exit /b 1
+copy /Y "RiftCore_Rust_Portable\RiftCore.exe" "installer_output\RiftCore-%APP_VERSION%.exe" > nul
+if errorlevel 1 (
+    echo [ERROR] Could not stage the self-update executable.
+    exit /b 1
+)
 
 echo.
 echo [2/4] Building the Windows installer...
-if not exist "installer_output" mkdir "installer_output"
 makensis /DPRODUCT_VERSION="%APP_VERSION%" "installer\installer.nsi"
 if errorlevel 1 (
     echo [ERROR] NSIS installer build failed.

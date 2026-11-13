@@ -1,16 +1,17 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.9
+       RIFTCORE COMPANION - UPDATE v2.1.0
 --------------------------------------------------
 
-* Update-screen window controls:
-  - Keep drag, maximize, restore and close controls usable while What's New and the first-run tour are open.
-  - Let the title bar drag from its open areas and toggle between maximize and restore.
+* Champion Select:
+  - Rebuilt champion selection as a searchable, role-filtered portrait roster with animated focus and selection states.
+  - Follow the champion you hover or lock in through the League Client.
+  - Keep custom runes, secondary rows, role and summoner spells per champion while switching between picks.
+  - Restored META, BURST and SUSTAIN rune presets and the champion auto-sync control.
 
-* HUD and interface fixes:
-  - Reduced the title bar to 38 logical pixels and made the close icon smaller and muted until hover.
-  - Added smart HUD click-through while preserving clickable HUD controls.
-  - Reinforced the native overlay's topmost, no-activate window behavior.
-  - Report rune-page read, save and activation errors from the League Client.
-  - Tightened spacing across navigation, panels and controls.
+* Native in-game HUD:
+  - Restored manual enemy summoner cooldowns and jungle camp respawn timers.
+  - Added objective, spell and camp timer tabs plus a copy-to-chat call-out.
+  - Moved minimap objective countdown tags off camp and route labels, and spaced ward suggestions to reduce collisions.
+  - Added overlay settings for the new timer sections. Cooldown estimates use base spell values and do not infer summoner haste.
 
 --------------------------------------------------

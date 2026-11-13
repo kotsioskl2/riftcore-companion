@@ -52,6 +52,17 @@ struct Champion {
     roles: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct ChampionSetup {
+    role: String,
+    primary_tree: u32,
+    secondary_tree: u32,
+    perks: [i64; 9],
+    secondary_rows: [usize; 2],
+    spell_one: i64,
+    spell_two: i64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Page {
     ChampSelect,
@@ -88,6 +99,7 @@ pub struct RiftCoreApp {
     settings: AppSettings,
     settings_path: PathBuf,
     champions: Vec<Champion>,
+    champion_setups: HashMap<u32, ChampionSetup>,
     champion_textures: HashMap<String, egui::TextureHandle>,
     tft_textures: HashMap<String, egui::TextureHandle>,
     manual_spell_timers: HashMap<String, Instant>,
@@ -98,6 +110,8 @@ pub struct RiftCoreApp {
     profile_lookup_loading: bool,
     selected_analysis_match: Option<Value>,
     champion_search: String,
+    champion_role_filter: String,
+    last_synced_champion: u32,
     pool_search: String,
     pool_role: String,
     pool_assign_slot: Option<usize>,
@@ -140,6 +154,8 @@ pub struct RiftCoreApp {
     show_whats_new: bool,
     show_mayhem_cards: bool,
     show_overlay_build: bool,
+    show_overlay_timers: bool,
+    overlay_timer_tab: String,
     show_close_confirmation: bool,
     force_exit: bool,
     update_banner_dismissed: bool,
@@ -256,6 +272,7 @@ impl RiftCoreApp {
             settings,
             settings_path,
             champions,
+            champion_setups: HashMap::new(),
             champion_textures,
             tft_textures,
             manual_spell_timers: HashMap::new(),
@@ -266,6 +283,8 @@ impl RiftCoreApp {
             profile_lookup_loading: false,
             selected_analysis_match: None,
             champion_search: String::new(),
+            champion_role_filter: "ALL".to_string(),
+            last_synced_champion: 0,
             pool_search: String::new(),
             pool_role: "MID".to_string(),
             pool_assign_slot: None,
@@ -308,6 +327,8 @@ impl RiftCoreApp {
             show_whats_new,
             show_mayhem_cards: false,
             show_overlay_build: false,
+            show_overlay_timers: false,
+            overlay_timer_tab: "SPELLS".to_string(),
             show_close_confirmation: false,
             force_exit: false,
             update_banner_dismissed: false,
@@ -1018,6 +1039,77 @@ impl RiftCoreApp {
         ui.add_space(22.0);
     }
 
+    fn select_champion_setup(&mut self, champion_id: u32, allow_auto_import: bool) {
+        let Some(champion) = self
+            .champions
+            .iter()
+            .find(|champion| champion.id == champion_id)
+            .cloned()
+        else {
+            return;
+        };
+        let saved = self.champion_setups.get(&champion_id).cloned();
+        self.selected_champion = champion_id;
+        self.last_synced_champion = champion_id;
+        if let Some(setup) = &saved {
+            self.build_role = setup.role.clone();
+            self.primary_tree = setup.primary_tree;
+            self.secondary_tree = setup.secondary_tree;
+            self.selected_perks = setup.perks;
+            self.secondary_rune_rows = setup.secondary_rows;
+            self.spell_one = setup.spell_one;
+            self.spell_two = setup.spell_two;
+        } else {
+            let build =
+                crate::builds::recommend(&champion.key, &champion.name, &champion.roles, None);
+            self.build_role = build.role.clone();
+            self.primary_tree = build.primary_tree;
+            self.secondary_tree = build.secondary_tree;
+            self.selected_perks = std::array::from_fn(|index| {
+                build.rune_ids.get(index).copied().unwrap_or(5008) as i64
+            });
+            self.secondary_rune_rows = secondary_rows_for_perks(
+                self.secondary_tree,
+                self.selected_perks[4],
+                self.selected_perks[5],
+            );
+            (self.spell_one, self.spell_two) = preferred_spell_order(
+                build.spell_one,
+                build.spell_two,
+                &self.settings.flash_slot_preference,
+            );
+        }
+
+        if !allow_auto_import || self.snapshot.phase != "ChampSelect" {
+            return;
+        }
+        let recommendation = crate::builds::recommend(
+            &champion.key,
+            &champion.name,
+            &champion.roles,
+            Some(&self.build_role),
+        );
+        if self.settings.auto_import_spells {
+            let _ = self.commands.send(CoreCommand::ImportSpells {
+                spell1: self.spell_one,
+                spell2: self.spell_two,
+            });
+        }
+        if self.settings.auto_import_runes {
+            let page = rune_page(
+                &champion.name,
+                self.primary_tree,
+                self.secondary_tree,
+                &self.selected_perks,
+            );
+            let _ = self.commands.send(CoreCommand::ImportRunes(page));
+        }
+        if self.settings.auto_import_item_sets {
+            let set = champion_item_set(&champion, &recommendation);
+            let _ = self.commands.send(CoreCommand::ExportItemSet(set));
+        }
+    }
+
     fn render_champ_select(&mut self, ui: &mut egui::Ui) {
         self.render_page_heading(
             ui,
@@ -1025,150 +1117,186 @@ impl RiftCoreApp {
             "Champ Select",
             "Champion builds, runes and summoner spell tools",
         );
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("CHAMPION").size(10.0).strong().color(MUTED));
-            ui.add_sized(
-                [280.0, 28.0],
-                egui::TextEdit::singleline(&mut self.champion_search)
-                    .hint_text("Search champions…"),
-            );
-            if action_button(ui, "REFRESH CLIENT", false, CYAN).clicked() {
-                let _ = self.commands.send(CoreCommand::Refresh);
-                self.set_notice("Refreshing League Client connection");
-            }
+        let search = self.champion_search.trim().to_lowercase();
+        let role_filter = self.champion_role_filter.clone();
+        let matches = self
+            .champions
+            .iter()
+            .filter(|champion| {
+                let matches_search = search.is_empty()
+                    || champion.name.to_lowercase().contains(&search)
+                    || champion.title.to_lowercase().contains(&search)
+                    || champion
+                        .roles
+                        .iter()
+                        .any(|role| role.to_lowercase().contains(&search));
+                let matches_role = role_filter == "ALL"
+                    || champion
+                        .roles
+                        .iter()
+                        .any(|role| role_matches(role, &role_filter));
+                matches_search && matches_role
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+
+        panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("⌕").size(18.0).color(CYAN));
+                let search_width = (ui.available_width() - 280.0).max(180.0);
+                ui.add_sized(
+                    [search_width, 34.0],
+                    egui::TextEdit::singleline(&mut self.champion_search).hint_text(format!(
+                        "Find a champion · {} available",
+                        self.champions.len()
+                    )),
+                );
+                let mut auto_sync = self.settings.auto_import_runes
+                    && self.settings.auto_import_spells
+                    && self.settings.auto_import_item_sets;
+                if ui.checkbox(&mut auto_sync, "AUTO-SYNC").changed() {
+                    self.settings.auto_import_runes = auto_sync;
+                    self.settings.auto_import_spells = auto_sync;
+                    self.settings.auto_import_item_sets = auto_sync;
+                    self.save_settings();
+                }
+                if action_button(ui, "REFRESH CLIENT", false, CYAN).clicked() {
+                    let _ = self.commands.send(CoreCommand::Refresh);
+                    self.set_notice("Refreshing League Client connection");
+                }
+            });
+            ui.add_space(8.0);
+            ui.horizontal_wrapped(|ui| {
+                for role in ["ALL", "TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] {
+                    if filter_chip(ui, role, self.champion_role_filter == role, CYAN).clicked() {
+                        self.champion_role_filter = role.to_string();
+                    }
+                }
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(format!("{} of {}", matches.len(), self.champions.len()))
+                        .size(10.0)
+                        .color(MUTED),
+                );
+            });
         });
-        ui.add_space(12.0);
+        ui.add_space(10.0);
         ui.columns(2, |columns| {
-            columns[0].set_min_width(420.0);
+            columns[0].set_min_width(440.0);
             panel(&mut columns[0], |ui| {
                 panel_title(
                     ui,
-                    "CHAMPION SELECTOR",
-                    "Choose a champion to configure your setup",
+                    "CHAMPION ROSTER",
+                    "Choose a champion to preview its build and setup",
                 );
-                ScrollArea::vertical().max_height(410.0).show(ui, |ui| {
-                    let search = self.champion_search.to_lowercase();
-                    let matches: Vec<Champion> = self
-                        .champions
-                        .iter()
-                        .filter(|champion| {
-                            search.is_empty()
-                                || champion.name.to_lowercase().contains(&search)
-                                || champion
-                                    .roles
-                                    .iter()
-                                    .any(|role| role.to_lowercase().contains(&search))
-                        })
-                        .cloned()
-                        .collect();
-                    egui::Grid::new("champion-grid")
-                        .num_columns(4)
-                        .spacing([6.0, 6.0])
-                        .show(ui, |ui| {
-                            for (index, champ) in matches.iter().enumerate() {
-                                let selected = self.selected_champion == champ.id;
-                                let (rect, response) =
-                                    ui.allocate_exact_size(Vec2::new(84.0, 82.0), Sense::click());
-                                let border = if selected {
-                                    CYAN
-                                } else if response.hovered() {
-                                    SECONDARY
-                                } else {
-                                    BORDER
-                                };
-                                ui.painter().rect_filled(
-                                    rect,
-                                    egui::CornerRadius::same(8),
-                                    if selected {
-                                        Color32::from_rgb(11, 39, 54)
-                                    } else {
-                                        CARD
-                                    },
-                                );
-                                ui.painter().rect_stroke(
-                                    rect,
-                                    egui::CornerRadius::same(8),
-                                    Stroke::new(if selected { 1.5 } else { 1.0 }, border),
-                                    egui::StrokeKind::Inside,
-                                );
-                                if let Some(texture) = self.champion_textures.get(&champ.key) {
-                                    let image_rect = egui::Rect::from_center_size(
-                                        egui::pos2(rect.center().x, rect.top() + 26.0),
-                                        Vec2::splat(42.0),
+                ScrollArea::vertical()
+                    .id_salt("champion-roster-scroll")
+                    .max_height(520.0)
+                    .show(ui, |ui| {
+                        egui::Grid::new("champion-grid")
+                            .num_columns(4)
+                            .spacing([8.0, 8.0])
+                            .show(ui, |ui| {
+                                for (index, champ) in matches.iter().enumerate() {
+                                    let selected = self.selected_champion == champ.id;
+                                    let (rect, response) = ui.allocate_exact_size(
+                                        Vec2::new(116.0, 112.0),
+                                        Sense::click(),
                                     );
-                                    egui::Image::new((texture.id(), image_rect.size()))
-                                        .corner_radius(egui::CornerRadius::same(6))
-                                        .paint_at(ui, image_rect);
-                                } else {
-                                    ui.painter().text(
-                                        egui::pos2(rect.center().x, rect.top() + 25.0),
-                                        egui::Align2::CENTER_CENTER,
-                                        initials(&champ.name),
-                                        FontId::proportional(16.0),
-                                        CYAN,
+                                    let animation_id =
+                                        ui.make_persistent_id(("champion-card", champ.id));
+                                    let hover_t = ui.ctx().animate_bool_with_time(
+                                        animation_id.with("hover"),
+                                        response.hovered(),
+                                        0.14,
                                     );
-                                }
-                                ui.painter().text(
-                                    egui::pos2(rect.center().x, rect.bottom() - 13.0),
-                                    egui::Align2::CENTER_CENTER,
-                                    &champ.name,
-                                    FontId::proportional(10.0),
-                                    if selected { CYAN } else { TEXT },
-                                );
-                                if response.clicked() {
-                                    self.selected_champion = champ.id;
-                                    let build = crate::builds::recommend(
-                                        &champ.key,
-                                        &champ.name,
-                                        &champ.roles,
-                                        None,
+                                    let selected_t = ui.ctx().animate_bool_with_time(
+                                        animation_id.with("selected"),
+                                        selected,
+                                        0.18,
                                     );
-                                    self.build_role = build.role.clone();
-                                    self.primary_tree = build.primary_tree;
-                                    self.secondary_tree = build.secondary_tree;
-                                    self.selected_perks = std::array::from_fn(|index| {
-                                        build.rune_ids.get(index).copied().unwrap_or(5008) as i64
-                                    });
-                                    self.secondary_rune_rows = secondary_rows_for_perks(
-                                        self.secondary_tree,
-                                        self.selected_perks[4],
-                                        self.selected_perks[5],
+                                    let emphasis = selected_t.max(hover_t * 0.52);
+                                    let border = lerp_color(BORDER, CYAN, emphasis);
+                                    ui.painter().rect_filled(
+                                        rect,
+                                        egui::CornerRadius::same(10),
+                                        lerp_color(CARD, Color32::from_rgb(12, 39, 53), emphasis),
                                     );
-                                    if self.settings.auto_import_spells
-                                        && self.snapshot.phase == "ChampSelect"
-                                    {
-                                        let (spell_one, spell_two) = preferred_spell_order(
-                                            build.spell_one,
-                                            build.spell_two,
-                                            &self.settings.flash_slot_preference,
+                                    ui.painter().rect_stroke(
+                                        rect,
+                                        egui::CornerRadius::same(10),
+                                        Stroke::new(1.0 + selected_t, border),
+                                        egui::StrokeKind::Inside,
+                                    );
+                                    if let Some(texture) = self.champion_textures.get(&champ.key) {
+                                        let portrait_size = 68.0 + 4.0 * hover_t + selected_t;
+                                        let image_rect = egui::Rect::from_center_size(
+                                            egui::pos2(rect.center().x, rect.top() + 40.0),
+                                            Vec2::splat(portrait_size),
                                         );
-                                        let _ = self.commands.send(CoreCommand::ImportSpells {
-                                            spell1: spell_one,
-                                            spell2: spell_two,
-                                        });
+                                        egui::Image::new((texture.id(), image_rect.size()))
+                                            .corner_radius(egui::CornerRadius::same(9))
+                                            .paint_at(ui, image_rect);
+                                    } else {
+                                        ui.painter().text(
+                                            egui::pos2(rect.center().x, rect.top() + 40.0),
+                                            egui::Align2::CENTER_CENTER,
+                                            initials(&champ.name),
+                                            FontId::proportional(21.0),
+                                            CYAN,
+                                        );
                                     }
-                                    if self.settings.auto_import_runes
-                                        && self.snapshot.phase == "ChampSelect"
-                                    {
-                                        let page = crate::builds::rune_page(&champ.name, &build);
-                                        let _ = self.commands.send(CoreCommand::ImportRunes(page));
+                                    ui.painter().rect_filled(
+                                        egui::Rect::from_min_max(
+                                            egui::pos2(rect.left() + 1.0, rect.bottom() - 28.0),
+                                            egui::pos2(rect.right() - 1.0, rect.bottom() - 1.0),
+                                        ),
+                                        egui::CornerRadius::same(9),
+                                        Color32::from_black_alpha(168),
+                                    );
+                                    if selected_t > 0.01 {
+                                        ui.painter().rect_filled(
+                                            egui::Rect::from_min_max(
+                                                egui::pos2(rect.left() + 2.0, rect.top() + 12.0),
+                                                egui::pos2(rect.left() + 4.0, rect.bottom() - 12.0),
+                                            ),
+                                            egui::CornerRadius::same(2),
+                                            Color32::from_rgba_unmultiplied(
+                                                CYAN.r(),
+                                                CYAN.g(),
+                                                CYAN.b(),
+                                                (selected_t * 235.0) as u8,
+                                            ),
+                                        );
                                     }
-                                    if self.settings.auto_import_item_sets
-                                        && self.snapshot.phase == "ChampSelect"
-                                    {
-                                        let set = champion_item_set(&champ, &build);
-                                        let _ = self.commands.send(CoreCommand::ExportItemSet(set));
+                                    ui.painter().text(
+                                        egui::pos2(rect.center().x, rect.bottom() - 13.0),
+                                        egui::Align2::CENTER_CENTER,
+                                        &champ.name,
+                                        FontId::proportional(10.5),
+                                        lerp_color(TEXT, CYAN, selected_t),
+                                    );
+                                    if response.clicked() {
+                                        self.select_champion_setup(champ.id, true);
+                                    }
+                                    if index % 4 == 3 {
+                                        ui.end_row();
                                     }
                                 }
-                                if index % 4 == 3 {
-                                    ui.end_row();
-                                }
-                            }
-                        });
-                    if matches.is_empty() {
-                        ui.label(RichText::new("No champions found").color(SECONDARY));
-                    }
-                });
+                            });
+                        if matches.is_empty() {
+                            Frame::new()
+                                .fill(CARD)
+                                .corner_radius(egui::CornerRadius::same(10))
+                                .inner_margin(egui::Margin::same(18))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        RichText::new("No champions match those filters.")
+                                            .color(SECONDARY),
+                                    );
+                                });
+                        }
+                    });
             });
 
             panel(&mut columns[1], |ui| {
@@ -1367,6 +1495,71 @@ impl RiftCoreApp {
                         "RUNE PAGE",
                         "Edit every rune row, stat shard and summoner spell",
                     );
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new("START FROM").size(9.0).strong().color(MUTED));
+                        for (label, primary, secondary, perks, accent) in [
+                            (
+                                "META",
+                                recommendation.primary_tree,
+                                recommendation.secondary_tree,
+                                std::array::from_fn(|index| {
+                                    recommendation.rune_ids.get(index).copied().unwrap_or(5008)
+                                        as i64
+                                }),
+                                CYAN,
+                            ),
+                            (
+                                "BURST",
+                                8100,
+                                8200,
+                                [
+                                    rune_id_preferred(8100, 0, &["Electrocute"]),
+                                    rune_id_preferred(8100, 1, &["Sudden Impact"]),
+                                    rune_id_preferred(8100, 2, &["Eyeball Collection"]),
+                                    rune_id_preferred(
+                                        8100,
+                                        3,
+                                        &["Treasure Hunter", "Ultimate Hunter"],
+                                    ),
+                                    rune_id_preferred(8200, 1, &["Manaflow Band"]),
+                                    rune_id_preferred(8200, 2, &["Transcendence"]),
+                                    5008,
+                                    5008,
+                                    5001,
+                                ],
+                                RED,
+                            ),
+                            (
+                                "SUSTAIN",
+                                8400,
+                                8000,
+                                [
+                                    rune_id_preferred(8400, 0, &["Grasp of the Undying"]),
+                                    rune_id_preferred(8400, 1, &["Demolish"]),
+                                    rune_id_preferred(8400, 2, &["Bone Plating"]),
+                                    rune_id_preferred(8400, 3, &["Overgrowth"]),
+                                    rune_id_preferred(8000, 1, &["Triumph"]),
+                                    rune_id_preferred(
+                                        8000,
+                                        2,
+                                        &["Legend: Haste", "Legend: Alacrity"],
+                                    ),
+                                    5008,
+                                    5008,
+                                    5001,
+                                ],
+                                GREEN,
+                            ),
+                        ] {
+                            if action_button(ui, label, false, accent).clicked() {
+                                self.primary_tree = primary;
+                                self.secondary_tree = secondary;
+                                self.selected_perks = perks;
+                                self.secondary_rune_rows =
+                                    secondary_rows_for_perks(secondary, perks[4], perks[5]);
+                            }
+                        }
+                    });
                     ui.horizontal(|ui| {
                         egui::ComboBox::from_id_salt("primary-tree")
                             .selected_text(tree_name(self.primary_tree))
@@ -1561,6 +1754,20 @@ impl RiftCoreApp {
             });
         });
 
+        if self.selected_champion > 0 {
+            self.champion_setups.insert(
+                self.selected_champion,
+                ChampionSetup {
+                    role: self.build_role.clone(),
+                    primary_tree: self.primary_tree,
+                    secondary_tree: self.secondary_tree,
+                    perks: self.selected_perks,
+                    secondary_rows: self.secondary_rune_rows,
+                    spell_one: self.spell_one,
+                    spell_two: self.spell_two,
+                },
+            );
+        }
         ui.add_space(12.0);
         self.render_team_panel(ui);
     }
@@ -2032,6 +2239,16 @@ impl RiftCoreApp {
                 ui,
                 "Manual allied ultimate timers",
                 &mut self.settings.hud_ally_ult_timers,
+            );
+            changed |= checkbox_row(
+                ui,
+                "Manual enemy summoner timers",
+                &mut self.settings.hud_enemy_spell_timers,
+            );
+            changed |= checkbox_row(
+                ui,
+                "Manual jungle respawn timers",
+                &mut self.settings.hud_manual_camp_timers,
             );
             changed |= checkbox_row(ui, "Current gold", &mut self.settings.hud_gold_lead);
             changed |= checkbox_row(ui, "CS per minute", &mut self.settings.hud_cs_benchmark);
@@ -3260,7 +3477,7 @@ impl RiftCoreApp {
                                     },
                                 );
                                 let _ = response;
-                                if index % 3 == 2 {
+                                if index % 4 == 3 {
                                     ui.end_row();
                                 }
                             }
@@ -5100,6 +5317,171 @@ impl RiftCoreApp {
         }
     }
 
+    fn render_overlay_timers(
+        &mut self,
+        ctx: &egui::Context,
+        area: egui::Rect,
+        live: Option<&Value>,
+    ) {
+        let default_pos = egui::pos2(
+            (area.left() + 300.0)
+                .min(area.right() - 410.0)
+                .max(area.left() + 8.0),
+            area.top() + 112.0,
+        );
+        let position = self
+            .settings
+            .hud_positions
+            .get("timers")
+            .map(|position| egui::pos2(position[0], position[1]))
+            .unwrap_or(default_pos);
+        let mut copy_callout = false;
+        let mut close = false;
+        let movable = self.settings.hud_edit_layout;
+        let response = egui::Area::new(egui::Id::unique("riftcore-overlay-timers"))
+            .current_pos(position)
+            .movable(movable)
+            .show(ctx, |ui| {
+                Frame::new()
+                    .fill(Color32::from_rgba_unmultiplied(7, 12, 22, 246))
+                    .stroke(Stroke::new(1.0, GOLD))
+                    .corner_radius(egui::CornerRadius::same(12))
+                    .inner_margin(egui::Margin::same(11))
+                    .show(ui, |ui| {
+                        ui.set_width(390.0);
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new("LIVE TIMERS").size(9.0).strong().color(GOLD),
+                                );
+                                ui.label(
+                                    RichText::new("Manual tracking · click again to reset")
+                                        .size(9.0)
+                                        .color(MUTED),
+                                );
+                            });
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                close = action_button(ui, "×", false, RED).clicked();
+                                if action_button(ui, "COPY CALL-OUT", false, CYAN).clicked() {
+                                    copy_callout = true;
+                                }
+                            });
+                        });
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            for tab in ["SPELLS", "CAMPS", "OBJECTIVES"] {
+                                let enabled = match tab {
+                                    "SPELLS" => self.settings.hud_enemy_spell_timers,
+                                    "CAMPS" => self.settings.hud_manual_camp_timers,
+                                    _ => self.settings.hud_objective_timers,
+                                };
+                                if enabled
+                                    && filter_chip(
+                                        ui,
+                                        tab,
+                                        self.overlay_timer_tab == tab,
+                                        if tab == "SPELLS" { CYAN } else { GOLD },
+                                    )
+                                    .clicked()
+                                {
+                                    self.overlay_timer_tab = tab.to_string();
+                                }
+                            }
+                        });
+                        ui.separator();
+                        let max_height = (area.height() - 365.0).clamp(180.0, 420.0);
+                        ScrollArea::vertical()
+                            .id_salt("riftcore-overlay-timer-list")
+                            .max_height(max_height)
+                            .show(ui, |ui| match self.overlay_timer_tab.as_str() {
+                                "CAMPS" if self.settings.hud_manual_camp_timers => {
+                                    render_manual_camp_timers(ui, &mut self.manual_spell_timers);
+                                }
+                                "OBJECTIVES" if self.settings.hud_objective_timers => {
+                                    render_objective_timer_cards(ui, live);
+                                }
+                                _ if self.settings.hud_enemy_spell_timers => {
+                                    render_enemy_spell_timers(
+                                        ui,
+                                        live,
+                                        &mut self.manual_spell_timers,
+                                    );
+                                }
+                                _ => {
+                                    ui.label(
+                                        RichText::new(
+                                            "Enable a timer section in Settings → Overlay.",
+                                        )
+                                        .size(10.0)
+                                        .color(SECONDARY),
+                                    );
+                                }
+                            });
+                        ui.label(
+                            RichText::new(
+                                "Spell times use base cooldowns; summoner haste is not inferred.",
+                            )
+                            .size(8.5)
+                            .color(MUTED),
+                        );
+                    });
+            });
+        self.overlay_interactive_regions
+            .push(response.response.rect);
+        if response.response.drag_stopped() {
+            self.settings.hud_positions.insert(
+                "timers".to_string(),
+                [response.response.rect.min.x, response.response.rect.min.y],
+            );
+            self.save_settings();
+        }
+        if close {
+            self.show_overlay_timers = false;
+        }
+        if copy_callout {
+            let game_time = live
+                .and_then(|data| data.get("gameData"))
+                .and_then(|data| data.get("gameTime"))
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0) as u64;
+            let now = Instant::now();
+            let mut callouts = Vec::new();
+            if let Some(live) = live {
+                for (role, champion, spell_one, spell_two, player_key) in
+                    enemy_summoner_spells(live)
+                {
+                    for (index, spell) in [spell_one, spell_two].into_iter().enumerate() {
+                        let key = format!("enemy-spell-{player_key}-{index}");
+                        if let Some(remaining) = self
+                            .manual_spell_timers
+                            .get(&key)
+                            .map(|end| end.saturating_duration_since(now).as_secs())
+                            .filter(|seconds| *seconds > 0)
+                        {
+                            callouts.push(format!(
+                                "{} {} {} {}",
+                                role.to_lowercase(),
+                                champion,
+                                spell.to_lowercase(),
+                                format_hud_clock(game_time + remaining)
+                            ));
+                        }
+                    }
+                }
+                for (label, timer) in objective_timers(live) {
+                    callouts.push(format!("{} {}", label.to_lowercase(), timer));
+                }
+            }
+            let message = if callouts.is_empty() {
+                "[RiftCore] No active timers".to_string()
+            } else {
+                format!("[RiftCore] {}", callouts.join(" | "))
+            };
+            ctx.copy_text(message);
+            self.set_notice("Timer call-out copied to clipboard");
+        }
+    }
+
     fn render_overlay(&mut self, ui: &mut egui::Ui) {
         self.overlay_interactive_regions.clear();
         let ctx = ui.ctx().clone();
@@ -5670,6 +6052,21 @@ impl RiftCoreApp {
                                             self.show_overlay_build = !self.show_overlay_build;
                                             if self.show_overlay_build {
                                                 self.show_mayhem_cards = false;
+                                                self.show_overlay_timers = false;
+                                            }
+                                        }
+                                        if action_button(
+                                            ui,
+                                            "TIMERS",
+                                            self.show_overlay_timers,
+                                            GOLD,
+                                        )
+                                        .clicked()
+                                        {
+                                            self.show_overlay_timers = !self.show_overlay_timers;
+                                            if self.show_overlay_timers {
+                                                self.show_overlay_build = false;
+                                                self.show_mayhem_cards = false;
                                             }
                                         }
                                         if self.settings.hud_jungle_pathing
@@ -5775,6 +6172,9 @@ impl RiftCoreApp {
                 if self.show_mayhem_cards {
                     self.render_mayhem_overlay(&ctx, area);
                 }
+                if self.show_overlay_timers {
+                    self.render_overlay_timers(&ctx, area, live);
+                }
             });
     }
 }
@@ -5827,6 +6227,19 @@ impl eframe::App for RiftCoreApp {
                 }
             }
             self.snapshot = snapshot;
+            if self.snapshot.phase == "ChampSelect" {
+                let selected_lcu_champion = self
+                    .snapshot
+                    .champ_select
+                    .as_ref()
+                    .and_then(champ_select_local_champion)
+                    .unwrap_or(0);
+                if selected_lcu_champion > 0 && selected_lcu_champion != self.last_synced_champion {
+                    self.select_champion_setup(selected_lcu_champion, true);
+                }
+            } else {
+                self.last_synced_champion = 0;
+            }
         }
         if self
             .snapshot
@@ -5979,6 +6392,49 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
         .show(ui, |ui| {
             ui.label(RichText::new(text).size(10.5).strong().color(color));
         });
+}
+
+fn filter_chip(ui: &mut egui::Ui, text: &str, selected: bool, accent: Color32) -> egui::Response {
+    let width = (text.chars().count() as f32 * 6.2 + 22.0).max(44.0);
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 28.0), Sense::click());
+    let hovered =
+        ui.ctx()
+            .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
+    let active = ui
+        .ctx()
+        .animate_bool_with_time(response.id.with("selected"), selected, 0.16);
+    let emphasis = active.max(hovered * 0.5);
+    ui.painter().rect_filled(
+        rect,
+        egui::CornerRadius::same(8),
+        lerp_color(CARD, Color32::from_rgb(16, 45, 58), emphasis),
+    );
+    ui.painter().rect_stroke(
+        rect,
+        egui::CornerRadius::same(8),
+        Stroke::new(0.8 + active * 0.5, lerp_color(BORDER, accent, emphasis)),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        text,
+        FontId::proportional(9.5),
+        lerp_color(SECONDARY, accent, active),
+    );
+    response
+}
+
+fn lerp_color(start: Color32, end: Color32, amount: f32) -> Color32 {
+    let amount = amount.clamp(0.0, 1.0);
+    let channel =
+        |from: u8, to: u8| (from as f32 + (to as f32 - from as f32) * amount).round() as u8;
+    Color32::from_rgba_unmultiplied(
+        channel(start.r(), end.r()),
+        channel(start.g(), end.g()),
+        channel(start.b(), end.b()),
+        channel(start.a(), end.a()),
+    )
 }
 
 fn titlebar_badge(ui: &mut egui::Ui, text: &str, color: Color32) {
@@ -6599,6 +7055,314 @@ fn allied_teammates(live: &Value) -> Vec<(String, String, String)> {
         .collect()
 }
 
+fn enemy_summoner_spells(live: &Value) -> Vec<(String, String, String, String, String)> {
+    let Some(players) = live.get("allPlayers").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let active = live.get("activePlayer").unwrap_or(&Value::Null);
+    let active_riot_id = active.get("riotId").and_then(Value::as_str);
+    let active_name = active
+        .get("summonerName")
+        .or_else(|| active.get("riotIdGameName"))
+        .and_then(Value::as_str);
+    let active_champion = active.get("championName").and_then(Value::as_str);
+    let own_team = players
+        .iter()
+        .find(|player| {
+            active_riot_id
+                .zip(player.get("riotId").and_then(Value::as_str))
+                .is_some_and(|(active_id, player_id)| active_id == player_id)
+                || active_name
+                    .zip(player.get("summonerName").and_then(Value::as_str))
+                    .is_some_and(|(active_name, player_name)| active_name == player_name)
+                || (active_name.is_none()
+                    && active_riot_id.is_none()
+                    && active_champion
+                        .zip(player.get("championName").and_then(Value::as_str))
+                        .is_some_and(|(active_champ, player_champ)| active_champ == player_champ))
+        })
+        .and_then(|player| player.get("team"))
+        .and_then(Value::as_str);
+    let Some(own_team) = own_team else {
+        return Vec::new();
+    };
+    let fallback_roles = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
+
+    players
+        .iter()
+        .enumerate()
+        .filter(|(_, player)| {
+            player
+                .get("team")
+                .and_then(Value::as_str)
+                .is_some_and(|team| !team.eq_ignore_ascii_case(own_team))
+        })
+        .take(5)
+        .map(|(index, player)| {
+            let champion = player
+                .get("championName")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .unwrap_or("Enemy")
+                .to_string();
+            let role = player
+                .get("position")
+                .or_else(|| player.get("assignedPosition"))
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty() && *value != "Invalid")
+                .map(str::to_ascii_uppercase)
+                .unwrap_or_else(|| fallback_roles[index % fallback_roles.len()].to_string());
+            let spells = player.get("summonerSpells").unwrap_or(&Value::Null);
+            let spell_name = |slot: &str| {
+                spells
+                    .get(slot)
+                    .and_then(|spell| spell.get("displayName"))
+                    .and_then(Value::as_str)
+                    .map(normalize_summoner_spell)
+                    .unwrap_or_else(|| "Unknown spell".to_string())
+            };
+            let player_key = player
+                .get("riotId")
+                .or_else(|| player.get("summonerName"))
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .unwrap_or_else(|| format!("{champion}-{index}"));
+            (
+                role,
+                champion,
+                spell_name("summonerSpellOne"),
+                spell_name("summonerSpellTwo"),
+                player_key,
+            )
+        })
+        .collect()
+}
+
+fn normalize_summoner_spell(raw_name: &str) -> String {
+    let normalized = raw_name
+        .strip_prefix("Summoner")
+        .unwrap_or(raw_name)
+        .to_ascii_lowercase();
+    [
+        ("flash", "Flash"),
+        ("teleport", "Teleport"),
+        ("ghost", "Ghost"),
+        ("heal", "Heal"),
+        ("barrier", "Barrier"),
+        ("exhaust", "Exhaust"),
+        ("ignite", "Ignite"),
+        ("cleanse", "Cleanse"),
+        ("smite", "Smite"),
+        ("mark", "Mark"),
+        ("snowball", "Mark"),
+        ("clarity", "Clarity"),
+    ]
+    .iter()
+    .find_map(|(needle, label)| normalized.contains(needle).then_some((*label).to_string()))
+    .unwrap_or_else(|| raw_name.to_string())
+}
+
+fn summoner_spell_cooldown(spell: &str) -> u64 {
+    let spell = spell.to_ascii_lowercase();
+    if spell.contains("flash") {
+        300
+    } else if spell.contains("teleport") {
+        360
+    } else if spell.contains("ghost") || spell.contains("heal") {
+        240
+    } else if spell.contains("barrier") {
+        180
+    } else if spell.contains("exhaust") || spell.contains("cleanse") {
+        210
+    } else if spell.contains("ignite") {
+        180
+    } else if spell.contains("smite") {
+        90
+    } else if spell.contains("mark") || spell.contains("snowball") {
+        80
+    } else if spell.contains("clarity") {
+        144
+    } else {
+        300
+    }
+}
+
+fn render_enemy_spell_timers(
+    ui: &mut egui::Ui,
+    live: Option<&Value>,
+    timers: &mut HashMap<String, Instant>,
+) {
+    let Some(live) = live else {
+        ui.label(
+            RichText::new("Waiting for live game data.")
+                .size(10.0)
+                .color(SECONDARY),
+        );
+        return;
+    };
+    let enemies = enemy_summoner_spells(live);
+    if enemies.is_empty() {
+        ui.label(
+            RichText::new("Enemy spell data is not available yet.")
+                .size(10.0)
+                .color(SECONDARY),
+        );
+        return;
+    }
+    let now = Instant::now();
+    for (role, champion, spell_one, spell_two, player_key) in enemies {
+        Frame::new()
+            .fill(Color32::from_rgba_unmultiplied(13, 20, 31, 230))
+            .stroke(Stroke::new(1.0, BORDER))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::symmetric(8, 6))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [94.0, 30.0],
+                        egui::Label::new(
+                            RichText::new(format!("{role}  {champion}"))
+                                .size(9.5)
+                                .strong()
+                                .color(TEXT),
+                        )
+                        .wrap(),
+                    );
+                    for (index, spell) in [spell_one.as_str(), spell_two.as_str()]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        let key = format!("enemy-spell-{player_key}-{index}");
+                        let remaining = timers
+                            .get(&key)
+                            .map(|ready_at| ready_at.saturating_duration_since(now).as_secs())
+                            .unwrap_or(0);
+                        let label = if remaining > 0 {
+                            format!("{spell}  {}", format_hud_clock(remaining))
+                        } else {
+                            format!("{spell}  START")
+                        };
+                        if ui
+                            .add_sized(
+                                [132.0, 30.0],
+                                egui::Button::new(
+                                    RichText::new(label)
+                                        .size(9.0)
+                                        .strong()
+                                        .color(if remaining > 0 { RED } else { GREEN }),
+                                ),
+                            )
+                            .clicked()
+                        {
+                            if remaining > 0 {
+                                timers.remove(&key);
+                            } else {
+                                timers.insert(
+                                    key,
+                                    now + Duration::from_secs(summoner_spell_cooldown(spell)),
+                                );
+                            }
+                        }
+                    }
+                });
+            });
+        ui.add_space(4.0);
+    }
+}
+
+fn render_manual_camp_timers(ui: &mut egui::Ui, timers: &mut HashMap<String, Instant>) {
+    let camps = [
+        ("BLUE BUFF", 300),
+        ("GROMP", 135),
+        ("WOLVES", 135),
+        ("RAPTORS", 135),
+        ("RED BUFF", 300),
+        ("KRUGS", 135),
+        ("SCUTTLE", 150),
+    ];
+    ui.label(
+        RichText::new("Click a camp when it dies to start its respawn timer.")
+            .size(9.5)
+            .color(SECONDARY),
+    );
+    ui.add_space(5.0);
+    for (camp, duration) in camps {
+        let key = format!(
+            "jungle-camp-{}",
+            camp.to_ascii_lowercase().replace(' ', "-")
+        );
+        let remaining = timers
+            .get(&key)
+            .map(|ready_at| ready_at.saturating_duration_since(Instant::now()).as_secs())
+            .unwrap_or(0);
+        ui.horizontal(|ui| {
+            ui.add_sized(
+                [115.0, 31.0],
+                egui::Label::new(RichText::new(camp).size(9.5).strong().color(TEXT)),
+            );
+            let label = if remaining > 0 {
+                format!("RESPAWNS  {}  ·  RESET", format_hud_clock(remaining))
+            } else {
+                format!("START  {}", format_hud_clock(duration))
+            };
+            if ui
+                .add_sized(
+                    [240.0, 31.0],
+                    egui::Button::new(
+                        RichText::new(label)
+                            .size(9.5)
+                            .strong()
+                            .color(if remaining > 0 { RED } else { GREEN }),
+                    ),
+                )
+                .clicked()
+            {
+                if remaining > 0 {
+                    timers.remove(&key);
+                } else {
+                    timers.insert(key, Instant::now() + Duration::from_secs(duration));
+                }
+            }
+        });
+    }
+}
+
+fn render_objective_timer_cards(ui: &mut egui::Ui, live: Option<&Value>) {
+    let Some(live) = live else {
+        ui.label(
+            RichText::new("Waiting for live game data.")
+                .size(10.0)
+                .color(SECONDARY),
+        );
+        return;
+    };
+    for (label, timer) in objective_timers(live) {
+        let ready = timer == "READY";
+        let display_timer = if ready { "ALIVE" } else { timer.as_str() };
+        Frame::new()
+            .fill(Color32::from_rgba_unmultiplied(13, 20, 31, 230))
+            .stroke(Stroke::new(1.0, if ready { GREEN } else { BORDER }))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::symmetric(10, 8))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(label).size(10.0).strong().color(GOLD));
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.label(
+                            RichText::new(display_timer)
+                                .size(13.0)
+                                .monospace()
+                                .strong()
+                                .color(if ready { GREEN } else { TEXT }),
+                        );
+                    });
+                });
+            });
+        ui.add_space(5.0);
+    }
+}
+
 fn render_minimap_guide_pins(
     ctx: &egui::Context,
     area: egui::Rect,
@@ -6741,12 +7505,12 @@ fn render_minimap_guide_pins(
 
     if settings.hud_map_ward_pins {
         for (label, x, y) in [
-            ("W", 70.0, 35.0),
-            ("W", 29.5, 64.0),
-            ("W", 65.5, 29.5),
-            ("W", 34.0, 69.5),
-            ("W", 25.5, 52.5),
-            ("W", 52.0, 27.0),
+            ("W", 62.0, 40.0),
+            ("W", 38.0, 60.0),
+            ("W", 80.0, 75.0),
+            ("W", 20.0, 25.0),
+            ("W", 64.0, 84.0),
+            ("W", 36.0, 16.0),
         ] {
             let center = map_point(x, y);
             painter.circle_filled(center, 7.0, Color32::from_rgb(8, 85, 62));
@@ -6773,23 +7537,26 @@ fn render_minimap_guide_pins(
             (pit_label, 34.0, 69.5, timers[1].1.as_str()),
         ] {
             let center = map_point(x, y);
-            let marker = egui::Rect::from_center_size(center, Vec2::new(40.0, 15.0));
+            painter.circle_stroke(center, 12.0, Stroke::new(1.6, GOLD));
+            painter.circle_filled(center, 2.5, GOLD);
+            let label_center = center + Vec2::new(31.0, 20.0);
+            let marker = egui::Rect::from_center_size(label_center, Vec2::new(50.0, 17.0));
             painter.rect_filled(
                 marker,
-                egui::CornerRadius::same(4),
+                egui::CornerRadius::same(7),
                 Color32::from_rgba_unmultiplied(6, 13, 24, 235),
             );
             painter.rect_stroke(
                 marker,
-                egui::CornerRadius::same(4),
+                egui::CornerRadius::same(7),
                 Stroke::new(1.0, GOLD),
                 egui::StrokeKind::Inside,
             );
             painter.text(
-                center,
+                label_center,
                 egui::Align2::CENTER_CENTER,
                 format!("{label} {timer}"),
-                FontId::proportional(7.5),
+                FontId::proportional(8.0),
                 TEXT,
             );
         }
@@ -6820,6 +7587,51 @@ fn session_picks(session: &Value, team_key: &str) -> [u32; 5] {
         }
     }
     picks
+}
+
+fn champ_select_local_champion(session: &Value) -> Option<u32> {
+    let local_cell = session.get("localPlayerCellId").and_then(Value::as_u64)?;
+    let selected_from_member = session
+        .get("myTeam")
+        .and_then(Value::as_array)
+        .and_then(|team| {
+            team.iter()
+                .find(|member| member.get("cellId").and_then(Value::as_u64) == Some(local_cell))
+        })
+        .and_then(|member| {
+            member
+                .get("championId")
+                .and_then(Value::as_u64)
+                .filter(|champion_id| *champion_id > 0)
+                .or_else(|| {
+                    member
+                        .get("championPickIntent")
+                        .and_then(Value::as_u64)
+                        .filter(|champion_id| *champion_id > 0)
+                })
+        });
+    if selected_from_member.is_some() {
+        return selected_from_member.map(|champion_id| champion_id as u32);
+    }
+    session
+        .get("actions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .flat_map(|group| {
+            group
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(std::slice::from_ref(group))
+        })
+        .find(|action| {
+            action.get("actorCellId").and_then(Value::as_u64) == Some(local_cell)
+                && action.get("type").and_then(Value::as_str) == Some("pick")
+        })
+        .and_then(|action| action.get("championId"))
+        .and_then(Value::as_u64)
+        .filter(|champion_id| *champion_id > 0)
+        .map(|champion_id| champion_id as u32)
 }
 
 fn render_draft_team(
@@ -6933,6 +7745,20 @@ fn rune_options(tree: u32, row: usize) -> Vec<(i64, String)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn rune_id_preferred(tree: u32, row: usize, preferred_names: &[&str]) -> i64 {
+    let options = rune_options(tree, row);
+    preferred_names
+        .iter()
+        .find_map(|preferred| {
+            options
+                .iter()
+                .find(|(_, name)| name.to_lowercase().contains(&preferred.to_lowercase()))
+                .map(|(id, _)| *id)
+        })
+        .or_else(|| options.first().map(|(id, _)| *id))
+        .unwrap_or(5008)
 }
 
 fn rune_row(tree: u32, rune_id: i64) -> Option<usize> {
