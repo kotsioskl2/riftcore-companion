@@ -1,22 +1,16 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.8
+       RIFTCORE COMPANION - UPDATE v2.0.9
 --------------------------------------------------
 
-* Compact desktop header:
-  - Reduced the title bar to 38 logical pixels.
-  - Tightened the logo, wordmark, status badge and window controls.
-  - Made the close icon smaller and muted until hover.
+* Update-screen window controls:
+  - Keep drag, maximize, restore and close controls usable while What's New and the first-run tour are open.
+  - Let the title bar drag from its open areas and toggle between maximize and restore.
 
-* HUD input and visibility:
-  - Added smart click-through so gameplay clicks pass through open overlay areas while HUD controls remain interactive.
+* HUD and interface fixes:
+  - Reduced the title bar to 38 logical pixels and made the close icon smaller and muted until hover.
+  - Added smart HUD click-through while preserving clickable HUD controls.
   - Reinforced the native overlay's topmost, no-activate window behavior.
-  - Added a reminder that the desktop HUD needs League in Borderless or Windowed mode.
-
-* League rune import:
   - Report rune-page read, save and activation errors from the League Client.
-  - Avoid creating duplicate RiftCore pages when an existing page cannot be updated.
-
-* Interface spacing:
-  - Tightened navigation, panels, controls and typography across the app.
+  - Tightened spacing across navigation, panels and controls.
 
 --------------------------------------------------

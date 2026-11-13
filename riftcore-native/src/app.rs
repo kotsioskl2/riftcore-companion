@@ -516,6 +516,17 @@ impl RiftCoreApp {
             )
             .show(ui, |ui| {
                 let header_size = Vec2::new(ui.available_width(), ui.available_height());
+                let drag_response = ui.interact(
+                    ui.max_rect().shrink(1.0),
+                    egui::Id::unique("riftcore-titlebar-drag-area"),
+                    Sense::click_and_drag(),
+                );
+                if drag_response.drag_started() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                } else if drag_response.double_clicked() {
+                    let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                }
                 ui.allocate_ui_with_layout(
                     header_size,
                     Layout::left_to_right(Align::Center),
@@ -564,8 +575,12 @@ impl RiftCoreApp {
                             if window_button(ui, "×", RED).clicked() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             }
-                            if window_button(ui, "□", SECONDARY).clicked() {
-                                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+                            let maximized =
+                                ctx.input(|input| input.viewport().maximized.unwrap_or(false));
+                            if window_button(ui, if maximized { "❐" } else { "□" }, SECONDARY)
+                                .clicked()
+                            {
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
                             }
                             if window_button(ui, "—", SECONDARY).clicked() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
@@ -4489,9 +4504,31 @@ impl RiftCoreApp {
         });
     }
     fn render_dialogs(&mut self, ctx: &egui::Context) {
+        if self.show_whats_new || self.show_quick_tour {
+            let viewport = ctx.content_rect();
+            let content = egui::Rect::from_min_max(
+                egui::pos2(
+                    viewport.left(),
+                    (viewport.top() + 38.0).min(viewport.bottom()),
+                ),
+                viewport.max,
+            );
+            ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::unique("riftcore-update-backdrop"),
+            ))
+            .rect_filled(content, 0.0, Color32::from_black_alpha(95));
+        }
         if self.show_whats_new {
             let mut dismissed = false;
-            egui::Modal::new(egui::Id::unique("riftcore-whats-new"))
+            egui::Window::new("What's new")
+                .id(egui::Id::unique("riftcore-whats-new"))
+                .title_bar(false)
+                .collapsible(false)
+                .resizable(false)
+                .movable(false)
+                .order(egui::Order::Foreground)
+                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
                 .frame(Frame::new().fill(SURFACE).stroke(Stroke::new(1.0, BORDER)).corner_radius(egui::CornerRadius::same(16)).inner_margin(egui::Margin::same(22)))
                 .show(ctx, |ui| {
                     ui.set_min_width(520.0);
@@ -4534,7 +4571,14 @@ impl RiftCoreApp {
         if self.show_quick_tour {
             let mut close = false;
             let mut open_champ_select = false;
-            egui::Modal::new(egui::Id::unique("riftcore-quick-tour"))
+            egui::Window::new("Quick tour")
+                .id(egui::Id::unique("riftcore-quick-tour"))
+                .title_bar(false)
+                .collapsible(false)
+                .resizable(false)
+                .movable(false)
+                .order(egui::Order::Foreground)
+                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
                 .frame(Frame::new().fill(SURFACE).stroke(Stroke::new(1.0, BORDER)).corner_radius(egui::CornerRadius::same(16)).inner_margin(egui::Margin::same(22)))
                 .show(ctx, |ui| {
                     ui.set_min_width(570.0);
@@ -5849,8 +5893,10 @@ impl eframe::App for RiftCoreApp {
         }
 
         self.render_titlebar(ui);
-        self.render_sidebar(ui);
-        self.render_main(ui);
+        ui.add_enabled_ui(!self.show_whats_new && !self.show_quick_tour, |ui| {
+            self.render_sidebar(ui);
+            self.render_main(ui);
+        });
         self.render_dialogs(&ctx);
         self.render_overlay_viewport(&ctx);
         ctx.request_repaint_after(Duration::from_millis(if self.overlay_mode {
