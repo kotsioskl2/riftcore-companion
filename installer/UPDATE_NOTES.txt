@@ -1,6 +1,11 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.0.5
+       RIFTCORE COMPANION - UPDATE v2.0.6
 --------------------------------------------------
+
+* Native app polish:
+  - Organized Settings into Gameplay, Overlay, Riot API and App sections.
+  - Refined navigation spacing and restored emoji-capable sidebar icons.
+  - Improved native HUD click-through handling when the overlay is shown.
 
 * Native desktop interface:
   - Rebuilt the application shell in Rust with a native egui renderer.

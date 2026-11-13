@@ -13,7 +13,10 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "RiftCore Companion"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "2.0.5"
+  !define PRODUCT_VERSION "2.0.6"
+!endif
+!ifndef PORTABLE_DIR
+  !define PORTABLE_DIR "..\RiftCore_Rust_Portable"
 !endif
 !define PRODUCT_PUBLISHER "RiftCore Team"
 !define PRODUCT_WEB_SITE "https://github.com/kotsioskl2/riftcore-companion"
@@ -133,7 +136,7 @@ Section "MainSection" SEC01
   SetOverwrite on
 
   DetailPrint "Extracting core application binaries..."
-  File /r "..\RiftCore_Rust_Portable\*.*"
+  File /r "${PORTABLE_DIR}\*.*"
   File "UPDATE_NOTES.txt"
 
   ; Create Uninstaller

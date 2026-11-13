@@ -10,19 +10,19 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
-const BG: Color32 = Color32::from_rgb(8, 12, 21);
-const SURFACE: Color32 = Color32::from_rgb(13, 19, 30);
-const CARD: Color32 = Color32::from_rgb(18, 27, 41);
-const RAISED: Color32 = Color32::from_rgb(27, 39, 57);
-const CYAN: Color32 = Color32::from_rgb(56, 211, 238);
-const CYAN_DIM: Color32 = Color32::from_rgb(13, 47, 60);
-const RED: Color32 = Color32::from_rgb(255, 42, 95);
-const GOLD: Color32 = Color32::from_rgb(229, 184, 105);
-const GREEN: Color32 = Color32::from_rgb(16, 185, 129);
-const TEXT: Color32 = Color32::from_rgb(244, 248, 252);
-const SECONDARY: Color32 = Color32::from_rgb(169, 181, 199);
-const MUTED: Color32 = Color32::from_rgb(105, 121, 143);
-const BORDER: Color32 = Color32::from_rgb(43, 56, 75);
+const BG: Color32 = Color32::from_rgb(10, 14, 21);
+const SURFACE: Color32 = Color32::from_rgb(15, 21, 30);
+const CARD: Color32 = Color32::from_rgb(21, 29, 40);
+const RAISED: Color32 = Color32::from_rgb(29, 39, 53);
+const CYAN: Color32 = Color32::from_rgb(103, 208, 213);
+const CYAN_DIM: Color32 = Color32::from_rgb(25, 53, 59);
+const RED: Color32 = Color32::from_rgb(240, 100, 126);
+const GOLD: Color32 = Color32::from_rgb(227, 184, 119);
+const GREEN: Color32 = Color32::from_rgb(78, 190, 146);
+const TEXT: Color32 = Color32::from_rgb(239, 242, 247);
+const SECONDARY: Color32 = Color32::from_rgb(171, 182, 197);
+const MUTED: Color32 = Color32::from_rgb(121, 136, 154);
+const BORDER: Color32 = Color32::from_rgb(36, 46, 60);
 const OVERLAY_WINDOW_TITLE: &str = "RiftCore In-Game HUD";
 
 fn overlay_viewport_id() -> egui::ViewportId {
@@ -64,6 +64,14 @@ enum Page {
     ChampionPool,
     Profile,
     Settings,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SettingsSection {
+    Gameplay,
+    Overlay,
+    RiotApi,
+    App,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -114,6 +122,7 @@ pub struct RiftCoreApp {
     mayhem_tier: String,
     mayhem_mode: String,
     active_page: Page,
+    settings_section: SettingsSection,
     overlay_mode: bool,
     overlay_auto_entered: bool,
     overlay_waiting_for_window: bool,
@@ -162,18 +171,18 @@ impl RiftCoreApp {
         visuals.selection.stroke = Stroke::new(1.0, CYAN);
         creation.egui_ctx.set_visuals(visuals);
         creation.egui_ctx.style_mut_of(egui::Theme::Dark, |style| {
-            style.spacing.item_spacing = Vec2::new(10.0, 11.0);
-            style.spacing.button_padding = Vec2::new(13.0, 8.0);
-            style.spacing.interact_size.y = 36.0;
+            style.spacing.item_spacing = Vec2::new(11.0, 12.0);
+            style.spacing.button_padding = Vec2::new(14.0, 9.0);
+            style.spacing.interact_size.y = 38.0;
             style
                 .text_styles
-                .insert(egui::TextStyle::Body, FontId::proportional(14.0));
+                .insert(egui::TextStyle::Body, FontId::proportional(15.0));
             style
                 .text_styles
                 .insert(egui::TextStyle::Button, FontId::proportional(13.5));
             style
                 .text_styles
-                .insert(egui::TextStyle::Small, FontId::proportional(12.0));
+                .insert(egui::TextStyle::Small, FontId::proportional(12.5));
             style
                 .text_styles
                 .insert(egui::TextStyle::Monospace, FontId::monospace(13.5));
@@ -278,6 +287,7 @@ impl RiftCoreApp {
             mayhem_tier: "ALL".to_string(),
             mayhem_mode: "Both".to_string(),
             active_page: Page::ChampSelect,
+            settings_section: SettingsSection::Gameplay,
             overlay_mode: false,
             overlay_auto_entered: false,
             overlay_waiting_for_window: false,
@@ -364,18 +374,28 @@ impl RiftCoreApp {
     }
 
     fn render_overlay_viewport(&mut self, ctx: &egui::Context) {
-        let Some(target) = self.overlay_target else {
+        if !self.overlay_mode {
             if self.overlay_viewport_open {
                 ctx.send_viewport_cmd_to(overlay_viewport_id(), egui::ViewportCommand::Close);
                 self.overlay_viewport_open = false;
             }
             return;
-        };
-        if !self.overlay_mode || !self.overlay_target_is_foreground {
+        }
+
+        let Some(target) = self.overlay_target else {
             if self.overlay_viewport_open {
-                ctx.send_viewport_cmd_to(overlay_viewport_id(), egui::ViewportCommand::Close);
-                self.overlay_viewport_open = false;
+                ctx.send_viewport_cmd_to(
+                    overlay_viewport_id(),
+                    egui::ViewportCommand::Visible(false),
+                );
             }
+            return;
+        };
+
+        // Keep the native viewport alive between focus changes; only hide it
+        // while another window is in front of the game.
+        let visible = self.overlay_target_is_foreground;
+        if !visible && !self.overlay_viewport_open {
             return;
         }
 
@@ -416,6 +436,8 @@ impl RiftCoreApp {
             };
         let width = width_px / scale;
         let height = height_px / scale;
+        let initialize_mouse_passthrough =
+            !self.overlay_viewport_open && self.overlay_mouse_passthrough;
         let builder = egui::ViewportBuilder::default()
             .with_title(OVERLAY_WINDOW_TITLE)
             .with_decorations(false)
@@ -424,21 +446,21 @@ impl RiftCoreApp {
             .with_taskbar(false)
             .with_active(false)
             .with_always_on_top()
-            .with_mouse_passthrough(
-                self.overlay_mouse_passthrough && self.settings.hud_mode == "integrated",
-            )
             .with_position(egui::pos2(
                 (left as f32 + offset_x) / scale,
                 (top as f32 + offset_y) / scale,
             ))
             .with_inner_size(Vec2::new(width, height))
-            .with_visible(true);
+            .with_visible(visible);
 
         let close_requested =
             ctx.show_viewport_immediate(overlay_viewport_id(), builder, |overlay_ui, _class| {
                 let overlay_ctx = overlay_ui.ctx().clone();
                 let close_requested = overlay_ctx.input(|input| input.viewport().close_requested());
-                if !close_requested {
+                if initialize_mouse_passthrough {
+                    overlay_ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(true));
+                }
+                if !close_requested && visible {
                     self.render_overlay(overlay_ui);
                 }
                 close_requested
@@ -452,19 +474,19 @@ impl RiftCoreApp {
             self.set_notice("HUD overlay closed");
             self.overlay_viewport_open = false;
         } else {
-            self.overlay_viewport_open = self.overlay_mode && self.overlay_target_is_foreground;
+            self.overlay_viewport_open = true;
         }
     }
 
     fn render_titlebar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         egui::Panel::top("titlebar")
-            .exact_size(62.0)
+            .exact_size(68.0)
             .frame(
                 Frame::new()
                     .fill(SURFACE)
                     .stroke(Stroke::new(1.0, BORDER))
-                    .inner_margin(egui::Margin::symmetric(20, 0)),
+                    .inner_margin(egui::Margin::symmetric(24, 0)),
             )
             .show(ui, |ui| {
                 let header_size = Vec2::new(ui.available_width(), ui.available_height());
@@ -472,13 +494,13 @@ impl RiftCoreApp {
                     header_size,
                     Layout::left_to_right(Align::Center),
                     |ui| {
-                        let logo = egui::Image::new((self.logo_texture.id(), Vec2::splat(40.0)))
+                        let logo = egui::Image::new((self.logo_texture.id(), Vec2::splat(42.0)))
                             .corner_radius(egui::CornerRadius::same(10))
                             .sense(Sense::click_and_drag());
                         if ui.add(logo).drag_started() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
-                        ui.add_space(10.0);
+                        ui.add_space(12.0);
                         ui.vertical(|ui| {
                             let brand = ui.add(
                                 egui::Label::new(
@@ -580,7 +602,7 @@ impl RiftCoreApp {
 
     fn render_sidebar(&mut self, ui: &mut egui::Ui) {
         egui::Panel::left("navigation")
-            .exact_size(260.0)
+            .exact_size(248.0)
             .resizable(false)
             .frame(
                 Frame::new()
@@ -591,18 +613,18 @@ impl RiftCoreApp {
             .show(ui, |ui| {
                 ScrollArea::vertical().id_salt("nav-scroll").show(ui, |ui| {
                     nav_section(ui, "MATCH & LIVE");
-                    self.nav_button(ui, Page::ChampSelect, "CS", "Champ Select", "LIVE", CYAN);
-                    self.nav_button(ui, Page::Draft, "DR", "Draft Coach", "SIM", RED);
-                    self.nav_button(ui, Page::Lobby, "LS", "Lobby Scout", "SMART", GREEN);
-                    self.nav_button(ui, Page::Hud, "HUD", "In-Game HUD", "", CYAN);
+                    self.nav_button(ui, Page::ChampSelect, "🎯", "Champ Select", "LIVE", CYAN);
+                    self.nav_button(ui, Page::Draft, "🧠", "Draft Coach", "SIM", RED);
+                    self.nav_button(ui, Page::Lobby, "👥", "Lobby Scout", "SMART", GREEN);
+                    self.nav_button(ui, Page::Hud, "🎮", "In-Game HUD", "", CYAN);
                     nav_section(ui, "GAME MODES & META");
-                    self.nav_button(ui, Page::Tft, "TFT", "TFT Companion", "TACTICS", GOLD);
-                    self.nav_button(ui, Page::Modes, "GM", "Arena & Modes", "MODES", GOLD);
-                    self.nav_button(ui, Page::TierList, "TL", "Tier List & Builds", "", CYAN);
-                    self.nav_button(ui, Page::ChampionPool, "POOL", "Champion Pool", "", CYAN);
-                    self.nav_button(ui, Page::Profile, "PR", "Profile & Analysis", "", CYAN);
+                    self.nav_button(ui, Page::Tft, "♟️", "TFT Companion", "TACTICS", GOLD);
+                    self.nav_button(ui, Page::Modes, "⚔️", "Arena & Modes", "MODES", GOLD);
+                    self.nav_button(ui, Page::TierList, "🏆", "Tier List & Builds", "", CYAN);
+                    self.nav_button(ui, Page::ChampionPool, "📚", "Champion Pool", "", CYAN);
+                    self.nav_button(ui, Page::Profile, "📈", "Profile & Analysis", "", CYAN);
                     nav_section(ui, "CONFIGURATION");
-                    self.nav_button(ui, Page::Settings, "SET", "Preferences", "", CYAN);
+                    self.nav_button(ui, Page::Settings, "⚙️", "Preferences", "", CYAN);
                     ui.add_space(4.0);
                     if action_button(ui, "QUICK TOUR", false, GOLD).clicked() {
                         self.show_quick_tour = true;
@@ -674,9 +696,9 @@ impl RiftCoreApp {
     ) {
         let selected = self.active_page == page;
         let (rect, response) =
-            ui.allocate_exact_size(Vec2::new(ui.available_width(), 43.0), Sense::click());
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), 46.0), Sense::click());
         let fill = if selected {
-            Color32::from_rgb(16, 39, 53)
+            Color32::from_rgb(22, 43, 54)
         } else if response.hovered() {
             Color32::from_rgb(23, 32, 46)
         } else {
@@ -684,24 +706,11 @@ impl RiftCoreApp {
         };
         ui.painter()
             .rect_filled(rect, egui::CornerRadius::same(9), fill);
-        ui.painter().rect_stroke(
-            rect,
-            egui::CornerRadius::same(9),
-            Stroke::new(
-                1.0,
-                if selected {
-                    Color32::from_rgb(35, 103, 122)
-                } else {
-                    Color32::TRANSPARENT
-                },
-            ),
-            egui::StrokeKind::Inside,
-        );
         if selected {
             ui.painter().rect_filled(
                 egui::Rect::from_min_max(
                     rect.min + Vec2::new(1.0, 9.0),
-                    rect.min + Vec2::new(4.0, rect.height() - 9.0),
+                    rect.min + Vec2::new(4.0, rect.height() - 11.0),
                 ),
                 egui::CornerRadius::same(2),
                 accent,
@@ -718,7 +727,7 @@ impl RiftCoreApp {
         );
         ui.painter().rect_filled(
             icon_rect,
-            egui::CornerRadius::same(7),
+            egui::CornerRadius::same(9),
             Color32::from_rgba_unmultiplied(
                 accent.r(),
                 accent.g(),
@@ -726,32 +735,18 @@ impl RiftCoreApp {
                 if selected { 48 } else { 24 },
             ),
         );
-        ui.painter().rect_stroke(
-            icon_rect,
-            egui::CornerRadius::same(7),
-            Stroke::new(
-                1.0,
-                Color32::from_rgba_unmultiplied(
-                    accent.r(),
-                    accent.g(),
-                    accent.b(),
-                    if selected { 110 } else { 55 },
-                ),
-            ),
-            egui::StrokeKind::Inside,
-        );
         ui.painter().text(
             egui::pos2(icon_rect.center().x, icon_rect.center().y),
             egui::Align2::CENTER_CENTER,
             icon,
-            FontId::proportional(if icon.len() > 2 { 9.0 } else { 10.5 }),
+            FontId::proportional(18.0),
             if selected { accent } else { SECONDARY },
         );
         ui.painter().text(
             egui::pos2(rect.left() + 42.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             label,
-            FontId::proportional(13.0),
+            FontId::proportional(14.0),
             foreground,
         );
         if !badge.is_empty() {
@@ -792,7 +787,7 @@ impl RiftCoreApp {
 
     fn render_main(&mut self, ui: &mut egui::Ui) {
         egui::CentralPanel::default()
-            .frame(Frame::new().fill(BG).inner_margin(egui::Margin::same(24)))
+            .frame(Frame::new().fill(BG).inner_margin(egui::Margin::same(28)))
             .show(ui, |ui| {
                 if let Some(until) = self.notice_until {
                     if Instant::now() < until {
@@ -960,9 +955,9 @@ impl RiftCoreApp {
     ) {
         Frame::new()
             .fill(SURFACE)
-            .stroke(Stroke::new(1.0, BORDER))
-            .corner_radius(egui::CornerRadius::same(14))
-            .inner_margin(egui::Margin::symmetric(22, 17))
+            .stroke(Stroke::new(0.0, Color32::TRANSPARENT))
+            .corner_radius(egui::CornerRadius::same(18))
+            .inner_margin(egui::Margin::symmetric(24, 20))
             .show(ui, |ui| {
                 let edge = egui::Rect::from_min_size(
                     ui.cursor().min + Vec2::new(-12.0, 7.0),
@@ -974,12 +969,12 @@ impl RiftCoreApp {
                     ui.vertical(|ui| {
                         ui.label(
                             RichText::new(eyebrow.to_uppercase())
-                                .size(10.5)
+                                .size(11.0)
                                 .strong()
                                 .color(CYAN),
                         );
-                        ui.label(RichText::new(title).size(28.0).strong().color(TEXT));
-                        ui.label(RichText::new(description).size(13.0).color(SECONDARY));
+                        ui.label(RichText::new(title).size(30.0).strong().color(TEXT));
+                        ui.label(RichText::new(description).size(14.0).color(SECONDARY));
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         badge(
@@ -994,7 +989,7 @@ impl RiftCoreApp {
                     });
                 });
             });
-        ui.add_space(18.0);
+        ui.add_space(22.0);
     }
 
     fn render_champ_select(&mut self, ui: &mut egui::Ui) {
@@ -4016,230 +4011,115 @@ impl RiftCoreApp {
             ui,
             "RIFTCORE CONTROL",
             "Preferences",
-            "Tune queue automation and native HUD behavior",
+            "Choose a category to manage gameplay, the HUD, Riot API, and app behavior",
         );
-        ui.columns(2, |columns| {
-            panel(&mut columns[0], |ui| {
-                panel_title(ui, "AUTOMATION", "Client actions");
-                let mut changed = false;
-                changed |= settings_row(ui, "Auto accept queue", &mut self.settings.auto_accept, "Accepts the League ready check automatically");
-                changed |= settings_row(ui, "Auto import runes", &mut self.settings.auto_import_runes, "Uses the currently selected rune page");
-                changed |= settings_row(ui, "Auto import summoner spells", &mut self.settings.auto_import_spells, "Applies your selected spells during champion select");
-                changed |= settings_row(ui, "Auto export item sets", &mut self.settings.auto_import_item_sets, "Adds the selected champion build to the League shop");
-                changed |= settings_row(ui, "Audio alerts", &mut self.settings.sound_alerts, "Play a cue when a ready check appears");
-                if changed {
-                    let _ = self.commands.send(CoreCommand::SetAutoAccept(self.settings.auto_accept));
-                    self.save_settings();
+
+        ui.horizontal_wrapped(|ui| {
+            for (section, label, accent) in [
+                (SettingsSection::Gameplay, "🎮  GAMEPLAY", CYAN),
+                (SettingsSection::Overlay, "🛡️  OVERLAY", GOLD),
+                (SettingsSection::RiotApi, "🔑  RIOT API", GREEN),
+                (SettingsSection::App, "⚙️  APP", SECONDARY),
+            ] {
+                if action_button(ui, label, self.settings_section == section, accent).clicked() {
+                    self.settings_section = section;
                 }
-            });
-            panel(&mut columns[1], |ui| {
-                panel_title(ui, "WINDOW & OVERLAY", "Native desktop behavior");
-                let top_changed = settings_row(ui, "Always on top", &mut self.settings.always_on_top, "Keep the companion above other windows");
-                if top_changed {
-                    self.pinned = self.settings.always_on_top;
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-                        if self.settings.always_on_top { egui::viewport::WindowLevel::AlwaysOnTop }
-                        else { egui::viewport::WindowLevel::Normal },
-                    ));
-                    self.save_settings();
-                }
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Overlay click-through").size(11.5).color(SECONDARY));
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.checkbox(&mut self.overlay_mouse_passthrough, "").changed() {
-                                    if self.overlay_viewport_open {
-                                        ui.ctx().send_viewport_cmd_to(
-                                            overlay_viewport_id(),
-                                            egui::ViewportCommand::MousePassthrough(self.overlay_mouse_passthrough),
-                                        );
-                                    }
-                        }
-                    });
-                });
-                ui.label(RichText::new("Alt + ~ toggles the HUD. Alt + Shift + ~ toggles click-through.").size(10.0).color(MUTED));
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Flash key").size(11.5).color(SECONDARY));
-                    let flash_changed = egui::ComboBox::from_id_salt("flash-slot")
-                        .selected_text(if self.settings.flash_slot_preference == "D" { "D" } else { "F" })
-                        .show_ui(ui, |ui| {
-                            let mut changed = false;
-                            changed |= ui.selectable_value(&mut self.settings.flash_slot_preference, "F".to_string(), "F").changed();
-                            changed |= ui.selectable_value(&mut self.settings.flash_slot_preference, "D".to_string(), "D").changed();
-                            changed
-                        }).inner.unwrap_or(false);
-                    if flash_changed { self.save_settings(); }
-                });
-                ui.add_space(8.0);
-                panel_title(ui, "RIOT API", "Player scouting and match history");
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Platform").size(11.0).color(SECONDARY));
-                    egui::ComboBox::from_id_salt("riot-region")
-                        .selected_text(self.settings.riot_region.to_ascii_uppercase())
-                        .show_ui(ui, |ui| {
-                            for region in ["eun1", "euw1", "na1", "kr", "br1", "la1", "la2", "oc1", "tr1", "ru", "jp1"] {
-                                ui.selectable_value(&mut self.settings.riot_region, region.to_string(), region.to_ascii_uppercase());
-                            }
-                        });
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("API key").size(11.0).color(SECONDARY));
-                    ui.add_sized([210.0, 27.0], egui::TextEdit::singleline(&mut self.settings.riot_api_key).password(true).hint_text("RGAPI-…"));
-                });
-                ui.horizontal(|ui| {
-                    if action_button(ui, "TEST API KEY", false, CYAN).clicked() {
-                        let _ = self.commands.send(CoreCommand::ValidateRiotApiKey {
-                            region: self.settings.riot_region.clone(),
-                            api_key: self.settings.riot_api_key.clone(),
-                        });
-                    }
-                    if let Some(status) = self.snapshot.riot_api_status.as_deref() {
-                        ui.label(RichText::new(status).size(9.5).color(if status.contains("verified") { GREEN } else { GOLD }));
-                    }
-                });
-                ui.label(RichText::new("The key is saved in your local RiftCore settings and sent only to Riot API endpoints.").size(9.0).color(MUTED));
-                ui.add_space(8.0);
-                panel_title(ui, "APP UPDATES", &format!("Installed version {}", env!("CARGO_PKG_VERSION")));
-                ui.horizontal(|ui| {
-                    if action_button(ui, "CHECK FOR UPDATES", false, CYAN).clicked() {
-                        let _ = self.commands.send(CoreCommand::CheckUpdates);
-                    }
-                    if let Some(status) = self.snapshot.update_status.as_deref() {
-                        let color = if status.contains("available") { GOLD } else if status.starts_with("Could not") || status.contains("error") { RED } else { GREEN };
-                        ui.label(RichText::new(status).size(9.5).color(color));
-                    }
-                });
-                if let Some(url) = self.snapshot.latest_release.as_ref()
-                    .and_then(|release| release.get("html_url"))
-                    .and_then(Value::as_str)
-                {
-                    if action_button(ui, "VIEW RELEASE PAGE", false, SECONDARY).clicked() {
-                        ui.ctx().open_url(egui::OpenUrl::new_tab(url));
-                    }
-                }
-                let update_available = self
-                    .snapshot
-                    .update_status
-                    .as_deref()
-                    .is_some_and(|status| status.contains("is available"));
-                if update_available {
-                    let release = self.snapshot.latest_release.as_ref();
-                    let has_auto_update = release
-                        .and_then(|release| release.get("assets"))
-                        .and_then(Value::as_array)
-                        .is_some_and(|assets| {
-                            assets.iter().any(|asset| {
-                                asset.get("name").and_then(Value::as_str) == Some("RiftCore.exe")
-                            })
-                        });
-                    let release_url = release
-                        .and_then(|release| release.get("html_url"))
-                        .and_then(Value::as_str);
-                    let update_busy = self
-                        .snapshot
-                        .update_status
-                        .as_deref()
-                        .is_some_and(|status| status.starts_with("Downloading update"));
-                    if action_button(
-                        ui,
-                        if update_busy {
-                            "DOWNLOADING UPDATE…"
-                        } else if has_auto_update {
-                            "UPDATE & RESTART"
-                        } else {
-                            "DOWNLOAD SETUP"
-                        },
-                        update_busy,
-                        CYAN,
-                    )
-                    .clicked()
-                        && !update_busy
-                    {
-                        if has_auto_update {
-                            let _ = self.commands.send(CoreCommand::InstallUpdate);
-                        } else if let Some(url) = release_url {
-                            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
-                        }
-                    }
-                }
-                if action_button(ui, "SAVE PREFERENCES", false, CYAN).clicked() {
-                    let _ = self.commands.send(CoreCommand::SetAutoAccept(self.settings.auto_accept));
-                    self.save_settings();
-                    self.set_notice("Preferences saved");
-                }
-            });
+            }
         });
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(10.0);
+
+        match self.settings_section {
+            SettingsSection::Gameplay => {
+                ui.columns(2, |columns| {
+                    self.render_automation_settings(&mut columns[0]);
+                    self.render_league_client_settings(&mut columns[1]);
+                });
+            }
+            SettingsSection::Overlay => {
+                self.render_desktop_overlay_settings(ui);
+                self.render_overlay_module_settings(ui);
+            }
+            SettingsSection::RiotApi => self.render_riot_api_settings(ui),
+            SettingsSection::App => {
+                ui.columns(2, |columns| {
+                    self.render_app_experience_settings(&mut columns[0]);
+                    self.render_update_settings(&mut columns[1]);
+                });
+            }
+        }
+
         ui.add_space(12.0);
         panel(ui, |ui| {
-            panel_title(
-                ui,
-                "APP EXPERIENCE",
-                "Restore your typography, startup help, and tray preferences",
-            );
-            let theme_context = ui.ctx().clone();
-            ui.columns(2, |columns| {
-                let mut appearance_changed = false;
-                columns[0].horizontal(|ui| {
-                    ui.label(RichText::new("Interface theme").size(11.5).color(SECONDARY));
-                    let response = egui::ComboBox::from_id_salt("native-theme")
-                        .selected_text(match self.settings.theme.as_str() {
-                            "ember" => "Ember",
-                            "void" => "Void",
-                            _ => "Hextech",
-                        })
-                        .show_ui(ui, |ui| {
-                            let mut changed = false;
-                            changed |= ui.selectable_value(&mut self.settings.theme, "hextech".to_string(), "Hextech").changed();
-                            changed |= ui.selectable_value(&mut self.settings.theme, "ember".to_string(), "Ember").changed();
-                            changed |= ui.selectable_value(&mut self.settings.theme, "void".to_string(), "Void").changed();
-                            changed
-                        }).inner.unwrap_or(false);
-                    appearance_changed |= response;
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(RichText::new("PREFERENCES").size(11.0).strong().color(TEXT));
+                    ui.label(
+                        RichText::new("Saved locally. Save after changing your Riot API key.")
+                            .size(10.5)
+                            .color(MUTED),
+                    );
                 });
-                columns[0].horizontal(|ui| {
-                    ui.label(RichText::new("Typography").size(11.5).color(SECONDARY));
-                    let response = egui::ComboBox::from_id_salt("native-font")
-                        .selected_text(match self.settings.font_family.as_str() {
-                            "outfit" => "Outfit",
-                            "inter" => "Inter",
-                            _ => "Plus Jakarta Sans",
-                        })
-                        .show_ui(ui, |ui| {
-                            let mut changed = false;
-                            changed |= ui.selectable_value(&mut self.settings.font_family, "plus-jakarta".to_string(), "Plus Jakarta Sans").changed();
-                            changed |= ui.selectable_value(&mut self.settings.font_family, "outfit".to_string(), "Outfit").changed();
-                            changed |= ui.selectable_value(&mut self.settings.font_family, "inter".to_string(), "Inter").changed();
-                            changed
-                        }).inner.unwrap_or(false);
-                    appearance_changed |= response;
-                });
-                if appearance_changed {
-                    apply_native_theme(&theme_context, &self.settings.theme);
-                    install_font_family(&theme_context, &self.settings.font_family);
-                    self.save_settings();
-                }
-                columns[0].label(RichText::new("Fonts are bundled locally, so the native app keeps its appearance offline.").size(9.5).color(MUTED));
-
-                if settings_row(&mut columns[1], "Close to system tray", &mut self.settings.close_to_tray, "Keep RiftCore running in the tray when you close its window") {
-                    self.save_settings();
-                }
-                columns[1].horizontal(|ui| {
-                    if action_button(ui, "QUICK TOUR", false, GOLD).clicked() {
-                        self.show_quick_tour = true;
-                    }
-                    if action_button(ui, "WHAT'S NEW", false, CYAN).clicked() {
-                        self.show_whats_new = true;
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if action_button(ui, "SAVE PREFERENCES", false, CYAN).clicked() {
+                        let _ = self
+                            .commands
+                            .send(CoreCommand::SetAutoAccept(self.settings.auto_accept));
+                        self.save_settings();
+                        self.set_notice("Preferences saved");
                     }
                 });
             });
         });
+    }
 
-        ui.add_space(12.0);
+    fn render_automation_settings(&mut self, ui: &mut egui::Ui) {
         panel(ui, |ui| {
-            panel_title(
+            panel_title(ui, "GAMEPLAY AUTOMATION", "League client actions");
+            let mut changed = false;
+            changed |= settings_row(
                 ui,
-                "LEAGUE CLIENT",
-                "Bring back the launch and display controls from the previous app",
+                "Auto accept queue",
+                &mut self.settings.auto_accept,
+                "Accept the ready check automatically",
             );
+            changed |= settings_row(
+                ui,
+                "Auto import runes",
+                &mut self.settings.auto_import_runes,
+                "Apply the selected rune page in champion select",
+            );
+            changed |= settings_row(
+                ui,
+                "Auto import summoner spells",
+                &mut self.settings.auto_import_spells,
+                "Apply the selected spells in champion select",
+            );
+            changed |= settings_row(
+                ui,
+                "Auto export item sets",
+                &mut self.settings.auto_import_item_sets,
+                "Add the selected build to the League shop",
+            );
+            changed |= settings_row(
+                ui,
+                "Audio alerts",
+                &mut self.settings.sound_alerts,
+                "Play a cue when a ready check appears",
+            );
+            if changed {
+                let _ = self
+                    .commands
+                    .send(CoreCommand::SetAutoAccept(self.settings.auto_accept));
+                self.save_settings();
+            }
+        });
+    }
+
+    fn render_league_client_settings(&mut self, ui: &mut egui::Ui) {
+        panel(ui, |ui| {
+            panel_title(ui, "LEAGUE CLIENT", "Launch and display controls");
             ui.horizontal_wrapped(|ui| {
                 if action_button(ui, "LAUNCH LEAGUE", false, CYAN).clicked() {
                     let _ = self.commands.send(CoreCommand::LaunchLeague);
@@ -4251,13 +4131,351 @@ impl RiftCoreApp {
                     let _ = self.commands.send(CoreCommand::SetLeagueWindowMode(0));
                 }
             });
-            ui.label(RichText::new("Display-mode changes back up game.cfg before writing; restart League to apply them.").size(9.5).color(MUTED));
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(
+                    "Display changes back up game.cfg before writing. Restart League to apply them.",
+                )
+                .size(10.0)
+                .color(MUTED),
+            );
         });
-
-        ui.add_space(12.0);
-        self.render_overlay_module_settings(ui);
     }
 
+    fn render_desktop_overlay_settings(&mut self, ui: &mut egui::Ui) {
+        panel(ui, |ui| {
+            panel_title(ui, "WINDOW & OVERLAY", "Desktop behavior and HUD input");
+            if settings_row(
+                ui,
+                "Always on top",
+                &mut self.settings.always_on_top,
+                "Keep the companion above other windows",
+            ) {
+                self.pinned = self.settings.always_on_top;
+                ui.ctx()
+                    .send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+                        if self.settings.always_on_top {
+                            egui::viewport::WindowLevel::AlwaysOnTop
+                        } else {
+                            egui::viewport::WindowLevel::Normal
+                        },
+                    ));
+                self.save_settings();
+            }
+            if settings_row(
+                ui,
+                "Click-through HUD",
+                &mut self.overlay_mouse_passthrough,
+                "Let mouse clicks pass through the overlay to League",
+            ) && self.overlay_viewport_open
+            {
+                ui.ctx().send_viewport_cmd_to(
+                    overlay_viewport_id(),
+                    egui::ViewportCommand::MousePassthrough(self.overlay_mouse_passthrough),
+                );
+            }
+            ui.label(
+                RichText::new("Alt + ~ toggles the HUD. Alt + Shift + ~ toggles click-through.")
+                    .size(10.0)
+                    .color(MUTED),
+            );
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Flash key").size(11.5).color(SECONDARY));
+                let changed = egui::ComboBox::from_id_salt("flash-slot")
+                    .selected_text(if self.settings.flash_slot_preference == "D" {
+                        "D"
+                    } else {
+                        "F"
+                    })
+                    .show_ui(ui, |ui| {
+                        let mut changed = false;
+                        changed |= ui
+                            .selectable_value(
+                                &mut self.settings.flash_slot_preference,
+                                "F".to_string(),
+                                "F",
+                            )
+                            .changed();
+                        changed |= ui
+                            .selectable_value(
+                                &mut self.settings.flash_slot_preference,
+                                "D".to_string(),
+                                "D",
+                            )
+                            .changed();
+                        changed
+                    })
+                    .inner
+                    .unwrap_or(false);
+                if changed {
+                    self.save_settings();
+                }
+            });
+        });
+    }
+
+    fn render_riot_api_settings(&mut self, ui: &mut egui::Ui) {
+        panel(ui, |ui| {
+            panel_title(ui, "RIOT API", "Player scouting and match history");
+            ui.label(
+                RichText::new("PLATFORM REGION")
+                    .size(10.0)
+                    .strong()
+                    .color(MUTED),
+            );
+            let region_changed = egui::ComboBox::from_id_salt("riot-region")
+                .selected_text(self.settings.riot_region.to_ascii_uppercase())
+                .width(220.0)
+                .show_ui(ui, |ui| {
+                    let mut changed = false;
+                    for region in [
+                        "eun1", "euw1", "na1", "kr", "br1", "la1", "la2", "oc1", "tr1", "ru", "jp1",
+                    ] {
+                        changed |= ui
+                            .selectable_value(
+                                &mut self.settings.riot_region,
+                                region.to_string(),
+                                region.to_ascii_uppercase(),
+                            )
+                            .changed();
+                    }
+                    changed
+                })
+                .inner
+                .unwrap_or(false);
+            if region_changed {
+                self.save_settings();
+            }
+
+            ui.add_space(8.0);
+            ui.label(RichText::new("API KEY").size(10.0).strong().color(MUTED));
+            ui.add_sized(
+                [ui.available_width(), 34.0],
+                egui::TextEdit::singleline(&mut self.settings.riot_api_key)
+                    .password(true)
+                    .hint_text("RGAPI-…"),
+            );
+            ui.add_space(8.0);
+            ui.horizontal_wrapped(|ui| {
+                if action_button(ui, "TEST API KEY", false, CYAN).clicked() {
+                    let _ = self.commands.send(CoreCommand::ValidateRiotApiKey {
+                        region: self.settings.riot_region.clone(),
+                        api_key: self.settings.riot_api_key.clone(),
+                    });
+                }
+                if let Some(status) = self.snapshot.riot_api_status.as_deref() {
+                    ui.label(RichText::new(status).size(10.0).color(
+                        if status.contains("verified") {
+                            GREEN
+                        } else {
+                            GOLD
+                        },
+                    ));
+                }
+            });
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(
+                    "The key is stored in your local RiftCore settings and sent only to Riot API endpoints.",
+                )
+                .size(10.0)
+                .color(MUTED),
+            );
+        });
+    }
+
+    fn render_update_settings(&mut self, ui: &mut egui::Ui) {
+        panel(ui, |ui| {
+            panel_title(
+                ui,
+                "APP UPDATES",
+                &format!("Installed version {}", env!("CARGO_PKG_VERSION")),
+            );
+            ui.horizontal_wrapped(|ui| {
+                if action_button(ui, "CHECK FOR UPDATES", false, CYAN).clicked() {
+                    let _ = self.commands.send(CoreCommand::CheckUpdates);
+                }
+                if let Some(status) = self.snapshot.update_status.as_deref() {
+                    let color = if status.contains("available") {
+                        GOLD
+                    } else if status.starts_with("Could not") || status.contains("error") {
+                        RED
+                    } else {
+                        GREEN
+                    };
+                    ui.label(RichText::new(status).size(10.0).color(color));
+                }
+            });
+            if let Some(url) = self
+                .snapshot
+                .latest_release
+                .as_ref()
+                .and_then(|release| release.get("html_url"))
+                .and_then(Value::as_str)
+            {
+                if action_button(ui, "VIEW RELEASE PAGE", false, SECONDARY).clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                }
+            }
+
+            let update_available = self
+                .snapshot
+                .update_status
+                .as_deref()
+                .is_some_and(|status| status.contains("is available"));
+            if update_available {
+                let release = self.snapshot.latest_release.as_ref();
+                let has_auto_update = release
+                    .and_then(|release| release.get("assets"))
+                    .and_then(Value::as_array)
+                    .is_some_and(|assets| {
+                        assets.iter().any(|asset| {
+                            asset.get("name").and_then(Value::as_str) == Some("RiftCore.exe")
+                        })
+                    });
+                let release_url = release
+                    .and_then(|release| release.get("html_url"))
+                    .and_then(Value::as_str);
+                let update_busy = self
+                    .snapshot
+                    .update_status
+                    .as_deref()
+                    .is_some_and(|status| status.starts_with("Downloading update"));
+                if action_button(
+                    ui,
+                    if update_busy {
+                        "DOWNLOADING UPDATE…"
+                    } else if has_auto_update {
+                        "UPDATE & RESTART"
+                    } else {
+                        "DOWNLOAD SETUP"
+                    },
+                    update_busy,
+                    CYAN,
+                )
+                .clicked()
+                    && !update_busy
+                {
+                    if has_auto_update {
+                        let _ = self.commands.send(CoreCommand::InstallUpdate);
+                    } else if let Some(url) = release_url {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                    }
+                }
+            }
+        });
+    }
+
+    fn render_app_experience_settings(&mut self, ui: &mut egui::Ui) {
+        panel(ui, |ui| {
+            panel_title(ui, "APPEARANCE & BEHAVIOR", "Tune the app itself");
+            let theme_context = ui.ctx().clone();
+            let mut appearance_changed = false;
+
+            ui.label(
+                RichText::new("INTERFACE THEME")
+                    .size(10.0)
+                    .strong()
+                    .color(MUTED),
+            );
+            appearance_changed |= egui::ComboBox::from_id_salt("native-theme")
+                .selected_text(match self.settings.theme.as_str() {
+                    "ember" => "Ember",
+                    "void" => "Void",
+                    _ => "Hextech",
+                })
+                .width(220.0)
+                .show_ui(ui, |ui| {
+                    let mut changed = false;
+                    changed |= ui
+                        .selectable_value(
+                            &mut self.settings.theme,
+                            "hextech".to_string(),
+                            "Hextech",
+                        )
+                        .changed();
+                    changed |= ui
+                        .selectable_value(&mut self.settings.theme, "ember".to_string(), "Ember")
+                        .changed();
+                    changed |= ui
+                        .selectable_value(&mut self.settings.theme, "void".to_string(), "Void")
+                        .changed();
+                    changed
+                })
+                .inner
+                .unwrap_or(false);
+
+            ui.add_space(8.0);
+            ui.label(RichText::new("TYPOGRAPHY").size(10.0).strong().color(MUTED));
+            appearance_changed |= egui::ComboBox::from_id_salt("native-font")
+                .selected_text(match self.settings.font_family.as_str() {
+                    "outfit" => "Outfit",
+                    "inter" => "Inter",
+                    _ => "Plus Jakarta Sans",
+                })
+                .width(220.0)
+                .show_ui(ui, |ui| {
+                    let mut changed = false;
+                    changed |= ui
+                        .selectable_value(
+                            &mut self.settings.font_family,
+                            "plus-jakarta".to_string(),
+                            "Plus Jakarta Sans",
+                        )
+                        .changed();
+                    changed |= ui
+                        .selectable_value(
+                            &mut self.settings.font_family,
+                            "outfit".to_string(),
+                            "Outfit",
+                        )
+                        .changed();
+                    changed |= ui
+                        .selectable_value(
+                            &mut self.settings.font_family,
+                            "inter".to_string(),
+                            "Inter",
+                        )
+                        .changed();
+                    changed
+                })
+                .inner
+                .unwrap_or(false);
+
+            if appearance_changed {
+                apply_native_theme(&theme_context, &self.settings.theme);
+                install_font_family(&theme_context, &self.settings.font_family);
+                self.save_settings();
+            }
+
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(
+                    "Fonts are bundled locally, so the app keeps its appearance offline.",
+                )
+                .size(10.0)
+                .color(MUTED),
+            );
+            ui.add_space(8.0);
+            if settings_row(
+                ui,
+                "Close to system tray",
+                &mut self.settings.close_to_tray,
+                "Keep RiftCore running in the tray when you close its window",
+            ) {
+                self.save_settings();
+            }
+            ui.horizontal_wrapped(|ui| {
+                if action_button(ui, "QUICK TOUR", false, GOLD).clicked() {
+                    self.show_quick_tour = true;
+                }
+                if action_button(ui, "WHAT'S NEW", false, CYAN).clicked() {
+                    self.show_whats_new = true;
+                }
+            });
+        });
+    }
     fn render_dialogs(&mut self, ctx: &egui::Context) {
         if self.show_whats_new {
             let mut dismissed = false;
@@ -5598,9 +5816,9 @@ fn panel(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     let inner_width = (ui.available_width() - 36.0).max(0.0);
     Frame::new()
         .fill(CARD)
-        .stroke(Stroke::new(1.0, BORDER))
-        .corner_radius(egui::CornerRadius::same(14))
-        .inner_margin(egui::Margin::same(18))
+        .stroke(Stroke::new(0.0, Color32::TRANSPARENT))
+        .corner_radius(egui::CornerRadius::same(16))
+        .inner_margin(egui::Margin::same(20))
         .show(ui, |ui| {
             ui.set_min_width(inner_width);
             add_contents(ui);
@@ -5609,22 +5827,21 @@ fn panel(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
 
 fn panel_title(ui: &mut egui::Ui, title: &str, description: &str) {
     ui.horizontal(|ui| {
-        let (accent, _) = ui.allocate_exact_size(Vec2::new(3.0, 32.0), Sense::hover());
-        ui.painter()
-            .rect_filled(accent, egui::CornerRadius::same(2), CYAN);
-        ui.add_space(2.0);
+        let (accent, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+        ui.painter().circle_filled(accent.center(), 4.0, CYAN);
+        ui.add_space(4.0);
         ui.vertical(|ui| {
-            ui.label(RichText::new(title).size(14.0).strong().color(TEXT));
-            ui.label(RichText::new(description).size(12.0).color(SECONDARY));
+            ui.label(RichText::new(title).size(15.0).strong().color(TEXT));
+            ui.label(RichText::new(description).size(12.5).color(SECONDARY));
         });
     });
     ui.add_space(12.0);
 }
 
 fn nav_section(ui: &mut egui::Ui, label: &str) {
-    ui.add_space(10.0);
-    ui.label(RichText::new(label).size(10.5).strong().color(MUTED));
-    ui.add_space(5.0);
+    ui.add_space(14.0);
+    ui.label(RichText::new(label).size(11.0).strong().color(MUTED));
+    ui.add_space(7.0);
 }
 
 fn checkbox_row(ui: &mut egui::Ui, label: &str, value: &mut bool) -> bool {
@@ -5661,11 +5878,11 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
             color.b(),
             25,
         ))
-        .stroke(Stroke::new(1.0, color))
+        .stroke(Stroke::new(0.0, Color32::TRANSPARENT))
         .corner_radius(egui::CornerRadius::same(8))
         .inner_margin(egui::Margin::symmetric(7, 3))
         .show(ui, |ui| {
-            ui.label(RichText::new(text).size(9.5).strong().color(color));
+            ui.label(RichText::new(text).size(10.5).strong().color(color));
         });
 }
 
@@ -5677,8 +5894,8 @@ fn metric(ui: &mut egui::Ui, label: &str, value: &str, color: Color32) {
         .inner_margin(egui::Margin::same(10))
         .show(ui, |ui| {
             ui.set_min_width(120.0);
-            ui.label(RichText::new(label).size(9.0).strong().color(MUTED));
-            ui.label(RichText::new(value).size(15.0).strong().color(color));
+            ui.label(RichText::new(label).size(10.0).strong().color(MUTED));
+            ui.label(RichText::new(value).size(16.0).strong().color(color));
         });
 }
 
@@ -5695,7 +5912,10 @@ fn action_button(ui: &mut egui::Ui, text: &str, active: bool, accent: Color32) -
             TEXT
         }))
         .fill(fill)
-        .stroke(Stroke::new(1.0, if active { accent } else { BORDER })),
+        .stroke(Stroke::new(
+            if active { 0.8 } else { 0.0 },
+            if active { accent } else { Color32::TRANSPARENT },
+        )),
     )
 }
 

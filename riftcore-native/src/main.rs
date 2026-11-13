@@ -11,10 +11,10 @@ fn main() -> eframe::Result {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_app_id("riftcore-companion")
             .with_title("RiftCore Companion")
-            .with_inner_size([1280.0, 820.0])
-            .with_min_inner_size([1000.0, 680.0])
+            .with_inner_size([1380.0, 880.0])
+            .with_min_inner_size([1120.0, 740.0])
             .with_decorations(false)
-            .with_transparent(true),
+            .with_transparent(false),
         renderer: eframe::Renderer::Glow,
         ..Default::default()
     };

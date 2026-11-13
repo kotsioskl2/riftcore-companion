@@ -81,13 +81,15 @@ $rawUploadUrl = $release.upload_url
 $uploadUrlBase = $rawUploadUrl -replace '\{\?name,label\}', ''
 
 # 5. Asset Upload Helper
-function Upload-Asset($filePath, $contentType) {
+function Upload-Asset($filePath, $contentType, $assetName = $null) {
     if (-not (Test-Path $filePath)) {
-        Write-Warning "Asset file not found: $filePath. Skipping."
-        return
+        throw "Required release asset file not found: $filePath"
     }
 
-    $fileName = [System.IO.Path]::GetFileName($filePath)
+    if (-not $assetName) {
+        $assetName = [System.IO.Path]::GetFileName($filePath)
+    }
+    $fileName = $assetName
     Write-Host "Uploading $fileName..." -ForegroundColor Cyan
 
     # Refresh release info to check existing assets
@@ -120,7 +122,8 @@ function Upload-Asset($filePath, $contentType) {
 # Upload release artifacts: setup installer, portable package, and the self-update binary.
 Upload-Asset (Join-Path $rootDir "installer_output\RiftCore-Setup-$version.exe") "application/vnd.microsoft.portable-executable"
 Upload-Asset (Join-Path $rootDir "installer_output\RiftCore-Portable-$version.zip") "application/zip"
-Upload-Asset (Join-Path $rootDir "RiftCore_Rust_Portable\RiftCore.exe") "application/vnd.microsoft.portable-executable"
+$updateBinaryPath = Join-Path $rootDir "installer_output\RiftCore-$version.exe"
+Upload-Asset $updateBinaryPath "application/vnd.microsoft.portable-executable" "RiftCore.exe"
 
 Write-Host ""
 Write-Host "===================================================" -ForegroundColor Green
