@@ -49,6 +49,7 @@ pub struct AppSettings {
     pub hud_minimap_nudge_x: f32,
     pub hud_minimap_nudge_y: f32,
     pub hud_edit_layout: bool,
+    pub hud_preview_mode: bool,
     pub hud_positions: HashMap<String, [f32; 2]>,
     pub favorite_champions: Vec<u32>,
     pub champion_pool: HashMap<String, Vec<u32>>,
@@ -96,6 +97,7 @@ impl Default for AppSettings {
             hud_minimap_nudge_x: 0.0,
             hud_minimap_nudge_y: 0.0,
             hud_edit_layout: false,
+            hud_preview_mode: false,
             hud_positions: HashMap::new(),
             favorite_champions: Vec::new(),
             champion_pool: HashMap::from([
@@ -1378,6 +1380,8 @@ pub fn league_game_window() -> Option<LeagueWindowInfo> {
             fn GetDpiForWindow(hwnd: *mut std::ffi::c_void) -> u32;
             fn IsWindowVisible(hwnd: *mut std::ffi::c_void) -> i32;
             fn IsIconic(hwnd: *mut std::ffi::c_void) -> i32;
+            fn GetClassNameW(hwnd: *mut std::ffi::c_void, class_name: *mut u16, max_count: i32) -> i32;
+            fn GetWindowTextW(hwnd: *mut std::ffi::c_void, text: *mut u16, max_count: i32) -> i32;
         }
         #[link(name = "kernel32")]
         extern "system" {
@@ -1396,20 +1400,40 @@ pub fn league_game_window() -> Option<LeagueWindowInfo> {
         }
         let mut pid = 0;
         GetWindowThreadProcessId(hwnd, &mut pid);
-        if pid == 0 {
-            return 1;
+
+        // Check window class and window title directly (immune to Vanguard process restrictions)
+        let mut class_buf = [0u16; 128];
+        let class_len = GetClassNameW(hwnd, class_buf.as_mut_ptr(), class_buf.len() as i32);
+        let class_name = if class_len > 0 {
+            String::from_utf16_lossy(&class_buf[..class_len as usize])
+        } else {
+            String::new()
+        };
+
+        let mut title_buf = [0u16; 128];
+        let title_len = GetWindowTextW(hwnd, title_buf.as_mut_ptr(), title_buf.len() as i32);
+        let title = if title_len > 0 {
+            String::from_utf16_lossy(&title_buf[..title_len as usize])
+        } else {
+            String::new()
+        };
+
+        let mut is_league = class_name.eq_ignore_ascii_case("RiotWindowClass")
+            || title.contains("League of Legends (TM) Client");
+
+        if !is_league && pid != 0 {
+            let process = OpenProcess(0x1000, 0, pid);
+            if !process.is_null() {
+                let mut buffer = [0u16; 1024];
+                let mut size = buffer.len() as u32;
+                is_league = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0
+                    && Path::new(&String::from_utf16_lossy(&buffer[..size as usize]))
+                        .file_name()
+                        .is_some_and(|name| name.eq_ignore_ascii_case("League of Legends.exe"));
+                CloseHandle(process);
+            }
         }
-        let process = OpenProcess(0x1000, 0, pid);
-        if process.is_null() {
-            return 1;
-        }
-        let mut buffer = [0u16; 1024];
-        let mut size = buffer.len() as u32;
-        let is_league = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0
-            && Path::new(&String::from_utf16_lossy(&buffer[..size as usize]))
-                .file_name()
-                .is_some_and(|name| name.eq_ignore_ascii_case("League of Legends.exe"));
-        CloseHandle(process);
+
         if !is_league {
             return 1;
         }
@@ -1424,7 +1448,7 @@ pub fn league_game_window() -> Option<LeagueWindowInfo> {
         }
         let width = client.right - client.left;
         let height = client.bottom - client.top;
-        if width < 800 || height < 500 {
+        if width < 600 || height < 400 {
             return 1;
         }
         let mut origin = Point {
@@ -1466,31 +1490,47 @@ pub fn league_window_is_foreground(window: LeagueWindowInfo) -> bool {
         fn GetForegroundWindow() -> *mut std::ffi::c_void;
         fn GetWindowThreadProcessId(hwnd: *mut std::ffi::c_void, process_id: *mut u32) -> u32;
         fn GetWindowTextW(hwnd: *mut std::ffi::c_void, text: *mut u16, max_count: i32) -> i32;
+        fn GetClassNameW(hwnd: *mut std::ffi::c_void, class_name: *mut u16, max_count: i32) -> i32;
     }
-    #[link(name = "kernel32")]
-    extern "system" {
-        fn GetCurrentProcessId() -> u32;
-    }
+    // Check foreground window directly
 
     let foreground = unsafe { GetForegroundWindow() };
     if foreground.is_null() {
         return false;
     }
 
-    let mut foreground_pid = 0;
-    unsafe { GetWindowThreadProcessId(foreground, &mut foreground_pid) };
-    if foreground_pid == window.process_id {
+    if (foreground as isize) == window.hwnd {
         return true;
     }
-    if foreground_pid != unsafe { GetCurrentProcessId() } {
-        return false;
+
+    let mut foreground_pid = 0;
+    unsafe { GetWindowThreadProcessId(foreground, &mut foreground_pid) };
+    if window.process_id != 0 && foreground_pid == window.process_id {
+        return true;
+    }
+
+    let mut class_buf = [0u16; 64];
+    let class_len = unsafe { GetClassNameW(foreground, class_buf.as_mut_ptr(), 64) };
+    if class_len > 0
+        && String::from_utf16_lossy(&class_buf[..class_len as usize])
+            .eq_ignore_ascii_case("RiotWindowClass")
+    {
+        return true;
     }
 
     let mut title = [0u16; 128];
     let length = unsafe { GetWindowTextW(foreground, title.as_mut_ptr(), title.len() as i32) };
-    length > 0
-        && String::from_utf16_lossy(&title[..length as usize])
-            .eq_ignore_ascii_case("RiftCore In-Game HUD")
+    if length > 0 {
+        let title_str = String::from_utf16_lossy(&title[..length as usize]);
+        if title_str.contains("League of Legends (TM) Client")
+            || title_str.eq_ignore_ascii_case("RiftCore In-Game HUD")
+            || title_str.eq_ignore_ascii_case("RiftCore Companion")
+        {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[cfg(windows)]
@@ -1523,10 +1563,7 @@ pub fn maintain_native_overlay() {
             flags: u32,
         ) -> i32;
     }
-    #[link(name = "kernel32")]
-    extern "system" {
-        fn GetCurrentProcessId() -> u32;
-    }
+    // Check foreground window directly
 
     const GWL_EXSTYLE: i32 = -20;
     const WS_EX_APPWINDOW: isize = 0x0004_0000;
@@ -1545,7 +1582,7 @@ pub fn maintain_native_overlay() {
         }
         let mut owner = 0;
         GetWindowThreadProcessId(hwnd, &mut owner);
-        if owner != GetCurrentProcessId() {
+        if owner != std::process::id() {
             return;
         }
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);

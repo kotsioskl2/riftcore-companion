@@ -391,16 +391,28 @@ impl RiftCoreApp {
         self.overlay_auto_entered = automatic && enabled;
         if enabled {
             self.overlay_target = backend::league_game_window();
-            self.overlay_target_is_foreground = self
-                .overlay_target
-                .map(backend::league_window_is_foreground)
-                .unwrap_or(false);
-            self.overlay_waiting_for_window =
-                self.overlay_target.is_none() || !self.overlay_target_is_foreground;
-            if self.overlay_target.is_none() {
-                self.set_notice("HUD is waiting for the League game window.");
-            } else if !self.overlay_target_is_foreground {
-                self.set_notice("HUD will appear when League is the foreground window.");
+            if self.overlay_target.is_none() && self.settings.hud_preview_mode {
+                self.overlay_target = Some(backend::LeagueWindowInfo {
+                    hwnd: 0,
+                    process_id: 0,
+                    bounds: [0, 0, 1920, 1080],
+                    dpi: 96,
+                });
+                self.overlay_target_is_foreground = true;
+                self.overlay_waiting_for_window = false;
+                self.set_notice("HUD running in Desktop Preview Mode");
+            } else {
+                self.overlay_target_is_foreground = self
+                    .overlay_target
+                    .map(backend::league_window_is_foreground)
+                    .unwrap_or(false);
+                self.overlay_waiting_for_window =
+                    self.overlay_target.is_none() || !self.overlay_target_is_foreground;
+                if self.overlay_target.is_none() {
+                    self.set_notice("HUD is waiting for the League game window (click WAITING to preview).");
+                } else if !self.overlay_target_is_foreground {
+                    self.set_notice("HUD will appear when League is the foreground window.");
+                }
             }
             ctx.request_repaint();
         } else {
@@ -422,19 +434,28 @@ impl RiftCoreApp {
             return;
         }
 
-        let Some(target) = self.overlay_target else {
-            if self.overlay_viewport_open {
-                ctx.send_viewport_cmd_to(
-                    overlay_viewport_id(),
-                    egui::ViewportCommand::Visible(false),
-                );
+        let target = match self.overlay_target {
+            Some(t) => t,
+            None if self.settings.hud_preview_mode => backend::LeagueWindowInfo {
+                hwnd: 0,
+                process_id: 0,
+                bounds: [0, 0, 1920, 1080],
+                dpi: 96,
+            },
+            None => {
+                if self.overlay_viewport_open {
+                    ctx.send_viewport_cmd_to(
+                        overlay_viewport_id(),
+                        egui::ViewportCommand::Visible(false),
+                    );
+                }
+                return;
             }
-            return;
         };
 
         // Keep the native viewport alive between focus changes; only hide it
-        // while another window is in front of the game.
-        let visible = self.overlay_target_is_foreground;
+        // while another window is in front of the game (or keep visible in preview mode).
+        let visible = self.overlay_target_is_foreground || self.settings.hud_preview_mode;
         if !visible && !self.overlay_viewport_open {
             return;
         }
@@ -619,21 +640,42 @@ impl RiftCoreApp {
                             if window_button(ui, "—", SECONDARY).clicked() {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                             }
+                            let overlay_label = if self.overlay_mode {
+                                if self.settings.hud_preview_mode {
+                                    "HUD (PREVIEW)"
+                                } else if self.overlay_waiting_for_window {
+                                    "WAITING"
+                                } else {
+                                    "HUD ON"
+                                }
+                            } else {
+                                "HUD"
+                            };
                             if titlebar_action_button(
                                 ui,
-                                if self.overlay_mode && self.overlay_waiting_for_window {
-                                    "WAITING"
-                                } else if self.overlay_mode {
-                                    "HUD ON"
-                                } else {
-                                    "HUD"
-                                },
+                                overlay_label,
                                 self.overlay_mode,
                                 CYAN,
                             )
                             .clicked()
                             {
-                                self.set_overlay_mode(&ctx, !self.overlay_mode, false);
+                                if self.overlay_mode
+                                    && self.overlay_waiting_for_window
+                                    && !self.settings.hud_preview_mode
+                                {
+                                    self.settings.hud_preview_mode = true;
+                                    self.overlay_target = Some(backend::LeagueWindowInfo {
+                                        hwnd: 0,
+                                        process_id: 0,
+                                        bounds: [0, 0, 1920, 1080],
+                                        dpi: 96,
+                                    });
+                                    self.overlay_target_is_foreground = true;
+                                    self.overlay_waiting_for_window = false;
+                                    self.set_notice("HUD Preview Mode enabled on desktop");
+                                } else {
+                                    self.set_overlay_mode(&ctx, !self.overlay_mode, false);
+                                }
                             }
                             if titlebar_action_button(
                                 ui,
@@ -1195,25 +1237,29 @@ impl RiftCoreApp {
         });
         ui.add_space(10.0);
         ui.columns(2, |columns| {
-            columns[0].set_min_width(440.0);
+            columns[0].set_min_width(420.0);
             panel(&mut columns[0], |ui| {
                 panel_title(
                     ui,
                     "CHAMPION ROSTER",
                     "Choose a champion to preview its build and setup",
                 );
+                let avail_width = ui.available_width();
+                let num_cols = ((avail_width - 16.0) / 106.0).floor().max(3.0) as usize;
+                let card_w = ((avail_width - 16.0 - ((num_cols - 1) as f32 * 8.0)) / num_cols as f32).max(80.0);
                 ScrollArea::vertical()
                     .id_salt("champion-roster-scroll")
-                    .max_height(520.0)
+                    .auto_shrink([false, false])
+                    .min_scrolled_height(540.0)
                     .show(ui, |ui| {
                         egui::Grid::new("champion-grid")
-                            .num_columns(4)
+                            .num_columns(num_cols)
                             .spacing([8.0, 8.0])
                             .show(ui, |ui| {
                                 for (index, champ) in matches.iter().enumerate() {
                                     let selected = self.selected_champion == champ.id;
                                     let (rect, response) = ui.allocate_exact_size(
-                                        Vec2::new(116.0, 112.0),
+                                        Vec2::new(card_w, 112.0),
                                         Sense::click(),
                                     );
                                     let animation_id =
@@ -1292,7 +1338,7 @@ impl RiftCoreApp {
                                     if response.clicked() {
                                         self.select_champion_setup(champ.id, true);
                                     }
-                                    if index % 4 == 3 {
+                                    if index % num_cols == num_cols - 1 {
                                         ui.end_row();
                                     }
                                 }
@@ -1325,33 +1371,48 @@ impl RiftCoreApp {
                         &champ.roles,
                         Some(&self.build_role),
                     );
-                    ui.horizontal(|ui| {
-                        avatar(
-                            ui,
-                            &champ.name,
-                            58.0,
-                            CYAN,
-                            self.champion_textures.get(&champ.key),
-                        );
-                        ui.vertical(|ui| {
-                            ui.label(
-                                RichText::new(champ.name.to_uppercase())
-                                    .size(20.0)
-                                    .strong()
-                                    .color(TEXT),
-                            );
-                            ui.label(RichText::new(&champ.title).size(11.5).color(SECONDARY));
-                            ui.label(
-                                RichText::new(champ.roles.join("  /  "))
-                                    .size(10.0)
-                                    .strong()
-                                    .color(CYAN),
-                            );
+                    // Champion Hero Card
+                    Frame::new()
+                        .fill(Color32::from_rgb(11, 17, 27))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(26, 42, 62)))
+                        .corner_radius(egui::CornerRadius::same(12))
+                        .inner_margin(egui::Margin::same(12))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                avatar(
+                                    ui,
+                                    &champ.name,
+                                    58.0,
+                                    CYAN,
+                                    self.champion_textures.get(&champ.key),
+                                );
+                                ui.add_space(8.0);
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(champ.name.to_uppercase())
+                                                .size(20.0)
+                                                .strong()
+                                                .color(TEXT),
+                                        );
+                                        ui.add_space(6.0);
+                                        badge(ui, &recommendation.archetype.replace('_', " "), CYAN);
+                                    });
+                                    ui.label(RichText::new(&champ.title).size(11.5).color(SECONDARY));
+                                    ui.add_space(3.0);
+                                    ui.horizontal(|ui| {
+                                        for role in &champ.roles {
+                                            badge(ui, role, Color32::from_rgb(100, 140, 180));
+                                        }
+                                        ui.add_space(6.0);
+                                        ui.label(RichText::new(format!("Skill Max: {}", recommendation.skill_priority)).size(10.5).strong().color(GOLD));
+                                    });
+                                });
+                            });
                         });
-                    });
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        for (tab, label, accent) in [(0usize, "BUILD", CYAN), (1, "RUNES", GOLD)] {
+                        for (tab, label, accent) in [(0usize, "BUILD & ITEMS", CYAN), (1, "RUNES & SPELLS", GOLD)] {
                             if filter_chip(ui, label, self.champ_select_detail_tab == tab, accent)
                                 .clicked()
                             {
@@ -1666,205 +1727,250 @@ impl RiftCoreApp {
                 &mut self.selected_perks,
             );
 
-            ui.add_space(5.0);
+            ui.add_space(8.0);
             ui.columns(2, |columns| {
-                rune_section_heading(
-                    &mut columns[0],
-                    "KEYSTONE",
-                    &selected_rune_name(self.primary_tree, 0, self.selected_perks[0]),
-                    rune_tree_color(self.primary_tree),
-                );
-                let options = rune_options(self.primary_tree, 0);
-                if let Some(id) = rune_icon_choice_line(
-                    &mut columns[0],
-                    &options,
-                    self.selected_perks[0],
-                    &self.rune_textures,
-                    rune_tree_color(self.primary_tree),
-                    42.0,
-                ) {
-                    self.selected_perks[0] = id;
-                }
-                for row in 1..=3 {
-                    let slot = row;
-                    columns[0].add_space(5.0);
-                    rune_section_heading(
-                        &mut columns[0],
-                        &format!("PRIMARY ROW {row}"),
-                        &selected_rune_name(self.primary_tree, row, self.selected_perks[slot]),
-                        rune_tree_color(self.primary_tree),
-                    );
-                    let options = rune_options(self.primary_tree, row);
-                    if let Some(id) = rune_icon_choice_line(
-                        &mut columns[0],
-                        &options,
-                        self.selected_perks[slot],
-                        &self.rune_textures,
-                        rune_tree_color(self.primary_tree),
-                        36.0,
-                    ) {
-                        self.selected_perks[slot] = id;
-                    }
-                }
-
-                rune_section_heading(
-                    &mut columns[1],
-                    "SECONDARY RUNES",
-                    tree_name(self.secondary_tree),
-                    rune_tree_color(self.secondary_tree),
-                );
-                for choice in 0..2 {
-                    columns[1].horizontal(|ui| {
-                        ui.label(
-                            RichText::new(format!("PICK {}", choice + 1))
-                                .size(8.0)
-                                .strong()
-                                .color(MUTED),
+                Frame::new()
+                    .fill(Color32::from_rgb(11, 16, 26))
+                    .stroke(Stroke::new(1.0, rune_tree_color(self.primary_tree)))
+                    .corner_radius(egui::CornerRadius::same(10))
+                    .inner_margin(egui::Margin::same(10))
+                    .show(&mut columns[0], |ui| {
+                        rune_section_heading(
+                            ui,
+                            "KEYSTONE",
+                            &selected_rune_name(self.primary_tree, 0, self.selected_perks[0]),
+                            rune_tree_color(self.primary_tree),
                         );
-                        for row in 1..=3 {
-                            let enabled = row != self.secondary_rune_rows[1 - choice];
-                            let selected = self.secondary_rune_rows[choice] == row;
-                            let response = ui.add_enabled_ui(enabled, |ui| {
-                                filter_chip(ui, &format!("R{row}"), selected, GOLD)
-                            });
-                            if response.inner.clicked() {
-                                self.secondary_rune_rows[choice] = row;
-                                normalize_rune_setup(
-                                    self.primary_tree,
-                                    self.secondary_tree,
-                                    &mut self.secondary_rune_rows,
-                                    &mut self.selected_perks,
-                                );
-                            }
+                        let options = rune_options(self.primary_tree, 0);
+                        if let Some(id) = rune_icon_choice_line(
+                            ui,
+                            &options,
+                            self.selected_perks[0],
+                            &self.rune_textures,
+                            rune_tree_color(self.primary_tree),
+                            42.0,
+                        ) {
+                            self.selected_perks[0] = id;
                         }
-                    });
-                    let row = self.secondary_rune_rows[choice];
-                    let options = rune_options(self.secondary_tree, row);
-                    let slot = 4 + choice;
-                    rune_section_heading(
-                        &mut columns[1],
-                        &format!("ROW {row}"),
-                        &selected_rune_name(self.secondary_tree, row, self.selected_perks[slot]),
-                        rune_tree_color(self.secondary_tree),
-                    );
-                    if let Some(id) = rune_icon_choice_line(
-                        &mut columns[1],
-                        &options,
-                        self.selected_perks[slot],
-                        &self.rune_textures,
-                        rune_tree_color(self.secondary_tree),
-                        36.0,
-                    ) {
-                        self.selected_perks[slot] = id;
-                    }
-                }
-                columns[1].add_space(5.0);
-                rune_section_heading(
-                    &mut columns[1],
-                    "STAT SHARDS",
-                    "Offense · flex · defense",
-                    CYAN,
-                );
-                for (row, label) in [(0usize, "OFFENSE"), (1, "FLEX"), (2, "DEFENSE")] {
-                    let options = stat_shard_options(row)
-                        .iter()
-                        .map(|(id, name)| (*id, (*name).to_string()))
-                        .collect::<Vec<_>>();
-                    let slot = 6 + row;
-                    columns[1].horizontal(|ui| {
-                        ui.label(RichText::new(label).size(8.0).strong().color(MUTED));
-                        ui.label(
-                            RichText::new(selected_rune_name_from_options(
+                        for row in 1..=3 {
+                            let slot = row;
+                            ui.add_space(5.0);
+                            rune_section_heading(
+                                ui,
+                                &format!("PRIMARY ROW {row}"),
+                                &selected_rune_name(self.primary_tree, row, self.selected_perks[slot]),
+                                rune_tree_color(self.primary_tree),
+                            );
+                            let options = rune_options(self.primary_tree, row);
+                            if let Some(id) = rune_icon_choice_line(
+                                ui,
                                 &options,
                                 self.selected_perks[slot],
-                            ))
-                            .size(8.5)
-                            .color(SECONDARY),
-                        );
+                                &self.rune_textures,
+                                rune_tree_color(self.primary_tree),
+                                36.0,
+                            ) {
+                                self.selected_perks[slot] = id;
+                            }
+                        }
                     });
-                    if let Some(id) = rune_icon_choice_line(
-                        &mut columns[1],
-                        &options,
-                        self.selected_perks[slot],
-                        &self.rune_textures,
-                        CYAN,
-                        31.0,
-                    ) {
-                        self.selected_perks[slot] = id;
-                    }
-                }
+
+                Frame::new()
+                    .fill(Color32::from_rgb(11, 16, 26))
+                    .stroke(Stroke::new(1.0, rune_tree_color(self.secondary_tree)))
+                    .corner_radius(egui::CornerRadius::same(10))
+                    .inner_margin(egui::Margin::same(10))
+                    .show(&mut columns[1], |ui| {
+                        rune_section_heading(
+                            ui,
+                            "SECONDARY RUNES",
+                            tree_name(self.secondary_tree),
+                            rune_tree_color(self.secondary_tree),
+                        );
+                        for choice in 0..2 {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(format!("PICK {}", choice + 1))
+                                        .size(8.0)
+                                        .strong()
+                                        .color(MUTED),
+                                );
+                                for row in 1..=3 {
+                                    let enabled = row != self.secondary_rune_rows[1 - choice];
+                                    let selected = self.secondary_rune_rows[choice] == row;
+                                    let response = ui.add_enabled_ui(enabled, |ui| {
+                                        filter_chip(ui, &format!("R{row}"), selected, GOLD)
+                                    });
+                                    if response.inner.clicked() {
+                                        self.secondary_rune_rows[choice] = row;
+                                        normalize_rune_setup(
+                                            self.primary_tree,
+                                            self.secondary_tree,
+                                            &mut self.secondary_rune_rows,
+                                            &mut self.selected_perks,
+                                        );
+                                    }
+                                }
+                            });
+                            let row = self.secondary_rune_rows[choice];
+                            let options = rune_options(self.secondary_tree, row);
+                            let slot = 4 + choice;
+                            rune_section_heading(
+                                ui,
+                                &format!("ROW {row}"),
+                                &selected_rune_name(self.secondary_tree, row, self.selected_perks[slot]),
+                                rune_tree_color(self.secondary_tree),
+                            );
+                            if let Some(id) = rune_icon_choice_line(
+                                ui,
+                                &options,
+                                self.selected_perks[slot],
+                                &self.rune_textures,
+                                rune_tree_color(self.secondary_tree),
+                                36.0,
+                            ) {
+                                self.selected_perks[slot] = id;
+                            }
+                        }
+                        ui.add_space(6.0);
+                        rune_section_heading(
+                            ui,
+                            "STAT SHARDS",
+                            "Offense · flex · defense",
+                            CYAN,
+                        );
+                        for (row, label) in [(0usize, "OFFENSE"), (1, "FLEX"), (2, "DEFENSE")] {
+                            let options = stat_shard_options(row)
+                                .iter()
+                                .map(|(id, name)| (*id, (*name).to_string()))
+                                .collect::<Vec<_>>();
+                            let slot = 6 + row;
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(label).size(8.0).strong().color(MUTED));
+                                ui.label(
+                                    RichText::new(selected_rune_name_from_options(
+                                        &options,
+                                        self.selected_perks[slot],
+                                    ))
+                                    .size(8.5)
+                                    .color(SECONDARY),
+                                );
+                            });
+                            if let Some(id) = rune_icon_choice_line(
+                                ui,
+                                &options,
+                                self.selected_perks[slot],
+                                &self.rune_textures,
+                                CYAN,
+                                31.0,
+                            ) {
+                                self.selected_perks[slot] = id;
+                            }
+                        }
+                    });
             });
 
-            ui.add_space(5.0);
-            ui.horizontal(|ui| {
-                for (slot, label, id) in [
-                    (0usize, "SLOT 1", self.spell_one),
-                    (1usize, "SLOT 2", self.spell_two),
-                ] {
-                    if filter_chip(
-                        ui,
-                        &format!("{label} · {}", spell_name(id)),
-                        self.active_spell_slot == slot,
-                        if slot == 0 { CYAN } else { GOLD },
-                    )
-                    .clicked()
-                    {
-                        self.active_spell_slot = slot;
-                    }
-                }
-                ui.label(
-                    RichText::new("Click to assign · click the other spell to swap")
-                        .size(8.5)
-                        .color(MUTED),
-                );
-            });
-            ui.horizontal_wrapped(|ui| {
-                for (id, name) in SUMMONER_SPELLS {
-                    let selected_here = if self.active_spell_slot == 0 {
-                        self.spell_one == *id
-                    } else {
-                        self.spell_two == *id
-                    };
-                    let selected_other = if self.active_spell_slot == 0 {
-                        self.spell_two == *id
-                    } else {
-                        self.spell_one == *id
-                    };
-                    let response = spell_choice_chip(
-                        ui,
-                        name,
-                        selected_here,
-                        selected_other,
-                        if self.active_spell_slot == 0 {
-                            CYAN
-                        } else {
-                            GOLD
-                        },
-                    );
-                    if response.clicked() {
-                        if self.active_spell_slot == 0 {
-                            if self.spell_two == *id {
-                                std::mem::swap(&mut self.spell_one, &mut self.spell_two);
-                            } else {
-                                self.spell_one = *id;
+            ui.add_space(8.0);
+            Frame::new()
+                .fill(Color32::from_rgb(11, 16, 26))
+                .stroke(Stroke::new(1.0, Color32::from_rgb(26, 36, 52)))
+                .corner_radius(egui::CornerRadius::same(10))
+                .inner_margin(egui::Margin::same(10))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        for (slot, label, id) in [
+                            (0usize, "KEY [ D ]", self.spell_one),
+                            (1usize, "KEY [ F ]", self.spell_two),
+                        ] {
+                            if filter_chip(
+                                ui,
+                                &format!("{label} · {}", spell_name(id)),
+                                self.active_spell_slot == slot,
+                                if slot == 0 { CYAN } else { GOLD },
+                            )
+                            .clicked()
+                            {
+                                self.active_spell_slot = slot;
                             }
-                        } else if self.spell_one == *id {
-                            std::mem::swap(&mut self.spell_one, &mut self.spell_two);
-                        } else {
-                            self.spell_two = *id;
                         }
-                    }
-                }
-            });
-            ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Select slot, then click spell below to assign")
+                                .size(9.0)
+                                .color(MUTED),
+                        );
+                    });
+                    ui.add_space(4.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for (id, name) in SUMMONER_SPELLS {
+                            let selected_here = if self.active_spell_slot == 0 {
+                                self.spell_one == *id
+                            } else {
+                                self.spell_two == *id
+                            };
+                            let selected_other = if self.active_spell_slot == 0 {
+                                self.spell_two == *id
+                            } else {
+                                self.spell_one == *id
+                            };
+                            let response = spell_choice_chip(
+                                ui,
+                                name,
+                                selected_here,
+                                selected_other,
+                                if self.active_spell_slot == 0 {
+                                    CYAN
+                                } else {
+                                    GOLD
+                                },
+                            );
+                            if response.clicked() {
+                                if self.active_spell_slot == 0 {
+                                    if self.spell_two == *id {
+                                        std::mem::swap(&mut self.spell_one, &mut self.spell_two);
+                                    } else {
+                                        self.spell_one = *id;
+                                    }
+                                } else if self.spell_one == *id {
+                                    std::mem::swap(&mut self.spell_one, &mut self.spell_two);
+                                } else {
+                                    self.spell_two = *id;
+                                }
+                            }
+                        }
+                    });
+                });
+
+            ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("Setup is saved per champion.")
-                        .size(9.0)
+                        .size(9.5)
                         .color(MUTED),
                 );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if action_button(ui, "APPLY RUNES + SPELLS", false, CYAN).clicked() {
+                    let cta_size = Vec2::new(210.0, 36.0);
+                    let (cta_rect, cta_resp) = ui.allocate_exact_size(cta_size, Sense::click());
+                    let cta_hover = ui.ctx().animate_bool(cta_resp.id, cta_resp.hovered());
+                    let cta_fill = lerp_color(
+                        Color32::from_rgb(14, 55, 75),
+                        Color32::from_rgb(20, 95, 125),
+                        cta_hover,
+                    );
+                    ui.painter().rect_filled(cta_rect, egui::CornerRadius::same(8), cta_fill);
+                    ui.painter().rect_stroke(
+                        cta_rect,
+                        egui::CornerRadius::same(8),
+                        Stroke::new(1.2 + cta_hover * 0.8, CYAN),
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        cta_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "⚡ APPLY RUNES + SPELLS",
+                        FontId::proportional(12.0),
+                        Color32::WHITE,
+                    );
+                    if cta_resp.clicked() {
                         let page = rune_page(
                             &champion.name,
                             self.primary_tree,
@@ -1934,18 +2040,39 @@ impl RiftCoreApp {
                         }
                     }
                 });
-            } else if self.snapshot.connected {
-                ui.label(
-                    RichText::new("Open champion select to see live picks here.")
-                        .size(11.5)
-                        .color(SECONDARY),
-                );
             } else {
-                ui.label(
-                    RichText::new("Start the Riot Client and League Client to connect lobby data.")
-                        .size(11.5)
-                        .color(SECONDARY),
-                );
+                Frame::new()
+                    .fill(Color32::from_rgb(11, 16, 26))
+                    .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
+                    .corner_radius(egui::CornerRadius::same(10))
+                    .inner_margin(egui::Margin::same(16))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            avatar(ui, "👥", 44.0, CYAN, None);
+                            ui.add_space(8.0);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(if self.snapshot.connected {
+                                        "LOBBY SCOUT STANDBY"
+                                    } else {
+                                        "LEAGUE CLIENT DISCONNECTED"
+                                    })
+                                    .size(13.0)
+                                    .strong()
+                                    .color(TEXT),
+                                );
+                                ui.label(
+                                    RichText::new(if self.snapshot.connected {
+                                        "Enter Champion Select or queue up to automatically detect lobby participants, roles, and opponent picks."
+                                    } else {
+                                        "Launch League of Legends to connect live session intelligence, runes auto-import, and lobby scouting."
+                                    })
+                                    .size(11.0)
+                                    .color(SECONDARY),
+                                );
+                            });
+                        });
+                    });
             }
         });
     }
@@ -1991,6 +2118,7 @@ impl RiftCoreApp {
         }
         ui.add_space(10.0);
         let champions = self.champions.clone();
+        let textures = self.champion_textures.clone();
         ui.columns(2, |columns| {
             render_draft_team(
                 &mut columns[0],
@@ -1998,6 +2126,7 @@ impl RiftCoreApp {
                 "Your team picks",
                 &mut self.draft_allies,
                 &champions,
+                &textures,
                 CYAN,
             );
             render_draft_team(
@@ -2006,6 +2135,7 @@ impl RiftCoreApp {
                 "Opponent picks",
                 &mut self.draft_enemies,
                 &champions,
+                &textures,
                 RED,
             );
         });
@@ -2025,30 +2155,74 @@ impl RiftCoreApp {
                 ] {
                     let readout = draft_team_analysis(ids, &self.champions);
                     columns[column].vertical(|ui| {
-                        ui.label(
-                            RichText::new(format!(
-                                "{label}  {filled}/5 picks · {} open",
-                                5 - filled
-                            ))
-                            .size(11.0)
-                            .strong()
-                            .color(accent),
-                        );
-                        ui.label(
-                            RichText::new(format!(
-                                "Frontline {}  ·  Magic {}  ·  Physical {}  ·  Utility {}",
-                                readout.frontline, readout.magic, readout.physical, readout.utility
-                            ))
-                            .size(10.0)
-                            .color(SECONDARY),
-                        );
-                        ui.label(RichText::new(&readout.advice).size(10.0).color(
-                            if readout.advice.starts_with("Composition") {
-                                GREEN
-                            } else {
-                                GOLD
-                            },
-                        ));
+                        Frame::new()
+                            .fill(Color32::from_rgb(11, 16, 26))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
+                            .corner_radius(egui::CornerRadius::same(10))
+                            .inner_margin(egui::Margin::same(12))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(format!("{label} COMPOSITION"))
+                                            .size(13.0)
+                                            .strong()
+                                            .color(accent),
+                                    );
+                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                        badge(
+                                            ui,
+                                            &format!("{filled}/5 PICKS"),
+                                            if filled == 5 { GREEN } else { GOLD },
+                                        );
+                                    });
+                                });
+                                ui.add_space(8.0);
+
+                                // Damage split meter
+                                let total_dmg = (readout.physical + readout.magic).max(1);
+                                let phys_pct = (readout.physical as f32 / total_dmg as f32) * 100.0;
+                                let magic_pct = (readout.magic as f32 / total_dmg as f32) * 100.0;
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new("DAMAGE PROFILE").size(9.5).strong().color(MUTED));
+                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                        ui.label(RichText::new(format!("Physical {:.0}%  ·  Magic {:.0}%", phys_pct, magic_pct)).size(9.5).color(SECONDARY));
+                                    });
+                                });
+                                custom_progress_bar(ui, phys_pct / 100.0, Color32::from_rgb(235, 110, 45), 6.0);
+                                ui.add_space(8.0);
+
+                                // Attribute meter bars
+                                for (attr_name, val, max_val, bar_color) in [
+                                    ("Frontline & Durability", readout.frontline, 5, Color32::from_rgb(52, 152, 219)),
+                                    ("Crowd Control & Utility", readout.utility, 5, Color32::from_rgb(155, 89, 182)),
+                                    ("Magic Threat", readout.magic, 5, CYAN),
+                                    ("Physical Threat", readout.physical, 5, Color32::from_rgb(230, 126, 34)),
+                                ] {
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new(attr_name).size(10.5).color(TEXT));
+                                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                            ui.label(RichText::new(format!("{val} / {max_val}")).size(10.0).color(SECONDARY));
+                                        });
+                                    });
+                                    custom_progress_bar(ui, val as f32 / max_val as f32, bar_color, 4.0);
+                                    ui.add_space(3.0);
+                                }
+
+                                ui.add_space(6.0);
+                                // Strategic advice card
+                                let is_balanced = readout.advice.starts_with("Composition");
+                                Frame::new()
+                                    .fill(if is_balanced { Color32::from_rgba_unmultiplied(46, 125, 50, 40) } else { Color32::from_rgba_unmultiplied(198, 120, 20, 40) })
+                                    .stroke(Stroke::new(1.0, if is_balanced { GREEN } else { GOLD }))
+                                    .corner_radius(egui::CornerRadius::same(6))
+                                    .inner_margin(egui::Margin::symmetric(10, 8))
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new(if is_balanced { "🛡️" } else { "⚠️" }).size(14.0));
+                                            ui.label(RichText::new(&readout.advice).size(11.0).color(TEXT));
+                                        });
+                                    });
+                            });
                     });
                 }
             });
@@ -2102,11 +2276,34 @@ impl RiftCoreApp {
         } else {
             panel(ui, |ui| {
                 ui.horizontal(|ui| {
-                    avatar(ui, "HUD", 44.0, CYAN, None);
+                    avatar(ui, "HUD", 48.0, CYAN, None);
+                    ui.add_space(8.0);
                     ui.vertical(|ui| {
-                        ui.label(RichText::new("WAITING FOR LIVE GAME DATA").size(14.0).strong().color(TEXT));
-                        ui.label(RichText::new("The native HUD appears when the Live Client Data API is available.").size(11.0).color(SECONDARY));
-                        ui.label(RichText::new("For in-game overlays, run League in Borderless or Windowed mode.").size(10.0).color(MUTED));
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("NATIVE IN-GAME OVERLAY").size(16.0).strong().color(TEXT));
+                            if self.settings.hud_preview_mode {
+                                badge(ui, "PREVIEW ACTIVE", GOLD);
+                            } else if self.overlay_mode {
+                                badge(ui, "ENABLED (WAITING)", CYAN);
+                            } else {
+                                badge(ui, "STANDBY", SECONDARY);
+                            }
+                        });
+                        ui.label(RichText::new("Direct transparent GPU overlay on top of League of Legends (Borderless or Windowed mode).").size(11.5).color(SECONDARY));
+                        ui.label(RichText::new("You can preview the HUD widgets on your desktop right now even outside of a live match.").size(10.5).color(MUTED));
+                    });
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let preview_active = self.settings.hud_preview_mode && self.overlay_mode;
+                        let preview_btn = if preview_active { "⏹ STOP PREVIEW" } else { "👁 PREVIEW OVERLAY" };
+                        if action_button(ui, preview_btn, preview_active, GOLD).clicked() {
+                            self.settings.hud_preview_mode = !preview_active;
+                            if !preview_active {
+                                self.set_overlay_mode(ui.ctx(), true, false);
+                            } else {
+                                self.set_overlay_mode(ui.ctx(), false, false);
+                            }
+                            self.save_settings();
+                        }
                     });
                 });
             });
@@ -2338,88 +2535,65 @@ impl RiftCoreApp {
 
     fn render_overlay_module_settings(&mut self, ui: &mut egui::Ui) {
         panel(ui, |ui| {
-            panel_title(ui, "HUD MODULES", "Choose what the native overlay displays");
-            let mut changed = false;
-            changed |= checkbox_row(
-                ui,
-                "Objective timers",
-                &mut self.settings.hud_objective_timers,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Manual allied ultimate timers",
-                &mut self.settings.hud_ally_ult_timers,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Manual enemy summoner timers",
-                &mut self.settings.hud_enemy_spell_timers,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Manual jungle respawn timers",
-                &mut self.settings.hud_manual_camp_timers,
-            );
-            changed |= checkbox_row(ui, "Current gold", &mut self.settings.hud_gold_lead);
-            changed |= checkbox_row(ui, "CS per minute", &mut self.settings.hud_cs_benchmark);
-            changed |= checkbox_row(ui, "Ability ranks", &mut self.settings.hud_skill_order);
-            changed |= checkbox_row(ui, "Item inventory", &mut self.settings.hud_item_goal);
-            changed |= checkbox_row(
-                ui,
-                "Trinket reminder",
-                &mut self.settings.hud_trinket_reminder,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Manual ARAM relic timers",
-                &mut self.settings.hud_aram_health_timers,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Mayhem & Arena card guide",
-                &mut self.settings.hud_mayhem_cards,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Jungle opening route guide",
-                &mut self.settings.hud_jungle_pathing,
-            );
+            panel_title(ui, "HUD SCREEN MOCKUP", "Visual placement of overlay modules during gameplay");
+            render_hud_mockup(ui, &self.settings.hud_mode);
+        });
+        ui.add_space(10.0);
+
+        let mut changed = false;
+        ui.columns(2, |columns| {
+            Frame::new()
+                .fill(CARD)
+                .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
+                .corner_radius(egui::CornerRadius::same(12))
+                .inner_margin(egui::Margin::same(14))
+                .show(&mut columns[0], |ui| {
+                    panel_title(ui, "COMBAT & OBJECTIVE TIMERS", "Neutral objectives, cooldowns and respawns");
+                    changed |= toggle_card_row(ui, "Objective Timers", "Dragon, Baron, and Rift Herald spawn countdowns", &mut self.settings.hud_objective_timers);
+                    changed |= toggle_card_row(ui, "Allied Ultimate Timers", "Manual click timers for allied R cooldowns", &mut self.settings.hud_ally_ult_timers);
+                    changed |= toggle_card_row(ui, "Enemy Summoner Timers", "Manual tracker for enemy Flash and spells", &mut self.settings.hud_enemy_spell_timers);
+                    changed |= toggle_card_row(ui, "Jungle Camp Respawns", "Manual camp respawn timers dock", &mut self.settings.hud_manual_camp_timers);
+                    changed |= toggle_card_row(ui, "ARAM Health Relic Timers", "Manual health relic countdowns", &mut self.settings.hud_aram_health_timers);
+                });
+
+            Frame::new()
+                .fill(CARD)
+                .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
+                .corner_radius(egui::CornerRadius::same(12))
+                .inner_margin(egui::Margin::same(14))
+                .show(&mut columns[1], |ui| {
+                    panel_title(ui, "STATS & REAL-TIME ECONOMY", "Gold tracker, benchmarks and inventory guides");
+                    changed |= toggle_card_row(ui, "Current Gold Tracker", "Display active gold in overlay", &mut self.settings.hud_gold_lead);
+                    changed |= toggle_card_row(ui, "CS Per Minute Pace", "Benchmark creep score pace against pro targets", &mut self.settings.hud_cs_benchmark);
+                    changed |= toggle_card_row(ui, "Ability Rank Guide", "Recommended skill level order indicator", &mut self.settings.hud_skill_order);
+                    changed |= toggle_card_row(ui, "Item Build Goals", "Current item inventory and next purchase goal", &mut self.settings.hud_item_goal);
+                    changed |= toggle_card_row(ui, "Trinket Ward Reminder", "Alerts when ward charge has capped", &mut self.settings.hud_trinket_reminder);
+                });
+        });
+        ui.add_space(10.0);
+        panel(ui, |ui| {
+            panel_title(ui, "ROUTE GUIDES & MINIMAP OVERLAY PINS", "Public tactical timers and pathing reference");
+            changed |= toggle_card_row(ui, "Mayhem & Arena Cards Guide", "Interactive card selector and tier recommendations", &mut self.settings.hud_mayhem_cards);
+            changed |= toggle_card_row(ui, "Jungle Opening Pathing", "Optimal first-clear path reference guide", &mut self.settings.hud_jungle_pathing);
             if self.settings.hud_jungle_pathing {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Start route at").size(10.5).color(SECONDARY));
-                    for (side, label, accent) in
-                        [("red", "RED BUFF", RED), ("blue", "BLUE BUFF", CYAN)]
-                    {
-                        if action_button(ui, label, self.settings.jungle_start_buff == side, accent)
-                            .clicked()
-                        {
+                    ui.label(RichText::new("Start route at:").size(11.0).color(SECONDARY));
+                    for (side, label, accent) in [("red", "RED BUFF", RED), ("blue", "BLUE BUFF", CYAN)] {
+                        if action_button(ui, label, self.settings.jungle_start_buff == side, accent).clicked() {
                             self.settings.jungle_start_buff = side.to_string();
                             changed = true;
                         }
                     }
                 });
-                ui.label(RichText::new("Reference clear route only. It does not track opponents or infer their location.").size(9.5).color(MUTED));
+                ui.add_space(4.0);
             }
-            changed |= checkbox_row(
-                ui,
-                "Objective countdown pins on minimap",
-                &mut self.settings.hud_map_objective_pins,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Jungle route step pins on minimap",
-                &mut self.settings.hud_map_route_pins,
-            );
-            changed |= checkbox_row(
-                ui,
-                "Static ward guide pins on minimap",
-                &mut self.settings.hud_map_ward_pins,
-            );
-            ui.label(RichText::new("Minimap pins display only public objective timers, your selected opening route, and static warding suggestions. They appear in Integrated HUD mode.").size(9.5).color(MUTED));
-            if changed {
-                self.save_settings();
-            }
+            changed |= toggle_card_row(ui, "Objective Countdown Pins", "Floating timer markers pinned directly on minimap pits", &mut self.settings.hud_map_objective_pins);
+            changed |= toggle_card_row(ui, "Jungle Route Step Pins", "Numbered sequential clear steps rendered on minimap", &mut self.settings.hud_map_route_pins);
+            changed |= toggle_card_row(ui, "Static Ward Guide Pins", "Strategic high-value ward placement indicators", &mut self.settings.hud_map_ward_pins);
         });
+        if changed {
+            self.save_settings();
+        }
         ui.add_space(12.0);
         panel(ui, |ui| {
             panel_title(
@@ -3825,28 +3999,39 @@ impl RiftCoreApp {
             panel(ui, |ui| {
                 ui.horizontal(|ui| {
                     avatar(ui, "R", 58.0, CYAN, None);
+                    ui.add_space(8.0);
                     ui.vertical(|ui| {
-                        ui.label(
-                            RichText::new(
-                                summoner
-                                    .get("gameName")
-                                    .and_then(Value::as_str)
-                                    .unwrap_or("Summoner"),
-                            )
-                            .size(21.0)
-                            .strong()
-                            .color(TEXT),
-                        );
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(
+                                    summoner
+                                        .get("gameName")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or("Summoner"),
+                                )
+                                .size(22.0)
+                                .strong()
+                                .color(TEXT),
+                            );
+                            ui.add_space(6.0);
+                            badge(
+                                ui,
+                                &format!(
+                                    "Level {}",
+                                    num(summoner, "summonerLevel")
+                                ),
+                                CYAN,
+                            );
+                        });
                         ui.label(
                             RichText::new(format!(
-                                "#{}  •  Level {}",
+                                "#{}",
                                 summoner
                                     .get("tagLine")
                                     .and_then(Value::as_str)
-                                    .unwrap_or("—"),
-                                num(summoner, "summonerLevel")
+                                    .unwrap_or("—")
                             ))
-                            .size(11.5)
+                            .size(12.0)
                             .color(SECONDARY),
                         );
                     });
@@ -3859,7 +4044,7 @@ impl RiftCoreApp {
             });
             ui.add_space(12.0);
             panel(ui, |ui| {
-                panel_title(ui, "RANKED QUEUES", "Current season rank");
+                panel_title(ui, "RANKED QUEUES", "Current season rank and ladder progress");
                 if let Some(queues) = self
                     .snapshot
                     .ranked
@@ -3867,42 +4052,104 @@ impl RiftCoreApp {
                     .and_then(|ranked| ranked.get("queues"))
                     .and_then(Value::as_array)
                 {
-                    for queue in queues {
-                        let queue_name = queue
-                            .get("queueType")
-                            .and_then(Value::as_str)
-                            .unwrap_or("Ranked");
-                        let tier = queue
-                            .get("tier")
-                            .and_then(Value::as_str)
-                            .unwrap_or("UNRANKED");
-                        let division = queue
-                            .get("division")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default();
-                        let lp = num(queue, "leaguePoints");
-                        let wins = num(queue, "wins");
-                        let losses = num(queue, "losses");
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(queue_name.replace('_', " "))
-                                    .size(11.5)
-                                    .strong()
-                                    .color(TEXT),
-                            );
-                            ui.label(
-                                RichText::new(format!("{tier} {division}"))
-                                    .size(13.0)
-                                    .strong()
-                                    .color(GOLD),
-                            );
-                            ui.label(
-                                RichText::new(format!("{lp} LP  •  {wins}W / {losses}L"))
-                                    .size(11.0)
-                                    .color(SECONDARY),
-                            );
-                        });
-                    }
+                    ui.columns(2, |cols| {
+                        for (idx, queue) in queues.iter().enumerate() {
+                            let col = &mut cols[idx % 2];
+                            let queue_name = queue
+                                .get("queueType")
+                                .and_then(Value::as_str)
+                                .unwrap_or("Ranked");
+                            let friendly_name = match queue_name {
+                                "RANKED_SOLO_5x5" => "RANKED SOLO / DUO",
+                                "RANKED_FLEX_SR" => "RANKED FLEX 5v5",
+                                "RANKED_TFT" => "TFT RANKED",
+                                "RANKED_TFT_DOUBLE_UP" => "TFT DOUBLE UP",
+                                other => other,
+                            };
+                            let tier = queue
+                                .get("tier")
+                                .and_then(Value::as_str)
+                                .unwrap_or("UNRANKED");
+                            let division = queue
+                                .get("division")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default();
+                            let lp = num(queue, "leaguePoints");
+                            let wins = num(queue, "wins").parse::<u32>().unwrap_or(0);
+                            let losses = num(queue, "losses").parse::<u32>().unwrap_or(0);
+                            let total = wins + losses;
+                            let wr = if total > 0 {
+                                (wins as f32 / total as f32) * 100.0
+                            } else {
+                                0.0
+                            };
+                            let color = tier_color(tier);
+
+                            Frame::new()
+                                .fill(Color32::from_rgb(11, 16, 26))
+                                .stroke(Stroke::new(1.0, Color32::from_rgb(26, 38, 54)))
+                                .corner_radius(egui::CornerRadius::same(10))
+                                .inner_margin(egui::Margin::same(12))
+                                .show(col, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(friendly_name)
+                                                .size(12.0)
+                                                .strong()
+                                                .color(TEXT),
+                                        );
+                                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                            badge(ui, &format!("{tier} {division}"), color);
+                                        });
+                                    });
+                                    ui.add_space(6.0);
+                                    let lp_val = lp.parse::<f32>().unwrap_or(0.0);
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(format!("{lp} LP"))
+                                                .size(16.0)
+                                                .strong()
+                                                .color(color),
+                                        );
+                                        ui.label(RichText::new("/ 100 LP").size(10.0).color(MUTED));
+                                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                            if total > 0 {
+                                                badge(
+                                                    ui,
+                                                    &format!("{wr:.1}% WR"),
+                                                    if wr >= 55.0 {
+                                                        GREEN
+                                                    } else if wr >= 48.0 {
+                                                        CYAN
+                                                    } else {
+                                                        SECONDARY
+                                                    },
+                                                );
+                                            }
+                                        });
+                                    });
+                                    custom_progress_bar(ui, lp_val / 100.0, color, 6.0);
+                                    ui.add_space(6.0);
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(format!("{wins}W  {losses}L"))
+                                                .size(11.0)
+                                                .color(SECONDARY),
+                                        );
+                                        if total > 0 {
+                                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                                ui.label(
+                                                    RichText::new(format!("{total} Total Matches"))
+                                                        .size(9.5)
+                                                        .color(MUTED),
+                                                );
+                                            });
+                                        }
+                                    });
+                                });
+                            col.add_space(8.0);
+                        }
+                    });
                 } else {
                     ui.label(
                         RichText::new("Ranked data will appear when the League Client is online.")
@@ -6406,12 +6653,23 @@ impl eframe::App for RiftCoreApp {
         }
         if self.last_bounds_check.elapsed() > Duration::from_millis(250) {
             self.overlay_target = backend::league_game_window();
-            self.overlay_target_is_foreground = self
-                .overlay_target
-                .map(backend::league_window_is_foreground)
-                .unwrap_or(false);
-            self.overlay_waiting_for_window = self.overlay_mode
-                && (self.overlay_target.is_none() || !self.overlay_target_is_foreground);
+            if self.overlay_target.is_none() && self.settings.hud_preview_mode {
+                self.overlay_target = Some(backend::LeagueWindowInfo {
+                    hwnd: 0,
+                    process_id: 0,
+                    bounds: [0, 0, 1920, 1080],
+                    dpi: 96,
+                });
+                self.overlay_target_is_foreground = true;
+                self.overlay_waiting_for_window = false;
+            } else {
+                self.overlay_target_is_foreground = self
+                    .overlay_target
+                    .map(backend::league_window_is_foreground)
+                    .unwrap_or(false);
+                self.overlay_waiting_for_window = self.overlay_mode
+                    && (self.overlay_target.is_none() || !self.overlay_target_is_foreground);
+            }
             self.last_bounds_check = Instant::now();
         }
 
@@ -6471,6 +6729,182 @@ fn checkbox_row(ui: &mut egui::Ui, label: &str, value: &mut bool) -> bool {
         });
     });
     changed
+}
+
+fn tier_color(tier: &str) -> Color32 {
+    match tier.to_uppercase().as_str() {
+        "IRON" => Color32::from_rgb(117, 107, 107),
+        "BRONZE" => Color32::from_rgb(165, 113, 78),
+        "SILVER" => Color32::from_rgb(168, 187, 199),
+        "GOLD" => Color32::from_rgb(234, 186, 70),
+        "PLATINUM" => Color32::from_rgb(46, 178, 142),
+        "EMERALD" => Color32::from_rgb(26, 188, 114),
+        "DIAMOND" => Color32::from_rgb(112, 169, 255),
+        "MASTER" => Color32::from_rgb(187, 98, 255),
+        "GRANDMASTER" => Color32::from_rgb(243, 67, 67),
+        "CHALLENGER" => Color32::from_rgb(244, 201, 74),
+        _ => Color32::from_rgb(130, 145, 166),
+    }
+}
+
+fn custom_progress_bar(ui: &mut egui::Ui, fraction: f32, color: Color32, height: f32) {
+    let width = ui.available_width().max(40.0);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
+    let r = (height * 0.5).round() as u8;
+    ui.painter().rect_filled(
+        rect,
+        egui::CornerRadius::same(r),
+        Color32::from_rgb(20, 26, 38),
+    );
+    let fill_width = (rect.width() * fraction.clamp(0.0, 1.0)).max(0.0);
+    if fill_width > 0.0 {
+        let fill_rect = egui::Rect::from_min_size(rect.min, Vec2::new(fill_width, height));
+        ui.painter().rect_filled(
+            fill_rect,
+            egui::CornerRadius::same(r),
+            color,
+        );
+    }
+}
+
+fn toggle_switch(ui: &mut egui::Ui, value: &mut bool) -> egui::Response {
+    let desired_size = Vec2::new(36.0, 20.0);
+    let (rect, mut response) = ui.allocate_exact_size(desired_size, Sense::click());
+    if response.clicked() {
+        *value = !*value;
+        response.mark_changed();
+    }
+    let how_on = ui.ctx().animate_bool(response.id, *value);
+    let bg_color = lerp_color(Color32::from_rgb(25, 33, 46), CYAN, how_on);
+    ui.painter().rect_filled(rect, egui::CornerRadius::same(10), bg_color);
+    let circle_x = egui::lerp((rect.left() + 10.0)..=(rect.right() - 10.0), how_on);
+    let center = egui::pos2(circle_x, rect.center().y);
+    ui.painter().circle_filled(center, 7.0, Color32::WHITE);
+    response
+}
+
+fn toggle_card_row(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bool) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| {
+            ui.label(RichText::new(title).size(12.0).strong().color(TEXT));
+            if !subtitle.is_empty() {
+                ui.label(RichText::new(subtitle).size(10.0).color(SECONDARY));
+            }
+        });
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if toggle_switch(ui, value).changed() {
+                changed = true;
+            }
+        });
+    });
+    ui.add_space(4.0);
+    changed
+}
+
+fn render_hud_mockup(ui: &mut egui::Ui, hud_mode: &str) {
+    let width = ui.available_width().clamp(280.0, 680.0);
+    let height = (width * 0.38).clamp(110.0, 240.0);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, egui::CornerRadius::same(10), Color32::from_rgb(8, 12, 18));
+    painter.rect_stroke(
+        rect,
+        egui::CornerRadius::same(10),
+        Stroke::new(1.0, Color32::from_rgb(26, 38, 54)),
+        egui::StrokeKind::Inside,
+    );
+
+    let top_center = egui::pos2(rect.center().x, rect.top() + 18.0);
+    let top_bar_rect = egui::Rect::from_center_size(top_center, Vec2::new(width * 0.54, 22.0));
+    painter.rect_filled(top_bar_rect, egui::CornerRadius::same(6), Color32::from_rgb(14, 22, 34));
+    painter.rect_stroke(
+        top_bar_rect,
+        egui::CornerRadius::same(6),
+        Stroke::new(1.0, CYAN),
+        egui::StrokeKind::Inside,
+    );
+    painter.text(
+        top_bar_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        "◈ 14:22  ·  3 / 1 / 5  ·  128 CS (9.0/m)  ·  1,450 G",
+        FontId::proportional(9.5),
+        Color32::WHITE,
+    );
+
+    let map_size = height * 0.58;
+    let map_rect = egui::Rect::from_min_size(
+        egui::pos2(rect.right() - map_size - 14.0, rect.bottom() - map_size - 12.0),
+        Vec2::splat(map_size),
+    );
+    painter.rect_filled(map_rect, egui::CornerRadius::same(6), Color32::from_rgb(12, 18, 25));
+    painter.rect_stroke(
+        map_rect,
+        egui::CornerRadius::same(6),
+        Stroke::new(1.0, Color32::from_rgb(35, 48, 65)),
+        egui::StrokeKind::Inside,
+    );
+    painter.text(
+        egui::pos2(map_rect.left() + 6.0, map_rect.top() + 6.0),
+        egui::Align2::LEFT_TOP,
+        "MINIMAP",
+        FontId::proportional(8.5),
+        MUTED,
+    );
+
+    painter.circle_filled(map_rect.center(), 4.0, CYAN);
+    painter.circle_filled(
+        egui::pos2(map_rect.left() + 22.0, map_rect.bottom() - 22.0),
+        3.5,
+        GREEN,
+    );
+    painter.circle_filled(
+        egui::pos2(map_rect.right() - 22.0, map_rect.top() + 22.0),
+        3.5,
+        RED,
+    );
+
+    if hud_mode == "card" || hud_mode == "integrated" {
+        let card_rect = egui::Rect::from_min_size(
+            egui::pos2(rect.left() + 16.0, rect.top() + 20.0),
+            Vec2::new(130.0, height * 0.70),
+        );
+        painter.rect_filled(card_rect, egui::CornerRadius::same(8), Color32::from_rgb(14, 22, 34));
+        painter.rect_stroke(
+            card_rect,
+            egui::CornerRadius::same(8),
+            Stroke::new(1.0, GOLD),
+            egui::StrokeKind::Inside,
+        );
+        painter.text(
+            egui::pos2(card_rect.left() + 8.0, card_rect.top() + 8.0),
+            egui::Align2::LEFT_TOP,
+            "TACTICAL TIMERS",
+            FontId::proportional(8.5),
+            GOLD,
+        );
+        painter.text(
+            egui::pos2(card_rect.left() + 8.0, card_rect.top() + 24.0),
+            egui::Align2::LEFT_TOP,
+            "Dragon:  01:45",
+            FontId::proportional(8.5),
+            TEXT,
+        );
+        painter.text(
+            egui::pos2(card_rect.left() + 8.0, card_rect.top() + 38.0),
+            egui::Align2::LEFT_TOP,
+            "Baron:   04:10",
+            FontId::proportional(8.5),
+            SECONDARY,
+        );
+        painter.text(
+            egui::pos2(card_rect.left() + 8.0, card_rect.top() + 52.0),
+            egui::Align2::LEFT_TOP,
+            "Ultimates: Ready",
+            FontId::proportional(8.5),
+            GREEN,
+        );
+    }
 }
 
 fn settings_row(ui: &mut egui::Ui, label: &str, value: &mut bool, description: &str) -> bool {
@@ -7750,6 +8184,7 @@ fn render_draft_team(
     description: &str,
     picks: &mut [u32; 5],
     champions: &[Champion],
+    textures: &std::collections::HashMap<String, egui::TextureHandle>,
     accent: Color32,
 ) {
     panel(ui, |ui| {
@@ -7758,27 +8193,90 @@ fn render_draft_team(
             .iter()
             .enumerate()
         {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(*role).size(10.0).strong().color(accent));
-                let selected = champions
-                    .iter()
-                    .find(|champion| champion.id == picks[index])
-                    .map(|champion| champion.name.as_str())
-                    .unwrap_or("Empty slot");
-                egui::ComboBox::from_id_salt(format!("{title}-{role}-{index}"))
-                    .selected_text(selected)
-                    .width(ui.available_width().max(130.0))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut picks[index], 0, "Empty slot");
-                        for champion in champions {
-                            ui.selectable_value(
-                                &mut picks[index],
-                                champion.id,
-                                champion.name.as_str(),
+            let picked_champ = champions.iter().find(|champion| champion.id == picks[index]);
+            let (role_icon, role_color) = match *role {
+                "TOP" => ("⚔ TOP", Color32::from_rgb(198, 120, 221)),
+                "JUNGLE" => ("🌿 JNG", Color32::from_rgb(97, 175, 239)),
+                "MID" => ("⚡ MID", Color32::from_rgb(229, 192, 123)),
+                "ADC" => ("🏹 BOT", Color32::from_rgb(224, 108, 117)),
+                _ => ("🛡 SUP", Color32::from_rgb(152, 195, 121)),
+            };
+
+            Frame::new()
+                .fill(Color32::from_rgb(11, 16, 26))
+                .stroke(Stroke::new(
+                    1.0,
+                    if picked_champ.is_some() {
+                        Color32::from_rgb(28, 44, 64)
+                    } else {
+                        Color32::from_rgb(20, 26, 38)
+                    },
+                ))
+                .corner_radius(egui::CornerRadius::same(8))
+                .inner_margin(egui::Margin::symmetric(10, 8))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        badge(ui, role_icon, role_color);
+                        ui.add_space(4.0);
+                        if let Some(champ) = picked_champ {
+                            avatar(ui, &champ.name, 32.0, accent, textures.get(&champ.key));
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(&champ.name)
+                                        .size(12.5)
+                                        .strong()
+                                        .color(TEXT),
+                                );
+                                ui.label(
+                                    RichText::new(champ.roles.join(" / "))
+                                        .size(9.0)
+                                        .color(SECONDARY),
+                                );
+                            });
+                        } else {
+                            let (placeholder_rect, _) =
+                                ui.allocate_exact_size(Vec2::splat(32.0), Sense::hover());
+                            ui.painter().rect_stroke(
+                                placeholder_rect,
+                                egui::CornerRadius::same(6),
+                                Stroke::new(1.0, Color32::from_rgb(35, 45, 60)),
+                                egui::StrokeKind::Inside,
                             );
+                            ui.painter().text(
+                                placeholder_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "+",
+                                FontId::proportional(16.0),
+                                MUTED,
+                            );
+                            ui.label(RichText::new("Empty slot").size(12.0).italics().color(MUTED));
                         }
+
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if picked_champ.is_some()
+                                && action_button(ui, "×", false, RED).clicked()
+                            {
+                                picks[index] = 0;
+                            }
+                            let selected_text =
+                                picked_champ.map(|c| c.name.as_str()).unwrap_or("Pick...");
+                            egui::ComboBox::from_id_salt(format!("{title}-{role}-{index}"))
+                                .selected_text(selected_text)
+                                .width(120.0)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut picks[index], 0, "Empty slot");
+                                    for champion in champions {
+                                        ui.selectable_value(
+                                            &mut picks[index],
+                                            champion.id,
+                                            champion.name.as_str(),
+                                        );
+                                    }
+                                });
+                        });
                     });
-            });
+                });
+            ui.add_space(5.0);
         }
     });
 }

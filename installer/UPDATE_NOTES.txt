@@ -1,4 +1,18 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.2.0
+--------------------------------------------------
+
+* Complete UI Redesign:
+  - Champion Select: Glassmorphism card layout with responsive champion roster grid, champion hero banner with lane/tier badges and skill priority order, and styled summoner spell hotkeys.
+  - Draft Coach: Visual champion cards with role icons, class badges, and slot controls. Real-time composition analysis featuring physical vs magic damage split bar, attribute gauges (Frontline, CC, Magic & Physical threats), and strategic advice cards.
+  - In-Game HUD: Categorized module groups with animated toggle switches, interactive 16:9 screen preview mockup, and live Desktop Preview Mode.
+  - Lobby Scout & Profile: Ranked queue cards with LP progress bars, tier-colored accents, and win rate pills.
+
+* In-Game Overlay & Vanguard Detection:
+  - Fixed League game client window detection to query Riot window classes directly via Windows API, bypassing Riot Vanguard anti-cheat process restrictions.
+  - Overlay reliably activates and syncs during live games in borderless or windowed mode.
+
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.1.1
 --------------------------------------------------
 
