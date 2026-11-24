@@ -1,4 +1,22 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.2.2
+--------------------------------------------------
+
+* Tactical AI interface refresh:
+  - Reworked page headers into an instrument-style command console with a live client link state and RiftCore core indicator.
+  - Added a subtle tactical grid, brighter signal accents, sharper card edges and clearer navigation states across the app.
+  - Updated controls and section labels for a more consistent sci-fi interface.
+
+* Champion Select and scrolling:
+  - Reset stale saved scroll positions so Champion Select opens at the top after updating.
+  - Kept the champion roster and rune setup independently scrollable, with persistent scrollbars to show where more content is available.
+  - Preserved search, role filters, champion picks, tabs, runes and spell controls.
+
+* HUD overlay:
+  - Requested an alpha-capable native framebuffer for the transparent HUD viewport while keeping the main app surface opaque.
+
+--------------------------------------------------
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.2.1
 --------------------------------------------------
 

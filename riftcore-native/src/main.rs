@@ -24,7 +24,10 @@ fn main() -> eframe::Result {
             .with_inner_size([1380.0, 880.0])
             .with_min_inner_size([1120.0, 740.0])
             .with_decorations(false)
-            .with_transparent(false),
+            // The HUD child viewport shares the Glow framebuffer config with the
+            // root. Request alpha here so the child can composite over League;
+            // the app's own panels paint an opaque surface over this clear color.
+            .with_transparent(true),
         renderer: eframe::Renderer::Glow,
         ..Default::default()
     };
