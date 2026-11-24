@@ -1,4 +1,19 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.2.1
+--------------------------------------------------
+
+* Champion Select layout:
+  - Organized the champion roster and champion setup into a stable two-pane workspace.
+  - Kept roster and setup scrolling independent so the page no longer jumps or clips content.
+  - Moved the live champ-select session into its own tab for a clearer workflow.
+
+* In-Game HUD and native overlay:
+  - Organized HUD settings into compact sections and tabs that remain usable on large pages.
+  - Fixed the transparent overlay background so it no longer appears as a black window.
+  - Improved overlay focus behavior to prevent it stealing focus or flashing back to League.
+
+--------------------------------------------------
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.2.0
 --------------------------------------------------
 
