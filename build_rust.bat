@@ -6,6 +6,10 @@ echo Building RiftCore as a native Rust desktop application...
 set "RUST_TOOLCHAIN="
 set "RUST_OUTPUT=riftcore-native\target\release\riftcore-native.exe"
 
+rem Wave 0+: Use D:\RiftCore-CargoTarget to avoid filling F: drive (only ~11 MB free).
+rem Override by setting CARGO_TARGET_DIR in the environment before calling this script.
+if not defined CARGO_TARGET_DIR set "CARGO_TARGET_DIR=D:\RiftCore-CargoTarget"
+
 where cl >nul 2>nul
 if errorlevel 1 (
     set "RUST_TOOLCHAIN=+stable-x86_64-pc-windows-gnu"
@@ -23,11 +27,14 @@ if errorlevel 1 (
     echo Using the MinGW-w64 Rust target.
 )
 
-cargo %RUST_TOOLCHAIN% build --manifest-path "riftcore-native\Cargo.toml" --release
+cargo %RUST_TOOLCHAIN% build --manifest-path "riftcore-native\Cargo.toml" --release --target-dir "%CARGO_TARGET_DIR%"
 if errorlevel 1 (
     echo [ERROR] Rust build failed.
     exit /b 1
 )
+
+rem RUST_OUTPUT now points to the target dir; adjust path accordingly.
+set "RUST_OUTPUT=%CARGO_TARGET_DIR%\release\riftcore-native.exe"
 
 if not exist "RiftCore_Rust_Portable" mkdir "RiftCore_Rust_Portable"
 copy /Y "%RUST_OUTPUT%" "RiftCore_Rust_Portable\RiftCore.exe" > nul
