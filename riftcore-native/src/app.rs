@@ -63,7 +63,7 @@ struct ChampionSetup {
     spell_two: i64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Page {
     ChampSelect,
     Draft,
@@ -83,6 +83,14 @@ enum SettingsSection {
     Overlay,
     RiotApi,
     App,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HudSettingsTab {
+    Timers,
+    Stats,
+    Guides,
+    Layout,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -139,6 +147,7 @@ pub struct RiftCoreApp {
     mayhem_mode: String,
     active_page: Page,
     settings_section: SettingsSection,
+    hud_settings_tab: HudSettingsTab,
     overlay_mode: bool,
     overlay_auto_entered: bool,
     overlay_waiting_for_window: bool,
@@ -322,6 +331,7 @@ impl RiftCoreApp {
             mayhem_mode: "Both".to_string(),
             active_page: Page::ChampSelect,
             settings_section: SettingsSection::Gameplay,
+            hud_settings_tab: HudSettingsTab::Timers,
             overlay_mode: false,
             overlay_auto_entered: false,
             overlay_waiting_for_window: false,
@@ -1030,21 +1040,27 @@ impl RiftCoreApp {
                         });
                     ui.add_space(10.0);
                 }
-                ScrollArea::vertical()
-                    .id_salt("main-scroll")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| match self.active_page {
-                        Page::ChampSelect => self.render_champ_select(ui),
-                        Page::Draft => self.render_draft(ui),
-                        Page::Lobby => self.render_lobby(ui),
-                        Page::Hud => self.render_hud_page(ui),
-                        Page::Tft => self.render_tft(ui),
-                        Page::Modes => self.render_modes(ui),
-                        Page::TierList => self.render_tier_list(ui),
-                        Page::ChampionPool => self.render_champion_pool(ui),
-                        Page::Profile => self.render_profile(ui),
-                        Page::Settings => self.render_settings(ui),
-                    });
+                if self.active_page == Page::ChampSelect {
+                    self.render_champ_select(ui);
+                } else {
+                    ScrollArea::vertical()
+                        // Keep each page's scroll position separate. The previous shared ID
+                        // could restore the HUD page's bottom offset on Champ Select.
+                        .id_salt(("main-scroll-v2", self.active_page))
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| match self.active_page {
+                            Page::ChampSelect => {}
+                            Page::Draft => self.render_draft(ui),
+                            Page::Lobby => self.render_lobby(ui),
+                            Page::Hud => self.render_hud_page(ui),
+                            Page::Tft => self.render_tft(ui),
+                            Page::Modes => self.render_modes(ui),
+                            Page::TierList => self.render_tier_list(ui),
+                            Page::ChampionPool => self.render_champion_pool(ui),
+                            Page::Profile => self.render_profile(ui),
+                            Page::Settings => self.render_settings(ui),
+                        });
+                }
             });
     }
 
@@ -1166,12 +1182,25 @@ impl RiftCoreApp {
     }
 
     fn render_champ_select(&mut self, ui: &mut egui::Ui) {
-        self.render_page_heading(
-            ui,
-            "PRE-GAME ASSISTANT",
-            "Champ Select",
-            "Champion builds, runes and summoner spell tools",
-        );
+        Frame::new()
+            .fill(SURFACE)
+            .corner_radius(egui::CornerRadius::same(16))
+            .inner_margin(egui::Margin::symmetric(20, 12))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new("PRE-GAME ASSISTANT").size(10.0).strong().color(CYAN));
+                        ui.label(RichText::new("Champ Select").size(25.0).strong().color(TEXT));
+                        ui.label(RichText::new("Pick a champion, then review its build or customize runes.").size(11.5).color(SECONDARY));
+                    });
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        badge(ui, if self.snapshot.connected { "CLIENT ONLINE" } else { "CLIENT OFFLINE" }, if self.snapshot.connected { GREEN } else { MUTED });
+                        ui.add_space(6.0);
+                        badge(ui, &phase_name(&self.snapshot.phase), CYAN);
+                    });
+                });
+            });
+        ui.add_space(8.0);
         let search = self.champion_search.trim().to_lowercase();
         let role_filter = self.champion_role_filter.clone();
         let matches = self
@@ -1235,22 +1264,24 @@ impl RiftCoreApp {
                 );
             });
         });
-        ui.add_space(10.0);
+        ui.add_space(8.0);
+        let pane_height = (ui.available_height() - 4.0).clamp(280.0, 560.0);
         ui.columns(2, |columns| {
             columns[0].set_min_width(420.0);
             panel(&mut columns[0], |ui| {
+                ui.set_min_height((pane_height - 32.0).max(240.0));
                 panel_title(
                     ui,
-                    "CHAMPION ROSTER",
-                    "Choose a champion to preview its build and setup",
+                    "CHOOSE CHAMPION",
+                    &format!("{} champions match", matches.len()),
                 );
                 let avail_width = ui.available_width();
                 let num_cols = ((avail_width - 16.0) / 106.0).floor().max(3.0) as usize;
                 let card_w = ((avail_width - 16.0 - ((num_cols - 1) as f32 * 8.0)) / num_cols as f32).max(80.0);
                 ScrollArea::vertical()
-                    .id_salt("champion-roster-scroll")
+                    .id_salt("champion-roster-scroll-v2")
                     .auto_shrink([false, false])
-                    .min_scrolled_height(540.0)
+                    .max_height((pane_height - 92.0).max(180.0))
                     .show(ui, |ui| {
                         egui::Grid::new("champion-grid")
                             .num_columns(num_cols)
@@ -1359,6 +1390,12 @@ impl RiftCoreApp {
             });
 
             panel(&mut columns[1], |ui| {
+                ui.set_min_height((pane_height - 32.0).max(240.0));
+                ScrollArea::vertical()
+                    .id_salt("champion-details-scroll-v2")
+                    .auto_shrink([false, false])
+                    .max_height((pane_height - 48.0).max(220.0))
+                    .show(ui, |ui| {
                 let champ = self
                     .champions
                     .iter()
@@ -1411,8 +1448,12 @@ impl RiftCoreApp {
                             });
                         });
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        for (tab, label, accent) in [(0usize, "BUILD & ITEMS", CYAN), (1, "RUNES & SPELLS", GOLD)] {
+                    ui.horizontal_wrapped(|ui| {
+                        for (tab, label, accent) in [
+                            (0usize, "BUILD", CYAN),
+                            (1, "RUNES & SPELLS", GOLD),
+                            (2, "SESSION", SECONDARY),
+                        ] {
                             if filter_chip(ui, label, self.champ_select_detail_tab == tab, accent)
                                 .clicked()
                             {
@@ -1582,10 +1623,13 @@ impl RiftCoreApp {
                                 }
                             });
                         });
-                    } else {
+                    } else if self.champ_select_detail_tab == 1 {
                         self.render_rune_editor(ui, &champ, &recommendation);
+                    } else {
+                        self.render_team_panel(ui);
                     }
                 }
+                    });
             });
         });
 
@@ -1603,8 +1647,6 @@ impl RiftCoreApp {
                 },
             );
         }
-        ui.add_space(12.0);
-        self.render_team_panel(ui);
     }
 
     fn render_rune_editor(
@@ -2253,8 +2295,13 @@ impl RiftCoreApp {
         );
         if self.snapshot.live_game.is_some() {
             ui.horizontal(|ui| {
-                if action_button(ui, "SHOW NATIVE OVERLAY", false, CYAN).clicked() {
-                    self.set_overlay_mode(ui.ctx(), true, false);
+                let label = if self.overlay_mode {
+                    "HIDE NATIVE OVERLAY"
+                } else {
+                    "SHOW NATIVE OVERLAY"
+                };
+                if action_button(ui, label, self.overlay_mode, CYAN).clicked() {
+                    self.set_overlay_mode(ui.ctx(), !self.overlay_mode, false);
                 }
                 if action_button(ui, "REFRESH LIVE DATA", false, SECONDARY).clicked() {
                     let _ = self.commands.send(CoreCommand::Refresh);
@@ -2274,42 +2321,43 @@ impl RiftCoreApp {
                 self.render_aram_relic_timers(ui);
             }
         } else {
-            panel(ui, |ui| {
-                ui.horizontal(|ui| {
-                    avatar(ui, "HUD", 48.0, CYAN, None);
-                    ui.add_space(8.0);
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("NATIVE IN-GAME OVERLAY").size(16.0).strong().color(TEXT));
-                            if self.settings.hud_preview_mode {
-                                badge(ui, "PREVIEW ACTIVE", GOLD);
+            let preview_active = self.settings.hud_preview_mode && self.overlay_mode;
+            ui.columns(2, |columns| {
+                panel(&mut columns[0], |ui| {
+                    ui.horizontal(|ui| {
+                        avatar(ui, "HUD", 42.0, CYAN, None);
+                        ui.vertical(|ui| {
+                            ui.label(RichText::new("NATIVE IN-GAME OVERLAY").size(14.0).strong().color(TEXT));
+                            let (status, color) = if preview_active {
+                                ("DESKTOP PREVIEW RUNNING", GOLD)
+                            } else if self.overlay_mode && self.overlay_waiting_for_window {
+                                ("WAITING FOR LEAGUE", SECONDARY)
                             } else if self.overlay_mode {
-                                badge(ui, "ENABLED (WAITING)", CYAN);
+                                ("OVERLAY ENABLED", CYAN)
                             } else {
-                                badge(ui, "STANDBY", SECONDARY);
-                            }
+                                ("STANDBY", SECONDARY)
+                            };
+                            badge(ui, status, color);
                         });
-                        ui.label(RichText::new("Direct transparent GPU overlay on top of League of Legends (Borderless or Windowed mode).").size(11.5).color(SECONDARY));
-                        ui.label(RichText::new("You can preview the HUD widgets on your desktop right now even outside of a live match.").size(10.5).color(MUTED));
                     });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let preview_active = self.settings.hud_preview_mode && self.overlay_mode;
-                        let preview_btn = if preview_active { "⏹ STOP PREVIEW" } else { "👁 PREVIEW OVERLAY" };
-                        if action_button(ui, preview_btn, preview_active, GOLD).clicked() {
-                            self.settings.hud_preview_mode = !preview_active;
-                            if !preview_active {
-                                self.set_overlay_mode(ui.ctx(), true, false);
-                            } else {
-                                self.set_overlay_mode(ui.ctx(), false, false);
-                            }
-                            self.save_settings();
-                        }
-                    });
+                    ui.add_space(5.0);
+                    ui.label(RichText::new("Use Borderless or Windowed mode in League. Fullscreen can hide desktop overlays.").size(10.5).color(SECONDARY));
+                    ui.add_space(8.0);
+                    let preview_btn = if preview_active { "STOP PREVIEW" } else { "PREVIEW OVERLAY" };
+                    if action_button(ui, preview_btn, preview_active, GOLD).clicked() {
+                        self.settings.hud_preview_mode = !preview_active;
+                        self.set_overlay_mode(ui.ctx(), !preview_active, false);
+                        self.save_settings();
+                    }
+                });
+                panel(&mut columns[1], |ui| {
+                    panel_title(ui, "LIVE HUD PREVIEW", "Overlay layout at a glance");
+                    render_hud_mockup(ui, &self.settings.hud_mode);
                 });
             });
-            ui.add_space(10.0);
-            self.render_overlay_module_settings(ui);
         }
+        ui.add_space(8.0);
+        self.render_hud_settings(ui);
     }
 
     fn render_live_summary(&self, ui: &mut egui::Ui) {
@@ -2533,170 +2581,123 @@ impl RiftCoreApp {
         });
     }
 
-    fn render_overlay_module_settings(&mut self, ui: &mut egui::Ui) {
-        panel(ui, |ui| {
-            panel_title(ui, "HUD SCREEN MOCKUP", "Visual placement of overlay modules during gameplay");
-            render_hud_mockup(ui, &self.settings.hud_mode);
+    fn render_hud_settings(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal_wrapped(|ui| {
+            for (tab, label) in [
+                (HudSettingsTab::Timers, "TIMERS"),
+                (HudSettingsTab::Stats, "STATS"),
+                (HudSettingsTab::Guides, "GUIDES"),
+                (HudSettingsTab::Layout, "LAYOUT"),
+            ] {
+                if action_button(ui, label, self.hud_settings_tab == tab, CYAN).clicked() {
+                    self.hud_settings_tab = tab;
+                }
+            }
+            ui.label(RichText::new("HUD MODULES").size(10.0).strong().color(MUTED));
         });
-        ui.add_space(10.0);
+        ui.add_space(4.0);
 
         let mut changed = false;
-        ui.columns(2, |columns| {
-            Frame::new()
-                .fill(CARD)
-                .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
-                .corner_radius(egui::CornerRadius::same(12))
-                .inner_margin(egui::Margin::same(14))
-                .show(&mut columns[0], |ui| {
-                    panel_title(ui, "COMBAT & OBJECTIVE TIMERS", "Neutral objectives, cooldowns and respawns");
-                    changed |= toggle_card_row(ui, "Objective Timers", "Dragon, Baron, and Rift Herald spawn countdowns", &mut self.settings.hud_objective_timers);
-                    changed |= toggle_card_row(ui, "Allied Ultimate Timers", "Manual click timers for allied R cooldowns", &mut self.settings.hud_ally_ult_timers);
-                    changed |= toggle_card_row(ui, "Enemy Summoner Timers", "Manual tracker for enemy Flash and spells", &mut self.settings.hud_enemy_spell_timers);
-                    changed |= toggle_card_row(ui, "Jungle Camp Respawns", "Manual camp respawn timers dock", &mut self.settings.hud_manual_camp_timers);
+        match self.hud_settings_tab {
+            HudSettingsTab::Timers => ui.columns(2, |columns| {
+                panel(&mut columns[0], |ui| {
+                    panel_title(ui, "COMBAT TIMERS", "Objectives and champion cooldowns");
+                    changed |= toggle_card_row(ui, "Objective Timers", "Dragon, Baron, and Rift Herald", &mut self.settings.hud_objective_timers);
+                    changed |= toggle_card_row(ui, "Allied Ultimate Timers", "Manual click timers for allied R", &mut self.settings.hud_ally_ult_timers);
+                    changed |= toggle_card_row(ui, "Enemy Summoner Timers", "Manual Flash and spell tracking", &mut self.settings.hud_enemy_spell_timers);
+                });
+                panel(&mut columns[1], |ui| {
+                    panel_title(ui, "RESPAWNS", "Camp and mode-specific timers");
+                    changed |= toggle_card_row(ui, "Jungle Camp Respawns", "Manual camp respawn dock", &mut self.settings.hud_manual_camp_timers);
                     changed |= toggle_card_row(ui, "ARAM Health Relic Timers", "Manual health relic countdowns", &mut self.settings.hud_aram_health_timers);
                 });
-
-            Frame::new()
-                .fill(CARD)
-                .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
-                .corner_radius(egui::CornerRadius::same(12))
-                .inner_margin(egui::Margin::same(14))
-                .show(&mut columns[1], |ui| {
-                    panel_title(ui, "STATS & REAL-TIME ECONOMY", "Gold tracker, benchmarks and inventory guides");
-                    changed |= toggle_card_row(ui, "Current Gold Tracker", "Display active gold in overlay", &mut self.settings.hud_gold_lead);
-                    changed |= toggle_card_row(ui, "CS Per Minute Pace", "Benchmark creep score pace against pro targets", &mut self.settings.hud_cs_benchmark);
-                    changed |= toggle_card_row(ui, "Ability Rank Guide", "Recommended skill level order indicator", &mut self.settings.hud_skill_order);
-                    changed |= toggle_card_row(ui, "Item Build Goals", "Current item inventory and next purchase goal", &mut self.settings.hud_item_goal);
-                    changed |= toggle_card_row(ui, "Trinket Ward Reminder", "Alerts when ward charge has capped", &mut self.settings.hud_trinket_reminder);
+            }),
+            HudSettingsTab::Stats => ui.columns(2, |columns| {
+                panel(&mut columns[0], |ui| {
+                    panel_title(ui, "STATS & ECONOMY", "Live match progress");
+                    changed |= toggle_card_row(ui, "Current Gold Tracker", "Display active gold", &mut self.settings.hud_gold_lead);
+                    changed |= toggle_card_row(ui, "CS Per Minute Pace", "Benchmark CS against pro targets", &mut self.settings.hud_cs_benchmark);
                 });
-        });
-        ui.add_space(10.0);
-        panel(ui, |ui| {
-            panel_title(ui, "ROUTE GUIDES & MINIMAP OVERLAY PINS", "Public tactical timers and pathing reference");
-            changed |= toggle_card_row(ui, "Mayhem & Arena Cards Guide", "Interactive card selector and tier recommendations", &mut self.settings.hud_mayhem_cards);
-            changed |= toggle_card_row(ui, "Jungle Opening Pathing", "Optimal first-clear path reference guide", &mut self.settings.hud_jungle_pathing);
-            if self.settings.hud_jungle_pathing {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Start route at:").size(11.0).color(SECONDARY));
-                    for (side, label, accent) in [("red", "RED BUFF", RED), ("blue", "BLUE BUFF", CYAN)] {
-                        if action_button(ui, label, self.settings.jungle_start_buff == side, accent).clicked() {
-                            self.settings.jungle_start_buff = side.to_string();
-                            changed = true;
-                        }
+                panel(&mut columns[1], |ui| {
+                    panel_title(ui, "PLAYER GUIDES", "Build reminders");
+                    changed |= toggle_card_row(ui, "Ability Rank Guide", "Recommended skill order", &mut self.settings.hud_skill_order);
+                    changed |= toggle_card_row(ui, "Item Build Goals", "Current inventory and next purchase", &mut self.settings.hud_item_goal);
+                    changed |= toggle_card_row(ui, "Trinket Ward Reminder", "Alert when ward charge is available", &mut self.settings.hud_trinket_reminder);
+                });
+            }),
+            HudSettingsTab::Guides => ui.columns(2, |columns| {
+                panel(&mut columns[0], |ui| {
+                    panel_title(ui, "ROUTE GUIDES", "Mode and jungle references");
+                    changed |= toggle_card_row(ui, "Mayhem & Arena Cards Guide", "Card selector and tier recommendations", &mut self.settings.hud_mayhem_cards);
+                    changed |= toggle_card_row(ui, "Jungle Opening Pathing", "Optimal first-clear path", &mut self.settings.hud_jungle_pathing);
+                    if self.settings.hud_jungle_pathing {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Start route:").size(10.5).color(SECONDARY));
+                            for (side, label, accent) in [("red", "RED", RED), ("blue", "BLUE", CYAN)] {
+                                if action_button(ui, label, self.settings.jungle_start_buff == side, accent).clicked() {
+                                    self.settings.jungle_start_buff = side.to_string();
+                                    changed = true;
+                                }
+                            }
+                        });
                     }
                 });
-                ui.add_space(4.0);
-            }
-            changed |= toggle_card_row(ui, "Objective Countdown Pins", "Floating timer markers pinned directly on minimap pits", &mut self.settings.hud_map_objective_pins);
-            changed |= toggle_card_row(ui, "Jungle Route Step Pins", "Numbered sequential clear steps rendered on minimap", &mut self.settings.hud_map_route_pins);
-            changed |= toggle_card_row(ui, "Static Ward Guide Pins", "Strategic high-value ward placement indicators", &mut self.settings.hud_map_ward_pins);
-        });
+                panel(&mut columns[1], |ui| {
+                    panel_title(ui, "MINIMAP PINS", "Visual reference markers");
+                    changed |= toggle_card_row(ui, "Objective Countdown Pins", "Markers on objective pits", &mut self.settings.hud_map_objective_pins);
+                    changed |= toggle_card_row(ui, "Jungle Route Step Pins", "Numbered jungle clear steps", &mut self.settings.hud_map_route_pins);
+                    changed |= toggle_card_row(ui, "Static Ward Guide Pins", "Strategic ward locations", &mut self.settings.hud_map_ward_pins);
+                });
+            }),
+            HudSettingsTab::Layout => ui.columns(2, |columns| {
+                panel(&mut columns[0], |ui| {
+                    panel_title(ui, "HUD PRESENTATION", "Choose the overlay arrangement");
+                    ui.horizontal_wrapped(|ui| {
+                        for (mode, label) in [("integrated", "INTEGRATED"), ("bar", "TOP BAR"), ("card", "TACTICAL CARD"), ("pill", "MINIMAP PILL")] {
+                            if action_button(ui, label, self.settings.hud_mode == mode, CYAN).clicked() {
+                                self.settings.hud_mode = mode.to_string();
+                                changed = true;
+                            }
+                        }
+                    });
+                    if checkbox_row(ui, "Edit overlay layout", &mut self.settings.hud_edit_layout) {
+                        if self.settings.hud_edit_layout {
+                            self.overlay_mouse_passthrough = false;
+                            if self.overlay_viewport_open {
+                                ui.ctx().send_viewport_cmd_to(overlay_viewport_id(), egui::ViewportCommand::MousePassthrough(false));
+                            }
+                        }
+                        changed = true;
+                    }
+                });
+                panel(&mut columns[1], |ui| {
+                    panel_title(ui, "MINIMAP TIMER DOCK", "Adjust position and size");
+                    changed |= ui.horizontal(|ui| {
+                        ui.label(RichText::new("Map scale").size(10.5).color(SECONDARY));
+                        ui.add(egui::Slider::new(&mut self.settings.hud_minimap_scale, 1.0..=3.0).show_value(true)).changed()
+                    }).inner;
+                    changed |= ui.horizontal(|ui| {
+                        ui.label(RichText::new("Dock size").size(10.5).color(SECONDARY));
+                        ui.add(egui::Slider::new(&mut self.settings.hud_minimap_zoom, 0.75..=1.35).show_value(true)).changed()
+                    }).inner;
+                    changed |= checkbox_row(ui, "Minimap is flipped to the left", &mut self.settings.hud_minimap_flip);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Offset").size(10.0).color(SECONDARY));
+                        changed |= ui.add(egui::DragValue::new(&mut self.settings.hud_minimap_nudge_x).range(-250.0..=250.0).speed(2.0).suffix(" x")).changed();
+                        changed |= ui.add(egui::DragValue::new(&mut self.settings.hud_minimap_nudge_y).range(-250.0..=250.0).speed(2.0).suffix(" y")).changed();
+                        if action_button(ui, "RESET", false, SECONDARY).clicked() {
+                            self.settings.hud_minimap_nudge_x = 0.0;
+                            self.settings.hud_minimap_nudge_y = 0.0;
+                            self.settings.hud_minimap_zoom = 1.0;
+                            changed = true;
+                        }
+                    });
+                });
+            }),
+        }
         if changed {
             self.save_settings();
         }
-        ui.add_space(12.0);
-        panel(ui, |ui| {
-            panel_title(
-                ui,
-                "HUD LAYOUT",
-                "Choose a native presentation and adjust your timer dock",
-            );
-            ui.horizontal_wrapped(|ui| {
-                for (mode, label) in [
-                    ("integrated", "INTEGRATED"),
-                    ("bar", "TOP BAR"),
-                    ("card", "TACTICAL CARD"),
-                    ("pill", "MINIMAP PILL"),
-                ] {
-                    if action_button(ui, label, self.settings.hud_mode == mode, CYAN).clicked() {
-                        self.settings.hud_mode = mode.to_string();
-                        self.save_settings();
-                    }
-                }
-            });
-            if checkbox_row(
-                ui,
-                "Edit overlay layout",
-                &mut self.settings.hud_edit_layout,
-            ) {
-                if self.settings.hud_edit_layout {
-                    self.overlay_mouse_passthrough = false;
-                    if self.overlay_viewport_open {
-                        ui.ctx().send_viewport_cmd_to(
-                            overlay_viewport_id(),
-                            egui::ViewportCommand::MousePassthrough(false),
-                        );
-                    }
-                }
-                self.save_settings();
-            }
-            ui.add_space(6.0);
-            ui.label(
-                RichText::new("MINIMAP TIMER DOCK")
-                    .size(10.0)
-                    .strong()
-                    .color(CYAN),
-            );
-            let mut minimap_changed = false;
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("League minimap scale")
-                        .size(10.5)
-                        .color(SECONDARY),
-                );
-                minimap_changed |= ui
-                    .add(
-                        egui::Slider::new(&mut self.settings.hud_minimap_scale, 1.0..=3.0)
-                            .show_value(true),
-                    )
-                    .changed();
-            });
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Timer dock size").size(10.5).color(SECONDARY));
-                minimap_changed |= ui
-                    .add(
-                        egui::Slider::new(&mut self.settings.hud_minimap_zoom, 0.75..=1.35)
-                            .show_value(true),
-                    )
-                    .changed();
-            });
-            minimap_changed |= checkbox_row(
-                ui,
-                "Minimap is flipped to the left",
-                &mut self.settings.hud_minimap_flip,
-            );
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Dock offset").size(10.5).color(SECONDARY));
-                ui.label(RichText::new("X").size(10.0).color(MUTED));
-                minimap_changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut self.settings.hud_minimap_nudge_x)
-                            .range(-250.0..=250.0)
-                            .speed(2.0)
-                            .suffix(" px"),
-                    )
-                    .changed();
-                ui.label(RichText::new("Y").size(10.0).color(MUTED));
-                minimap_changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut self.settings.hud_minimap_nudge_y)
-                            .range(-250.0..=250.0)
-                            .speed(2.0)
-                            .suffix(" px"),
-                    )
-                    .changed();
-                if action_button(ui, "RESET", false, SECONDARY).clicked() {
-                    self.settings.hud_minimap_nudge_x = 0.0;
-                    self.settings.hud_minimap_nudge_y = 0.0;
-                    self.settings.hud_minimap_zoom = 1.0;
-                    minimap_changed = true;
-                }
-            });
-            ui.label(RichText::new("These controls align objective timers near your minimap. The native version does not predict enemy positions or cooldowns.").size(9.5).color(MUTED));
-            if minimap_changed {
-                self.save_settings();
-            }
-        });
     }
 
     fn render_modes(&mut self, ui: &mut egui::Ui) {
@@ -2947,7 +2948,7 @@ impl RiftCoreApp {
             });
         } else {
             ui.add_space(10.0);
-            self.render_overlay_module_settings(ui);
+            self.render_hud_settings(ui);
         }
 
         ui.add_space(10.0);
@@ -4640,7 +4641,7 @@ impl RiftCoreApp {
             }
             SettingsSection::Overlay => {
                 self.render_desktop_overlay_settings(ui);
-                self.render_overlay_module_settings(ui);
+                self.render_hud_settings(ui);
             }
             SettingsSection::RiotApi => self.render_riot_api_settings(ui),
             SettingsSection::App => {
@@ -6537,6 +6538,12 @@ impl RiftCoreApp {
 }
 
 impl eframe::App for RiftCoreApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        // The child HUD viewport is a per-pixel transparent window. An opaque GL
+        // clear turns the unused part of that viewport into a black rectangle.
+        [0.0, 0.0, 0.0, 0.0]
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         #[cfg(windows)]

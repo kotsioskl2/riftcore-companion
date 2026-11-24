@@ -1572,7 +1572,6 @@ pub fn maintain_native_overlay() {
     const SWP_NOSIZE: u32 = 0x0001;
     const SWP_NOMOVE: u32 = 0x0002;
     const SWP_NOACTIVATE: u32 = 0x0010;
-    const SWP_SHOWWINDOW: u32 = 0x0040;
 
     let title: Vec<u16> = "RiftCore In-Game HUD\0".encode_utf16().collect();
     unsafe {
@@ -1595,7 +1594,9 @@ pub fn maintain_native_overlay() {
             0,
             0,
             0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            // eframe controls visibility. Re-showing the HUD from SetWindowPos
+            // can make focus transitions flicker; keep this strictly no-activate.
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         );
     }
 }
