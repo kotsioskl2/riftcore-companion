@@ -228,6 +228,9 @@ impl RiftCoreApp {
 
         let settings_path = settings_file();
         let mut settings = load_settings(&settings_path);
+        // Desktop preview is a one-session action. Older versions persisted it
+        // and could reopen a full-screen HUD over the desktop on the next launch.
+        settings.hud_preview_mode = false;
         apply_native_theme(&creation.egui_ctx, &settings.theme);
         install_font_family(&creation.egui_ctx, &settings.font_family);
         creation.egui_ctx.set_zoom_factor(1.06);
@@ -402,30 +405,16 @@ impl RiftCoreApp {
         self.overlay_auto_entered = automatic && enabled;
         if enabled {
             self.overlay_target = backend::league_game_window();
-            if self.overlay_target.is_none() && self.settings.hud_preview_mode {
-                self.overlay_target = Some(backend::LeagueWindowInfo {
-                    hwnd: 0,
-                    process_id: 0,
-                    bounds: [0, 0, 1920, 1080],
-                    dpi: 96,
-                });
-                self.overlay_target_is_foreground = true;
-                self.overlay_waiting_for_window = false;
-                self.set_notice("HUD running in Desktop Preview Mode");
-            } else {
-                self.overlay_target_is_foreground = self
-                    .overlay_target
-                    .map(backend::league_window_is_foreground)
-                    .unwrap_or(false);
-                self.overlay_waiting_for_window =
-                    self.overlay_target.is_none() || !self.overlay_target_is_foreground;
-                if self.overlay_target.is_none() {
-                    self.set_notice(
-                        "HUD is waiting for the League game window (click WAITING to preview).",
-                    );
-                } else if !self.overlay_target_is_foreground {
-                    self.set_notice("HUD will appear when League is the foreground window.");
-                }
+            self.overlay_target_is_foreground = self
+                .overlay_target
+                .map(backend::league_window_is_foreground)
+                .unwrap_or(false);
+            self.overlay_waiting_for_window =
+                self.overlay_target.is_none() || !self.overlay_target_is_foreground;
+            if self.overlay_target.is_none() {
+                self.set_notice("Start a League match or Practice Tool to enable the native HUD.");
+            } else if !self.overlay_target_is_foreground {
+                self.set_notice("HUD will appear when the League game is in the foreground.");
             }
             ctx.request_repaint();
         } else {
@@ -448,13 +437,7 @@ impl RiftCoreApp {
         }
 
         let target = match self.overlay_target {
-            Some(t) => t,
-            None if self.settings.hud_preview_mode => backend::LeagueWindowInfo {
-                hwnd: 0,
-                process_id: 0,
-                bounds: [0, 0, 1920, 1080],
-                dpi: 96,
-            },
+            Some(target) => target,
             None => {
                 if self.overlay_viewport_open {
                     ctx.send_viewport_cmd_to(
@@ -468,7 +451,7 @@ impl RiftCoreApp {
 
         // Keep the native viewport alive between focus changes; only hide it
         // while another window is in front of the game (or keep visible in preview mode).
-        let visible = self.overlay_target_is_foreground || self.settings.hud_preview_mode;
+        let visible = self.overlay_target_is_foreground;
         if !visible && !self.overlay_viewport_open {
             return;
         }
@@ -505,7 +488,15 @@ impl RiftCoreApp {
                         360.0f32.min(game_width),
                         350.0f32.min(game_height),
                     ),
-                    _ => (0.0, 0.0, game_width, game_height),
+                    // Stay one physical pixel inside an exact borderless-game
+                    // surface. Some Windows driver paths treat a same-sized
+                    // topmost window as full-screen and stop alpha composition.
+                    _ => (
+                        0.0,
+                        0.0,
+                        (game_width - 1.0).max(1.0),
+                        (game_height - 1.0).max(1.0),
+                    ),
                 }
             };
         let width = width_px / scale;
@@ -677,9 +668,7 @@ impl RiftCoreApp {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                             }
                             let overlay_label = if self.overlay_mode {
-                                if self.settings.hud_preview_mode {
-                                    "HUD (PREVIEW)"
-                                } else if self.overlay_waiting_for_window {
+                                if self.overlay_waiting_for_window {
                                     "WAITING"
                                 } else {
                                     "HUD ON"
@@ -690,23 +679,7 @@ impl RiftCoreApp {
                             if titlebar_action_button(ui, overlay_label, self.overlay_mode, CYAN)
                                 .clicked()
                             {
-                                if self.overlay_mode
-                                    && self.overlay_waiting_for_window
-                                    && !self.settings.hud_preview_mode
-                                {
-                                    self.settings.hud_preview_mode = true;
-                                    self.overlay_target = Some(backend::LeagueWindowInfo {
-                                        hwnd: 0,
-                                        process_id: 0,
-                                        bounds: [0, 0, 1920, 1080],
-                                        dpi: 96,
-                                    });
-                                    self.overlay_target_is_foreground = true;
-                                    self.overlay_waiting_for_window = false;
-                                    self.set_notice("HUD Preview Mode enabled on desktop");
-                                } else {
-                                    self.set_overlay_mode(&ctx, !self.overlay_mode, false);
-                                }
+                                self.set_overlay_mode(&ctx, !self.overlay_mode, false);
                             }
                             if titlebar_action_button(
                                 ui,
@@ -2527,16 +2500,13 @@ impl RiftCoreApp {
                 self.render_aram_relic_timers(ui);
             }
         } else {
-            let preview_active = self.settings.hud_preview_mode && self.overlay_mode;
             ui.columns(2, |columns| {
                 panel(&mut columns[0], |ui| {
                     ui.horizontal(|ui| {
                         avatar(ui, "HUD", 42.0, CYAN, None);
                         ui.vertical(|ui| {
                             ui.label(RichText::new("NATIVE IN-GAME OVERLAY").size(14.0).strong().color(TEXT));
-                            let (status, color) = if preview_active {
-                                ("DESKTOP PREVIEW RUNNING", GOLD)
-                            } else if self.overlay_mode && self.overlay_waiting_for_window {
+                            let (status, color) = if self.overlay_mode && self.overlay_waiting_for_window {
                                 ("WAITING FOR LEAGUE", SECONDARY)
                             } else if self.overlay_mode {
                                 ("OVERLAY ENABLED", CYAN)
@@ -2549,15 +2519,14 @@ impl RiftCoreApp {
                     ui.add_space(5.0);
                     ui.label(RichText::new("Use Borderless or Windowed mode in League. Fullscreen can hide desktop overlays.").size(10.5).color(SECONDARY));
                     ui.add_space(8.0);
-                    let preview_btn = if preview_active { "STOP PREVIEW" } else { "PREVIEW OVERLAY" };
-                    if action_button(ui, preview_btn, preview_active, GOLD).clicked() {
-                        self.settings.hud_preview_mode = !preview_active;
-                        self.set_overlay_mode(ui.ctx(), !preview_active, false);
-                        self.save_settings();
+                    let overlay_btn = if self.overlay_mode { "DISABLE IN-GAME HUD" } else { "ENABLE IN-GAME HUD" };
+                    if action_button(ui, overlay_btn, self.overlay_mode, CYAN).clicked() {
+                        self.settings.hud_preview_mode = false;
+                        self.set_overlay_mode(ui.ctx(), !self.overlay_mode, false);
                     }
                 });
                 panel(&mut columns[1], |ui| {
-                    panel_title(ui, "LIVE HUD PREVIEW", "Overlay layout at a glance");
+                    panel_title(ui, "HUD LAYOUT MOCKUP", "Example placement; does not cover your desktop");
                     render_hud_mockup(ui, &self.settings.hud_mode);
                 });
             });
@@ -7011,23 +6980,12 @@ impl eframe::App for RiftCoreApp {
         }
         if self.last_bounds_check.elapsed() > Duration::from_millis(250) {
             self.overlay_target = backend::league_game_window();
-            if self.overlay_target.is_none() && self.settings.hud_preview_mode {
-                self.overlay_target = Some(backend::LeagueWindowInfo {
-                    hwnd: 0,
-                    process_id: 0,
-                    bounds: [0, 0, 1920, 1080],
-                    dpi: 96,
-                });
-                self.overlay_target_is_foreground = true;
-                self.overlay_waiting_for_window = false;
-            } else {
-                self.overlay_target_is_foreground = self
-                    .overlay_target
-                    .map(backend::league_window_is_foreground)
-                    .unwrap_or(false);
-                self.overlay_waiting_for_window = self.overlay_mode
-                    && (self.overlay_target.is_none() || !self.overlay_target_is_foreground);
-            }
+            self.overlay_target_is_foreground = self
+                .overlay_target
+                .map(backend::league_window_is_foreground)
+                .unwrap_or(false);
+            self.overlay_waiting_for_window = self.overlay_mode
+                && (self.overlay_target.is_none() || !self.overlay_target_is_foreground);
             self.last_bounds_check = Instant::now();
         }
 

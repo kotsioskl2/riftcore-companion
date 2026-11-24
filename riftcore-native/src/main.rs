@@ -28,7 +28,10 @@ fn main() -> eframe::Result {
             // root. Request alpha here so the child can composite over League;
             // the app's own panels paint an opaque surface over this clear color.
             .with_transparent(true),
-        renderer: eframe::Renderer::Glow,
+        // Request an alpha-capable Glow surface for the per-pixel HUD layer.
+        // One sample also avoids a black transparent surface on some Windows GPUs.
+        multisampling: 1,
+        renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };
 

@@ -1,4 +1,14 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.2.3
+--------------------------------------------------
+
+* Native in-game HUD:
+  - Keep the transparent overlay inside the game surface to avoid Windows fullscreen composition failures.
+  - Apply a Windows color-key fallback so the empty HUD surface cannot cover League with black.
+  - Remove the desktop preview path that could open a fake full-screen overlay while waiting for a game.
+  - Show the HUD only when League is foregrounded.
+
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.2.2
 --------------------------------------------------
 
