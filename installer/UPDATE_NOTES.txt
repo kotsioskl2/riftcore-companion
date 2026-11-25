@@ -1,8 +1,30 @@
 --------------------------------------------------
-       RIFTCORE COMPANION - UPDATE v2.2.3
+       RIFTCORE COMPANION - UPDATE v2.3.0
 --------------------------------------------------
 
-* Native in-game HUD:
+* New modular interface (preview, opt-in):
+  - A rebuilt RiftCore interface with redesigned Champ Select, Draft, Tier List, Champion Pool,
+    Profile, Modes, TFT, HUD and Settings pages, plus selectable themes and fonts.
+  - A new in-game HUD engine using a dedicated transparent, click-through overlay window.
+  - Turn it on by starting RiftCore with --modular-ui (or setting RIFTCORE_UI=modular).
+    The classic interface stays the default; --legacy-ui always forces the classic interface.
+  - If the new interface cannot start on your PC, RiftCore automatically opens the classic one.
+
+* Security and reliability (modular interface):
+  - Riot API key is stored encrypted with Windows DPAPI in settings.toml instead of plain text.
+  - Self-updates verify the SHA-256 checksum and digital signature before installing.
+
+* Known limitations of the preview:
+  - The new in-game HUD has not yet been verified in a live match (placement, click-through,
+    hotkeys, automatic show/hide). Use the classic interface for ranked games.
+  - The HUD is not recreated automatically if the graphics device resets mid-game; restart RiftCore.
+  - TFT augment tier labels (Silver/Gold/Prismatic) are not shown yet.
+  - Automatic updates from inside the new interface require digitally signed releases; until then,
+    update from the classic interface or with the installer.
+  - Changing the theme while the app is running and League client reconnection have not been
+    fully tested in the new interface.
+
+* Native in-game HUD (classic interface):
   - Keep the transparent overlay inside the game surface to avoid Windows fullscreen composition failures.
   - Apply a Windows color-key fallback so the empty HUD surface cannot cover League with black.
   - Remove the desktop preview path that could open a fake full-screen overlay while waiting for a game.
