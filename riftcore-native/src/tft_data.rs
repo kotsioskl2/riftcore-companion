@@ -47,6 +47,32 @@ pub fn legacy_data() -> &'static Value {
     &LEGACY_DATA
 }
 
+static CURRENT_COMPS: LazyLock<Value> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("../assets/data/tft_set18_comps.json")).unwrap_or(Value::Null)
+});
+
+/// Curated current-set meta comps (see `assets/data/tft_set18_comps.json` for source/patch).
+pub fn current_comps() -> &'static Value {
+    &CURRENT_COMPS
+}
+
+static CURRENT_ITEMS: LazyLock<Value> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("../assets/data/tft_set18_items.json")).unwrap_or(Value::Null)
+});
+
+/// Current-set component list and item recipes (see `assets/data/tft_set18_items.json`).
+pub fn current_items() -> &'static Value {
+    &CURRENT_ITEMS
+}
+
+pub fn champion_by_name(name: &str) -> Option<&'static TftEntry> {
+    CATALOG.champions.iter().find(|entry| entry.name == name)
+}
+
+pub fn item_by_name(name: &str) -> Option<&'static TftEntry> {
+    CATALOG.items.iter().find(|entry| entry.name == name)
+}
+
 fn load_catalog() -> TftCatalog {
     let champions_json: Value =
         serde_json::from_str(include_str!("../assets/data/tft-champion.json"))
@@ -166,4 +192,81 @@ fn set_from_key(key: &str) -> Option<u32> {
         .take_while(char::is_ascii_digit)
         .collect();
     digits.parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_recipes_use_real_items_and_cover_every_component_pair() {
+        let data = current_items();
+        let components: Vec<&str> = data["components"]
+            .as_array()
+            .expect("components")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(components.len(), 10);
+        let recipes = data["recipes"].as_array().expect("recipes");
+        let mut pairs = std::collections::HashSet::new();
+        for recipe in recipes {
+            let name = recipe["name"].as_str().expect("name");
+            assert!(item_by_name(name).is_some(), "unknown item {name}");
+            let parts: Vec<&str> = recipe["components"]
+                .as_array()
+                .expect("parts")
+                .iter()
+                .filter_map(Value::as_str)
+                .collect();
+            assert_eq!(parts.len(), 2, "{name}");
+            for part in &parts {
+                assert!(
+                    components.contains(part),
+                    "{name}: unknown component {part}"
+                );
+                assert!(item_by_name(part).is_some(), "{name}: no icon for {part}");
+            }
+            let mut key = [parts[0], parts[1]];
+            key.sort();
+            assert!(pairs.insert(key), "{name}: duplicate recipe pair");
+        }
+        // 10 components -> 55 unordered pairs, each producing exactly one item.
+        assert_eq!(pairs.len(), 55);
+    }
+
+    #[test]
+    fn current_comps_reference_real_set_champions_and_items() {
+        let comps = current_comps()
+            .get("comps")
+            .and_then(Value::as_array)
+            .expect("comps array");
+        assert!(comps.len() >= 8);
+        for comp in comps {
+            let name = comp.get("name").and_then(Value::as_str).unwrap_or("?");
+            let list = |key: &str| -> Vec<&str> {
+                comp.get(key)
+                    .and_then(Value::as_array)
+                    .map(|v| v.iter().filter_map(Value::as_str).collect())
+                    .unwrap_or_default()
+            };
+            for unit in list("units").into_iter().chain(list("frontline")) {
+                assert!(
+                    champion_by_name(unit).is_some(),
+                    "{name}: unknown unit {unit}"
+                );
+            }
+            let carry = comp
+                .get("carry")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            assert!(
+                list("units").contains(&carry),
+                "{name}: carry {carry} not on board"
+            );
+            for item in list("carry_items") {
+                assert!(item_by_name(item).is_some(), "{name}: unknown item {item}");
+            }
+        }
+    }
 }

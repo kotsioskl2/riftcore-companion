@@ -1,4 +1,27 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.3.1
+--------------------------------------------------
+
+* TFT Companion refreshed for Set 18:
+  - Comps tab now shows the current Set 18 meta comps (patch 18.7) with champion portraits,
+    cost-colored borders, carry items, final board, traits and placement stats.
+  - "Load units on board" places the frontline in front and carries in the back row.
+  - Crafting mixer rebuilt on Set 18 recipes: pick components by icon, see the finished item,
+    and browse everything a component builds (all 55 recipes, including emblems).
+  - Item list no longer shows internal item codes.
+
+* Arena & Modes:
+  - Mayhem & Arena card guide cards now line up at full width.
+
+* Interface:
+  - Fixed the clipped RIFTCORE logo text in the title bar.
+  - Sidebar TFT badge no longer overlaps its label.
+
+* Known limitations:
+  - The TFT Odds tab still uses the previous set's shop odds (marked in the app).
+  - Comp stats and item effects come from community sites and change every patch.
+
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.3.0
 --------------------------------------------------
 

@@ -326,8 +326,8 @@ impl RiftCoreApp {
             selected_tft_comp: String::new(),
             mode_search: String::new(),
             aram_relic_seconds: String::new(),
-            tft_component_one: "sword".to_string(),
-            tft_component_two: "gloves".to_string(),
+            tft_component_one: "B.F. Sword".to_string(),
+            tft_component_two: "Sparring Gloves".to_string(),
             tft_data_category: "UNITS".to_string(),
             selected_game_mode: 0,
             mayhem_search: String::new(),
@@ -620,18 +620,16 @@ impl RiftCoreApp {
                             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
                         ui.add_space(7.0);
-                        ui.vertical(|ui| {
-                            let brand = ui.add(
-                                egui::Label::new(
-                                    RichText::new("RIFTCORE").size(11.5).strong().color(TEXT),
-                                )
-                                .sense(Sense::click_and_drag()),
-                            );
-                            if brand.drag_started() {
-                                ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                            }
-                            ui.label(RichText::new("COMPANION").size(7.0).strong().color(MUTED));
-                        });
+                        let brand = ui.add(
+                            egui::Label::new(
+                                RichText::new("RIFTCORE").size(12.0).strong().color(TEXT),
+                            )
+                            .sense(Sense::click_and_drag()),
+                        );
+                        if brand.drag_started() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                        }
+                        ui.label(RichText::new("COMPANION").size(8.0).strong().color(MUTED));
                         ui.add_space(8.0);
                         titlebar_badge(ui, "NATIVE", CYAN);
                         ui.add_space(8.0);
@@ -726,7 +724,7 @@ impl RiftCoreApp {
                         self.nav_button(ui, Page::Lobby, "👥", "Lobby Scout", "SMART", GREEN);
                         self.nav_button(ui, Page::Hud, "🎮", "In-Game HUD", "", CYAN);
                         nav_section(ui, "GAME MODES & META");
-                        self.nav_button(ui, Page::Tft, "♟️", "TFT Companion", "TACTICS", GOLD);
+                        self.nav_button(ui, Page::Tft, "♟️", "TFT Companion", "TFT", GOLD);
                         self.nav_button(ui, Page::Modes, "⚔️", "Arena & Modes", "MODES", GOLD);
                         self.nav_button(ui, Page::TierList, "🏆", "Tier List & Builds", "", CYAN);
                         self.nav_button(ui, Page::ChampionPool, "📚", "Champion Pool", "", CYAN);
@@ -3341,12 +3339,31 @@ impl RiftCoreApp {
     }
 
     fn render_tft_comps(&mut self, ui: &mut egui::Ui) {
-        let comps = crate::tft_data::legacy_data()
-            .get("TFT_META_COMPS")
+        let data = crate::tft_data::current_comps();
+        let comps = data
+            .get("comps")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        if self.selected_tft_comp.is_empty() {
+        let patch = data.get("patch").and_then(Value::as_str).unwrap_or("—");
+        let source = data
+            .get("source")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let str_list = |comp: &Value, key: &str| -> Vec<String> {
+            comp.get(key)
+                .and_then(Value::as_array)
+                .map(|list| {
+                    list.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        if !comps.iter().any(|comp| {
+            comp.get("id").and_then(Value::as_str) == Some(self.selected_tft_comp.as_str())
+        }) {
             self.selected_tft_comp = comps
                 .first()
                 .and_then(|comp| comp.get("id"))
@@ -3354,21 +3371,23 @@ impl RiftCoreApp {
                 .unwrap_or_default()
                 .to_string();
         }
-        let query = self.tft_search.to_lowercase();
+        let query = self.tft_search.trim().to_lowercase();
         let visible = comps
             .iter()
             .filter(|comp| {
-                let name = comp
+                if query.is_empty() {
+                    return true;
+                }
+                let mut haystack = comp
                     .get("name")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_lowercase();
-                let tagline = comp
-                    .get("tagline")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_lowercase();
-                query.is_empty() || name.contains(&query) || tagline.contains(&query)
+                for key in ["units", "traits"] {
+                    haystack.push(' ');
+                    haystack.push_str(&str_list(comp, key).join(" ").to_lowercase());
+                }
+                haystack.contains(&query)
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -3378,204 +3397,530 @@ impl RiftCoreApp {
                 comp.get("id").and_then(Value::as_str) == Some(self.selected_tft_comp.as_str())
             })
             .cloned();
-        ui.columns(2, |columns| {
-            panel(&mut columns[0], |ui| {
-                panel_title(ui, "SET 13 COMPOSITIONS", "Archived guide preserved from the previous app");
-                ui.add_sized([ui.available_width(), 28.0], egui::TextEdit::singleline(&mut self.tft_search).hint_text("Search archived compositions…"));
-                ui.add_space(7.0);
-                ScrollArea::vertical().max_height(480.0).show(ui, |ui| {
-                    for comp in &visible {
-                        let id = comp.get("id").and_then(Value::as_str).unwrap_or_default();
-                        let name = comp.get("name").and_then(Value::as_str).unwrap_or("Composition");
-                        let tier = comp.get("tier").and_then(Value::as_str).unwrap_or("—");
-                        let tagline = comp.get("tagline").and_then(Value::as_str).unwrap_or_default();
-                        if action_button(ui, &format!("{tier}  {name}\n{tagline}"), self.selected_tft_comp == id, GOLD).clicked() {
-                            self.selected_tft_comp = id.to_string();
-                        }
-                    }
-                });
-            });
-            panel(&mut columns[1], |ui| {
-                if let Some(comp) = selected.as_ref() {
-                    let name = comp.get("name").and_then(Value::as_str).unwrap_or("Composition");
-                    let tier = comp.get("tier").and_then(Value::as_str).unwrap_or("—");
-                    panel_title(ui, &format!("{tier} TIER · {name}"), comp.get("tagline").and_then(Value::as_str).unwrap_or_default());
-                    ui.label(RichText::new(format!("{} · {}", comp.get("difficulty").and_then(Value::as_str).unwrap_or("—"), comp.get("playstyle").and_then(Value::as_str).unwrap_or("—"))).size(10.5).strong().color(GOLD));
-                    if let Some(traits) = comp.get("traits").and_then(Value::as_array) {
-                        ui.label(RichText::new("TRAITS").size(9.0).strong().color(MUTED));
-                        ui.label(RichText::new(traits.iter().map(|entry| format!("{} ({})", entry.get("name").and_then(Value::as_str).unwrap_or("Trait"), entry.get("count").and_then(Value::as_u64).unwrap_or(0))).collect::<Vec<_>>().join("  ·  ")).size(10.0).color(CYAN));
-                    }
-                    if let Some(units) = comp.get("champions").and_then(Value::as_array) {
-                        ui.add_space(5.0);
-                        ui.label(RichText::new("UNITS & ITEMS").size(9.0).strong().color(MUTED));
-                        for unit in units {
-                            let name = unit.get("name").and_then(Value::as_str).unwrap_or("Unit");
-                            let cost = unit.get("cost").and_then(Value::as_u64).unwrap_or(0);
-                            let role = unit.get("role").and_then(Value::as_str).unwrap_or("flex");
-                            let items = unit.get("recommendedItems").and_then(Value::as_array).map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" · ")).unwrap_or_default();
-                            ui.label(RichText::new(format!("{cost}g  {name}  ·  {role}  ·  {items}")).size(10.0).color(TEXT));
-                        }
-                    }
-                    ui.add_space(5.0);
-                    ui.label(RichText::new(format!("CARRY  {}  ·  {}", comp.get("mainCarry").and_then(|entry| entry.get("champion")).and_then(Value::as_str).unwrap_or("—"), comp.get("mainCarry").and_then(|entry| entry.get("items")).and_then(Value::as_array).map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" · ")).unwrap_or_default())).size(10.0).color(GOLD));
-                    ui.label(RichText::new(format!("TANK  {}  ·  {}", comp.get("mainTank").and_then(|entry| entry.get("champion")).and_then(Value::as_str).unwrap_or("—"), comp.get("mainTank").and_then(|entry| entry.get("items")).and_then(Value::as_array).map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" · ")).unwrap_or_default())).size(10.0).color(SECONDARY));
-                    ui.add_space(6.0);
-                    ui.label(RichText::new("LEVELING & POSITIONING").size(9.0).strong().color(MUTED));
-                    ui.label(RichText::new(comp.get("levelingGuide").and_then(Value::as_str).unwrap_or_default()).size(10.0).color(TEXT));
-                    ui.label(RichText::new(comp.get("positioningTip").and_then(Value::as_str).unwrap_or_default()).size(10.0).color(SECONDARY));
-                    if action_button(ui, "LOAD UNITS ON BOARD", false, CYAN).clicked() {
-                        self.settings.tft_board.fill(String::new());
-                        if let Some(units) = comp.get("champions").and_then(Value::as_array) {
-                            for (index, unit) in units.iter().take(28).enumerate() {
-                                let name = unit.get("name").and_then(Value::as_str).unwrap_or_default();
-                                let row = unit.get("position").and_then(|pos| pos.get("row")).and_then(Value::as_u64).unwrap_or((index / 7) as u64) as usize;
-                                let col = unit.get("position").and_then(|pos| pos.get("col")).and_then(Value::as_u64).unwrap_or((index % 7) as u64) as usize;
-                                let cell = row.saturating_mul(7).saturating_add(col);
-                                if cell < self.settings.tft_board.len() { self.settings.tft_board[cell] = name.to_string(); }
-                            }
-                        }
-                        self.save_settings();
-                        self.tft_tab = "BOARD".to_string();
-                    }
-                } else {
-                    panel_title(ui, "NO COMPOSITION SELECTED", "Search or choose an archived composition");
-                }
-                ui.add_space(8.0);
-                ui.label(RichText::new("The old app's preset comps are for Set 13. They are kept as an archive and are not labeled as current Set 18 meta.").size(9.5).color(MUTED));
-            });
-        });
-    }
 
-    fn render_tft_items(&mut self, ui: &mut egui::Ui) {
-        let data = crate::tft_data::legacy_data();
-        let components = data
-            .get("TFT_COMPONENTS")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let recipes = data
-            .get("TFT_COMBINED_ITEMS")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let find_component = |id: &str| {
-            components
-                .iter()
-                .find(|entry| entry.get("id").and_then(Value::as_str) == Some(id))
-        };
-        let component_one = find_component(&self.tft_component_one).cloned();
-        let component_two = find_component(&self.tft_component_two).cloned();
         ui.columns(2, |columns| {
             panel(&mut columns[0], |ui| {
                 panel_title(
                     ui,
-                    "SET 13 CRAFTING MIXER",
-                    "Archived recipe data preserved from the previous app",
+                    &format!("SET {} META COMPS", crate::tft_data::current_set()),
+                    &format!("Top ranked comps · patch {patch}"),
                 );
-                ui.horizontal(|ui| {
-                    for (field, selected) in [
-                        ("COMPONENT A", &mut self.tft_component_one),
-                        ("COMPONENT B", &mut self.tft_component_two),
-                    ] {
-                        ui.vertical(|ui| {
-                            ui.label(RichText::new(field).size(8.5).strong().color(MUTED));
-                            let label = find_component(selected)
-                                .and_then(|entry| entry.get("name"))
+                ui.add_sized(
+                    [ui.available_width(), 28.0],
+                    egui::TextEdit::singleline(&mut self.tft_search)
+                        .hint_text("Search comps, champions or traits…"),
+                );
+                ui.add_space(8.0);
+                ScrollArea::vertical()
+                    .id_salt("tft-comp-list")
+                    .max_height(560.0)
+                    .show(ui, |ui| {
+                        for comp in &visible {
+                            let id = comp.get("id").and_then(Value::as_str).unwrap_or_default();
+                            let name = comp
+                                .get("name")
                                 .and_then(Value::as_str)
-                                .unwrap_or("Choose");
-                            egui::ComboBox::from_id_salt(field)
-                                .selected_text(label)
-                                .show_ui(ui, |ui| {
-                                    for item in &components {
-                                        let id = item
-                                            .get("id")
-                                            .and_then(Value::as_str)
-                                            .unwrap_or_default();
-                                        let name = item
-                                            .get("name")
-                                            .and_then(Value::as_str)
-                                            .unwrap_or("Component");
-                                        ui.selectable_value(selected, id.to_string(), name);
-                                    }
-                                });
-                        });
-                    }
-                });
-                let found = recipes.iter().find(|recipe| {
-                    let first = recipe
-                        .get("component1")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
-                    let second = recipe
-                        .get("component2")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
-                    (first == self.tft_component_one && second == self.tft_component_two)
-                        || (first == self.tft_component_two && second == self.tft_component_one)
-                });
-                if let Some(recipe) = found {
-                    panel_title(
-                        ui,
-                        recipe
+                                .unwrap_or("Composition");
+                            let tier = comp.get("tier").and_then(Value::as_str).unwrap_or("—");
+                            let playstyle = comp
+                                .get("playstyle")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default();
+                            let avg = comp.get("avg_place").and_then(Value::as_f64).unwrap_or(0.0);
+                            let is_selected = self.selected_tft_comp == id;
+                            let response = Frame::new()
+                                .fill(if is_selected {
+                                    Color32::from_rgb(8, 41, 57)
+                                } else {
+                                    CARD
+                                })
+                                .stroke(Stroke::new(1.0, if is_selected { CYAN } else { BORDER }))
+                                .corner_radius(egui::CornerRadius::same(10))
+                                .inner_margin(egui::Margin::same(10))
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    ui.horizontal(|ui| {
+                                        tier_badge(ui, tier);
+                                        ui.label(
+                                            RichText::new(name).size(12.5).strong().color(TEXT),
+                                        );
+                                        ui.with_layout(
+                                            Layout::right_to_left(Align::Center),
+                                            |ui| {
+                                                ui.label(
+                                                    RichText::new(format!("avg {avg:.2}"))
+                                                        .size(10.0)
+                                                        .color(SECONDARY),
+                                                );
+                                            },
+                                        );
+                                    });
+                                    ui.label(RichText::new(playstyle).size(9.5).color(GOLD));
+                                    ui.add_space(4.0);
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                        for unit in str_list(comp, "units") {
+                                            self.tft_unit_icon(ui, &unit, 30.0);
+                                        }
+                                    });
+                                })
+                                .response
+                                .interact(Sense::click());
+                            if response.clicked() {
+                                self.selected_tft_comp = id.to_string();
+                            }
+                            ui.add_space(6.0);
+                        }
+                        if visible.is_empty() {
+                            ui.label(
+                                RichText::new("No comps match that search.")
+                                    .size(11.0)
+                                    .color(SECONDARY),
+                            );
+                        }
+                    });
+            });
+            panel(&mut columns[1], |ui| {
+                let Some(comp) = selected.as_ref() else {
+                    panel_title(ui, "NO COMPOSITION SELECTED", "Choose a comp from the list");
+                    return;
+                };
+                let detail_width = ui.available_width();
+                ScrollArea::vertical()
+                    .id_salt("tft-comp-detail")
+                    .max_height(620.0)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        ui.set_max_width(detail_width - 12.0);
+                        let name = comp
                             .get("name")
                             .and_then(Value::as_str)
-                            .unwrap_or("Combined item"),
-                        recipe
-                            .get("stats")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default(),
-                    );
-                    ui.label(
-                        RichText::new(
-                            recipe
-                                .get("description")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default(),
-                        )
-                        .size(10.0)
-                        .color(TEXT),
-                    );
-                    ui.label(
-                        RichText::new(format!(
-                            "Best for: {}",
-                            recipe
-                                .get("bestChampions")
-                                .and_then(Value::as_array)
-                                .map(|items| items
-                                    .iter()
-                                    .filter_map(Value::as_str)
-                                    .collect::<Vec<_>>()
-                                    .join(" · "))
-                                .unwrap_or_default()
-                        ))
-                        .size(9.5)
-                        .color(CYAN),
-                    );
-                } else {
-                    ui.label(
-                        RichText::new("No recipe in the archived Set 13 item table.")
-                            .size(10.0)
-                            .color(SECONDARY),
-                    );
-                }
-                ui.add_space(8.0);
-                ui.label(
-                    RichText::new(format!(
-                        "{} + {}",
-                        component_one
-                            .as_ref()
-                            .and_then(|entry| entry.get("name"))
-                            .and_then(Value::as_str)
-                            .unwrap_or("—"),
-                        component_two
-                            .as_ref()
-                            .and_then(|entry| entry.get("name"))
+                            .unwrap_or("Composition");
+                        let tier = comp.get("tier").and_then(Value::as_str).unwrap_or("—");
+                        ui.horizontal(|ui| {
+                            tier_badge(ui, tier);
+                            ui.label(RichText::new(name).size(18.0).strong().color(TEXT));
+                        });
+                        ui.add_space(6.0);
+                        ui.horizontal_wrapped(|ui| {
+                            let stat =
+                                |ui: &mut egui::Ui, label: &str, value: String, color: Color32| {
+                                    Frame::new()
+                                        .fill(CARD)
+                                        .stroke(Stroke::new(1.0, BORDER))
+                                        .corner_radius(egui::CornerRadius::same(8))
+                                        .inner_margin(egui::Margin::symmetric(10, 6))
+                                        .show(ui, |ui| {
+                                            ui.vertical(|ui| {
+                                                ui.label(
+                                                    RichText::new(label)
+                                                        .size(8.5)
+                                                        .strong()
+                                                        .color(MUTED),
+                                                );
+                                                ui.label(
+                                                    RichText::new(value)
+                                                        .size(13.0)
+                                                        .strong()
+                                                        .color(color),
+                                                );
+                                            });
+                                        });
+                                };
+                            let num =
+                                |key: &str| comp.get(key).and_then(Value::as_f64).unwrap_or(0.0);
+                            let text = |key: &str| {
+                                comp.get(key)
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("—")
+                                    .to_string()
+                            };
+                            stat(ui, "AVG PLACE", format!("{:.2}", num("avg_place")), TEXT);
+                            stat(ui, "TOP 4", format!("{:.1}%", num("top4")), GREEN);
+                            stat(ui, "WIN", format!("{:.1}%", num("win")), GOLD);
+                            stat(ui, "PLAYSTYLE", text("playstyle"), CYAN);
+                            stat(ui, "DIFFICULTY", text("difficulty"), SECONDARY);
+                        });
+
+                        ui.add_space(12.0);
+                        ui.label(RichText::new("MAIN CARRY").size(9.0).strong().color(MUTED));
+                        let carry = comp
+                            .get("carry")
                             .and_then(Value::as_str)
                             .unwrap_or("—")
-                    ))
-                    .size(10.0)
-                    .color(GOLD),
+                            .to_string();
+                        let carry_items = str_list(comp, "carry_items");
+                        ui.horizontal(|ui| {
+                            self.tft_unit_icon(ui, &carry, 58.0);
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new(&carry).size(14.0).strong().color(GOLD));
+                                ui.horizontal(|ui| {
+                                    for item in &carry_items {
+                                        let texture =
+                                            crate::tft_data::item_by_name(item).and_then(|entry| {
+                                                self.tft_textures.get(&entry.image_key)
+                                            });
+                                        let response = match texture {
+                                            Some(texture) => ui.add(
+                                                egui::Image::new((texture.id(), Vec2::splat(30.0)))
+                                                    .corner_radius(egui::CornerRadius::same(5)),
+                                            ),
+                                            None => {
+                                                ui.label(RichText::new(item).size(10.0).color(TEXT))
+                                            }
+                                        };
+                                        response.on_hover_text(item);
+                                    }
+                                });
+                                ui.label(
+                                    RichText::new(carry_items.join(" · "))
+                                        .size(9.5)
+                                        .color(SECONDARY),
+                                );
+                            });
+                        });
+
+                        ui.add_space(12.0);
+                        ui.label(RichText::new("FINAL BOARD").size(9.0).strong().color(MUTED));
+                        ui.add_space(4.0);
+                        let frontline = str_list(comp, "frontline");
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
+                            for unit in str_list(comp, "units") {
+                                ui.allocate_ui(Vec2::new(60.0, 86.0), |ui| {
+                                    ui.vertical_centered(|ui| {
+                                        self.tft_unit_icon(ui, &unit, 48.0);
+                                        ui.label(RichText::new(&unit).size(9.0).color(TEXT));
+                                        if frontline.contains(&unit) {
+                                            ui.label(
+                                                RichText::new("FRONT")
+                                                    .size(7.5)
+                                                    .strong()
+                                                    .color(MUTED),
+                                            );
+                                        }
+                                    });
+                                });
+                            }
+                        });
+
+                        ui.add_space(10.0);
+                        ui.label(RichText::new("TRAITS").size(9.0).strong().color(MUTED));
+                        let traits = str_list(comp, "traits");
+                        let row_limit = detail_width - 40.0;
+                        let mut rows: Vec<Vec<String>> = vec![Vec::new()];
+                        let mut row_width = 0.0;
+                        for name in traits {
+                            let chip_width = ui
+                                .painter()
+                                .layout_no_wrap(
+                                    name.clone(),
+                                    egui::FontId::proportional(10.0),
+                                    CYAN,
+                                )
+                                .size()
+                                .x
+                                + 24.0;
+                            if row_width + chip_width > row_limit
+                                && !rows.last().unwrap().is_empty()
+                            {
+                                rows.push(Vec::new());
+                                row_width = 0.0;
+                            }
+                            row_width += chip_width;
+                            rows.last_mut().unwrap().push(name);
+                        }
+                        for row in rows {
+                            ui.horizontal(|ui| {
+                                for name in row {
+                                    trait_chip(ui, &name);
+                                }
+                            });
+                        }
+
+                        ui.add_space(12.0);
+                        if action_button(ui, "LOAD UNITS ON BOARD", false, CYAN).clicked() {
+                            self.settings.tft_board.fill(String::new());
+                            // Row 0 is the front row of the 4x7 board and row 3 the back row.
+                            let (mut front, mut back) = (0usize, 0usize);
+                            for unit in str_list(comp, "units") {
+                                let cell = if frontline.contains(&unit) {
+                                    front += 1;
+                                    front
+                                } else {
+                                    back += 1;
+                                    3 * 7 + back - 1
+                                };
+                                if cell < self.settings.tft_board.len() {
+                                    self.settings.tft_board[cell] = unit;
+                                }
+                            }
+                            self.save_settings();
+                            self.tft_tab = "BOARD".to_string();
+                        }
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new(format!(
+                                "Source: {source} Items and stats change every patch."
+                            ))
+                            .size(9.0)
+                            .color(MUTED),
+                        );
+                    });
+            });
+        });
+    }
+
+    fn tft_item_icon(
+        &self,
+        ui: &mut egui::Ui,
+        name: &str,
+        size: f32,
+        selected: bool,
+    ) -> egui::Response {
+        let texture = crate::tft_data::item_by_name(name)
+            .and_then(|entry| self.tft_textures.get(&entry.image_key));
+        let stroke = if selected {
+            Stroke::new(2.0, GOLD)
+        } else {
+            Stroke::new(1.0, BORDER)
+        };
+        let response = Frame::new()
+            .stroke(stroke)
+            .fill(if selected {
+                Color32::from_rgba_unmultiplied(GOLD.r(), GOLD.g(), GOLD.b(), 30)
+            } else {
+                Color32::TRANSPARENT
+            })
+            .corner_radius(egui::CornerRadius::same(6))
+            .inner_margin(egui::Margin::same(2))
+            .show(ui, |ui| match texture {
+                Some(texture) => {
+                    ui.add(
+                        egui::Image::new((texture.id(), Vec2::splat(size)))
+                            .corner_radius(egui::CornerRadius::same(4)),
+                    );
+                }
+                None => {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(4), CARD);
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        initials(name),
+                        egui::FontId::proportional(size * 0.32),
+                        TEXT,
+                    );
+                }
+            })
+            .response
+            .interact(Sense::click());
+        response.on_hover_text(name)
+    }
+
+    fn tft_unit_icon(&self, ui: &mut egui::Ui, name: &str, size: f32) {
+        let entry = crate::tft_data::champion_by_name(name);
+        let cost = entry.and_then(|entry| entry.cost).unwrap_or(0);
+        let border = match cost {
+            1 => Color32::from_rgb(150, 160, 175),
+            2 => Color32::from_rgb(60, 200, 120),
+            3 => Color32::from_rgb(60, 140, 240),
+            4 => Color32::from_rgb(190, 90, 240),
+            5 => Color32::from_rgb(245, 190, 60),
+            _ => BORDER,
+        };
+        let texture = entry.and_then(|entry| self.tft_textures.get(&entry.image_key));
+        let response = Frame::new()
+            .stroke(Stroke::new(2.0, border))
+            .corner_radius(egui::CornerRadius::same(6))
+            .inner_margin(egui::Margin::same(1))
+            .show(ui, |ui| match texture {
+                Some(texture) => {
+                    ui.add(
+                        egui::Image::new((texture.id(), Vec2::splat(size)))
+                            .corner_radius(egui::CornerRadius::same(5)),
+                    );
+                }
+                None => {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(5), CARD);
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        initials(name),
+                        egui::FontId::proportional(size * 0.32),
+                        TEXT,
+                    );
+                }
+            })
+            .response;
+        response.on_hover_text(format!("{name} · {cost}g"));
+    }
+
+    fn render_tft_items(&mut self, ui: &mut egui::Ui) {
+        let data = crate::tft_data::current_items();
+        let str_of = |value: &Value| value.as_str().unwrap_or_default().to_string();
+        let components: Vec<String> = data
+            .get("components")
+            .and_then(Value::as_array)
+            .map(|list| list.iter().map(str_of).collect())
+            .unwrap_or_default();
+        let recipes: Vec<(String, String, String, String)> = data
+            .get("recipes")
+            .and_then(Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(|recipe| {
+                        let parts = recipe.get("components")?.as_array()?;
+                        Some((
+                            str_of(recipe.get("name")?),
+                            str_of(parts.first()?),
+                            str_of(parts.get(1)?),
+                            recipe.get("effect").map(str_of).unwrap_or_default(),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let source = data
+            .get("source")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        for selected in [&mut self.tft_component_one, &mut self.tft_component_two] {
+            if !components.contains(selected) {
+                *selected = components.first().cloned().unwrap_or_default();
+            }
+        }
+        let recipe_for = |a: &str, b: &str| {
+            recipes
+                .iter()
+                .find(|(_, one, two, _)| (one == a && two == b) || (one == b && two == a))
+                .cloned()
+        };
+        ui.columns(2, |columns| {
+            panel(&mut columns[0], |ui| {
+                panel_title(
+                    ui,
+                    &format!("SET {} CRAFTING MIXER", crate::tft_data::current_set()),
+                    "Pick two components to see what they build",
                 );
+                for (field, slot) in [("COMPONENT A", 0), ("COMPONENT B", 1)] {
+                    ui.label(RichText::new(field).size(8.5).strong().color(MUTED));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(5.0, 5.0);
+                        for component in &components {
+                            let current = if slot == 0 {
+                                &self.tft_component_one
+                            } else {
+                                &self.tft_component_two
+                            };
+                            let is_selected = current == component;
+                            if self
+                                .tft_item_icon(ui, component, 34.0, is_selected)
+                                .clicked()
+                            {
+                                if slot == 0 {
+                                    self.tft_component_one = component.clone();
+                                } else {
+                                    self.tft_component_two = component.clone();
+                                }
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
+                }
+
+                ui.add_space(4.0);
+                let (first, second) = (
+                    self.tft_component_one.clone(),
+                    self.tft_component_two.clone(),
+                );
+                Frame::new()
+                    .fill(CARD)
+                    .stroke(Stroke::new(
+                        1.0,
+                        Color32::from_rgba_unmultiplied(GOLD.r(), GOLD.g(), GOLD.b(), 120),
+                    ))
+                    .corner_radius(egui::CornerRadius::same(10))
+                    .inner_margin(egui::Margin::same(12))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        match recipe_for(&first, &second) {
+                            Some((name, _, _, effect)) => {
+                                ui.horizontal(|ui| {
+                                    self.tft_item_icon(ui, &name, 54.0, false);
+                                    ui.vertical(|ui| {
+                                        ui.label(
+                                            RichText::new(&name).size(16.0).strong().color(GOLD),
+                                        );
+                                        ui.label(
+                                            RichText::new(format!("{first} + {second}"))
+                                                .size(9.5)
+                                                .color(SECONDARY),
+                                        );
+                                        ui.add_space(3.0);
+                                        ui.label(RichText::new(&effect).size(10.5).color(TEXT));
+                                    });
+                                });
+                            }
+                            None => {
+                                ui.label(
+                                    RichText::new(
+                                        "These two components don't combine into an item.",
+                                    )
+                                    .size(10.5)
+                                    .color(SECONDARY),
+                                );
+                            }
+                        }
+                    });
+
+                ui.add_space(10.0);
+                ui.label(
+                    RichText::new(format!("EVERYTHING {} BUILDS", first.to_uppercase()))
+                        .size(8.5)
+                        .strong()
+                        .color(MUTED),
+                );
+                ui.add_space(4.0);
+                let builds: Vec<_> = components
+                    .iter()
+                    .filter_map(|other| {
+                        recipe_for(&first, other).map(|recipe| (other.clone(), recipe))
+                    })
+                    .collect();
+                egui::Grid::new("tft-builds-from-a")
+                    .num_columns(2)
+                    .spacing(Vec2::new(14.0, 6.0))
+                    .show(ui, |ui| {
+                        for (index, (other, (name, _, _, _))) in builds.iter().enumerate() {
+                            let response = ui
+                                .horizontal(|ui| {
+                                    self.tft_item_icon(ui, other, 22.0, false);
+                                    ui.label(RichText::new("→").size(11.0).color(MUTED));
+                                    self.tft_item_icon(ui, name, 26.0, false);
+                                    ui.label(
+                                        RichText::new(name).size(10.0).color(if *other == second {
+                                            GOLD
+                                        } else {
+                                            TEXT
+                                        }),
+                                    );
+                                })
+                                .response
+                                .interact(Sense::click());
+                            if response.clicked() {
+                                self.tft_component_two = other.clone();
+                            }
+                            if index % 2 == 1 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+                ui.add_space(8.0);
+                ui.label(RichText::new(source).size(9.0).color(MUTED));
             });
             panel(&mut columns[1], |ui| {
                 panel_title(
@@ -3597,7 +3942,6 @@ impl RiftCoreApp {
                         ui.horizontal(|ui| {
                             texture_icon(ui, &self.tft_textures, &item.image_key, 30.0);
                             ui.label(RichText::new(&item.name).size(10.5).strong().color(TEXT));
-                            ui.label(RichText::new(&item.id).size(8.5).color(MUTED));
                         });
                         ui.separator();
                     }
@@ -3876,7 +4220,7 @@ impl RiftCoreApp {
                     ui.label(RichText::new("Your board is empty. Select a hex and add a unit name.").size(11.0).color(SECONDARY));
                 }
                 ui.add_space(12.0);
-                ui.label(RichText::new("This board saves locally. Current unit and item catalogs are available in Set Data; the previous Set 13 compositions and odds are marked as archived.").size(10.0).color(MUTED));
+                ui.label(RichText::new("This board saves locally. Load a Set 18 comp from the Comps tab, or browse every unit in Set Data.").size(10.0).color(MUTED));
             });
         });
     }
@@ -5590,6 +5934,7 @@ impl RiftCoreApp {
                             let tip = card.get("tip").and_then(Value::as_str).unwrap_or("");
                             let tint = match tier { "Prismatic" => Color32::from_rgb(192, 132, 252), "Gold" => GOLD, _ => SECONDARY };
                             Frame::new().fill(CARD).stroke(Stroke::new(1.0, BORDER)).corner_radius(egui::CornerRadius::same(10)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+                                ui.set_width(ui.available_width());
                                 ui.horizontal(|ui| {
                                     ui.vertical(|ui| {
                                         ui.horizontal(|ui| {
@@ -7381,6 +7726,47 @@ fn settings_row(ui: &mut egui::Ui, label: &str, value: &mut bool, description: &
     });
     ui.separator();
     changed
+}
+
+fn trait_chip(ui: &mut egui::Ui, name: &str) {
+    Frame::new()
+        .fill(Color32::from_rgba_unmultiplied(
+            CYAN.r(),
+            CYAN.g(),
+            CYAN.b(),
+            22,
+        ))
+        .stroke(Stroke::new(
+            1.0,
+            Color32::from_rgba_unmultiplied(CYAN.r(), CYAN.g(), CYAN.b(), 110),
+        ))
+        .corner_radius(egui::CornerRadius::same(5))
+        .inner_margin(egui::Margin::symmetric(8, 3))
+        .show(ui, |ui| {
+            ui.add(egui::Label::new(RichText::new(name).size(10.0).color(CYAN)).extend());
+        });
+}
+
+fn tier_badge(ui: &mut egui::Ui, tier: &str) {
+    let color = match tier {
+        "S" => Color32::from_rgb(255, 110, 110),
+        "A" => Color32::from_rgb(245, 190, 60),
+        "B" => Color32::from_rgb(60, 200, 120),
+        _ => SECONDARY,
+    };
+    Frame::new()
+        .fill(Color32::from_rgba_unmultiplied(
+            color.r(),
+            color.g(),
+            color.b(),
+            40,
+        ))
+        .stroke(Stroke::new(1.0, color))
+        .corner_radius(egui::CornerRadius::same(5))
+        .inner_margin(egui::Margin::symmetric(7, 2))
+        .show(ui, |ui| {
+            ui.label(RichText::new(tier).size(11.0).strong().color(color));
+        });
 }
 
 fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
