@@ -73,6 +73,16 @@ Presence of agent files in Git does not prove runtime discovery or invocation. V
 - Git's LF-to-CRLF notices were line-ending normalization warnings, not commit failures.
 - Compared with `main`, `phase3/integration` is 4 commits ahead and 0 behind. The diff includes the modular Rust domain/services/platform/overlay/UI structure and build-script updates. This is metadata-level change inventory, not a compilation or runtime verification.
 
+## Critical integration finding from pushed `phase3/integration` source review
+- The executable entry point `riftcore-native/src/main.rs` still declares `mod app; mod backend; mod builds; mod tft_data;` and launches `app::RiftCoreApp`.
+- That entry point does not import or launch the new library overlay/UI modules declared from `riftcore-native/src/lib.rs`.
+- `lib.rs` explicitly describes the modular architecture as "Wave 0: skeleton stubs only" and says the monolith remains compiled from `main.rs` until Wave 3 integration.
+- The old active `app.rs` still creates the HUD with `ctx.show_viewport_immediate` and `ViewportCommand::MousePassthrough`; it also calls `set_zoom_factor(1.06)`. It does not reference `Win32OverlayHost` or `PathBWin32DComp`.
+- The new Path B implementation under `overlay/win32_host.rs` and new UI modules are therefore not yet proven to be the runtime path for the shipped executable.
+- `ui/pages/settings.rs` is only a Wave 0 stub. Do not treat the modular UI refactor as complete.
+- This is a concrete integration blocker and likely explains why agent reports of "overlay fixes complete" do not necessarily match what the user sees in the actual app.
+- **Required next engineering task:** the Architect must create a staged Wave 3 integration plan, wire the intended overlay/UI host into the real Windows binary without removing the working fallback, resolve the settings-page stub or keep routing to the existing settings screen, and verify the actual Windows build and screenshots. No broad refactor or fallback removal without tests.
+
 ## Engineering workflow
 1. State the current task and owner briefly.
 2. Inspect only relevant code and current Git state; don't rerun completed audits without a reason.
@@ -99,8 +109,10 @@ Keep updates short:
 - [ ] Run a real read-only delegation smoke test.
 - [ ] Trace overlay host/render/input/focus/DPI/lifecycle implementation.
 - [ ] Reproduce the top overlay defects on Windows.
+- [ ] Integrate the modular overlay host into the real binary; keep the current viewport fallback.
 - [ ] Implement first overlay fix and preserve fallback.
 - [ ] Trace active egui pages and common components.
+- [ ] Confirm which UI implementation is currently used by the binary before redesigning; modular UI is not active until integration.
 - [ ] Implement first high-impact UI redesign slice.
 - [ ] Build/test and inspect actual Windows screenshots.
 - [ ] Update this file with verified results.
