@@ -1,4 +1,19 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.3.2
+--------------------------------------------------
+
+* Rune setup redesigned to fit on one screen:
+  - Primary runes, secondary runes, and stat shards + summoner spells now sit in three columns.
+  - "Apply Runes + Spells" moved to the top, next to the Meta / Burst / Sustain presets.
+  - On the Runes & Spells tab the champion list becomes a narrow strip with its own search,
+    and the large page header is hidden to make room.
+  - Summoner spell slots are shown side by side as "D" and "F".
+
+* Known limitations:
+  - On small windows (under about 900 px tall) the bottom of the spell list may still scroll.
+  - The TFT Odds tab still uses the previous set's shop odds (marked in the app).
+
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.3.1
 --------------------------------------------------
 
