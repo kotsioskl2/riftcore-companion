@@ -186,10 +186,7 @@ fn skill_order(priority: &str) -> Vec<String> {
     order.into_iter().map(str::to_owned).collect()
 }
 
-fn preset(
-    archetype: &str,
-    role: &str,
-) -> (
+type PresetTuple = (
     Vec<u32>,
     u32,
     Vec<u32>,
@@ -200,7 +197,9 @@ fn preset(
     Vec<u32>,
     i64,
     i64,
-) {
+);
+
+fn preset(archetype: &str, role: &str) -> PresetTuple {
     let (
         start,
         boots,

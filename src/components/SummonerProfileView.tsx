@@ -160,7 +160,8 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
 
       try {
         const settings = await window.riftAPI?.getSettings?.();
-        const apiKey = settings?.riotApiKey || 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9';
+        const apiKey = settings?.riotApiKey?.trim() || '';
+        if (!apiKey) return;
         const region = settings?.riotRegion || 'eun1';
         const masteries = await riotApiService.getTopChampionMasteries(puuid, apiKey, region, 5);
         if (masteries && masteries.length > 0) {
@@ -193,7 +194,13 @@ export const SummonerProfileView: React.FC<SummonerProfileViewProps> = ({
 
     try {
       const settings = await window.riftAPI?.getSettings?.();
-      const apiKey = settings?.riotApiKey || 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9';
+      const apiKey = settings?.riotApiKey?.trim() || '';
+      if (!apiKey) {
+        setCloudError('Add a Riot API key in Settings before searching.');
+        setIsCloudScout(false);
+        setCloudLoading(false);
+        return;
+      }
 
       // 1. Fetch Riot Account (Smart multi-cluster lookup across europe, americas, asia, sea)
       const accountData = await riotApiService.getAccountByRiotId(gameName, tagLine, apiKey, selectedRegion);

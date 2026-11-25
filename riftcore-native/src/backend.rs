@@ -1380,7 +1380,11 @@ pub fn league_game_window() -> Option<LeagueWindowInfo> {
             fn GetDpiForWindow(hwnd: *mut std::ffi::c_void) -> u32;
             fn IsWindowVisible(hwnd: *mut std::ffi::c_void) -> i32;
             fn IsIconic(hwnd: *mut std::ffi::c_void) -> i32;
-            fn GetClassNameW(hwnd: *mut std::ffi::c_void, class_name: *mut u16, max_count: i32) -> i32;
+            fn GetClassNameW(
+                hwnd: *mut std::ffi::c_void,
+                class_name: *mut u16,
+                max_count: i32,
+            ) -> i32;
             fn GetWindowTextW(hwnd: *mut std::ffi::c_void, text: *mut u16, max_count: i32) -> i32;
         }
         #[link(name = "kernel32")]
@@ -1426,7 +1430,8 @@ pub fn league_game_window() -> Option<LeagueWindowInfo> {
             if !process.is_null() {
                 let mut buffer = [0u16; 1024];
                 let mut size = buffer.len() as u32;
-                is_league = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0
+                is_league = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size)
+                    != 0
                     && Path::new(&String::from_utf16_lossy(&buffer[..size as usize]))
                         .file_name()
                         .is_some_and(|name| name.eq_ignore_ascii_case("League of Legends.exe"));
@@ -1522,10 +1527,7 @@ pub fn league_window_is_foreground(window: LeagueWindowInfo) -> bool {
     let length = unsafe { GetWindowTextW(foreground, title.as_mut_ptr(), title.len() as i32) };
     if length > 0 {
         let title_str = String::from_utf16_lossy(&title[..length as usize]);
-        if title_str.contains("League of Legends (TM) Client")
-            || title_str.eq_ignore_ascii_case("RiftCore In-Game HUD")
-            || title_str.eq_ignore_ascii_case("RiftCore Companion")
-        {
+        if title_str.contains("League of Legends (TM) Client") {
             return true;
         }
     }
@@ -1553,6 +1555,12 @@ pub fn maintain_native_overlay() {
         fn GetWindowThreadProcessId(hwnd: *mut c_void, process_id: *mut u32) -> u32;
         fn GetWindowLongPtrW(hwnd: *mut c_void, index: i32) -> isize;
         fn SetWindowLongPtrW(hwnd: *mut c_void, index: i32, value: isize) -> isize;
+        fn SetLayeredWindowAttributes(
+            hwnd: *mut c_void,
+            color_key: u32,
+            alpha: u8,
+            flags: u32,
+        ) -> i32;
         fn SetWindowPos(
             hwnd: *mut c_void,
             insert_after: *mut c_void,
@@ -1569,9 +1577,12 @@ pub fn maintain_native_overlay() {
     const WS_EX_APPWINDOW: isize = 0x0004_0000;
     const WS_EX_TOOLWINDOW: isize = 0x0000_0080;
     const WS_EX_NOACTIVATE: isize = 0x0800_0000;
+    const WS_EX_LAYERED: isize = 0x0008_0000;
+    const LWA_COLORKEY: u32 = 0x0000_0001;
     const SWP_NOSIZE: u32 = 0x0001;
     const SWP_NOMOVE: u32 = 0x0002;
     const SWP_NOACTIVATE: u32 = 0x0010;
+    const SWP_FRAMECHANGED: u32 = 0x0020;
 
     let title: Vec<u16> = "RiftCore In-Game HUD\0".encode_utf16().collect();
     unsafe {
@@ -1585,8 +1596,13 @@ pub fn maintain_native_overlay() {
             return;
         }
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let style = (style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) & !WS_EX_APPWINDOW;
+        let style =
+            (style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED) & !WS_EX_APPWINDOW;
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
+        // Some Windows GL drivers drop the framebuffer alpha on borderless
+        // full-screen games. Treat the clear color as a color key as a fallback
+        // so the unused HUD surface cannot turn the whole game black.
+        let _ = SetLayeredWindowAttributes(hwnd, 0, u8::MAX, LWA_COLORKEY);
         SetWindowPos(
             hwnd,
             (-1isize) as *mut c_void,
@@ -1596,7 +1612,7 @@ pub fn maintain_native_overlay() {
             0,
             // eframe controls visibility. Re-showing the HUD from SetWindowPos
             // can make focus transitions flicker; keep this strictly no-activate.
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
         );
     }
 }

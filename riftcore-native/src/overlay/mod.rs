@@ -1,0 +1,317 @@
+//! Native external DirectComposition overlay engine and Riot-compliant HUD modules.
+
+pub mod eframe_fallback;
+pub mod engine;
+pub mod host;
+pub mod hud_modes;
+pub mod minimap;
+pub mod panels;
+pub mod win32_host;
+
+pub use eframe_fallback::{EframeChildViewportFallback, PathAEframeFallbackStub};
+pub use engine::{
+    clamp_panel_in_area, OverlayCommand, OverlayConfig, OverlayEngine, OverlayLifecycleState,
+    PassthroughController, RepaintScheduler, TickInput,
+};
+pub use host::{
+    build_dx12_visual_wgpu_options, select_host_or_fallback, OverlayDiagnostics,
+    OverlayFrameActions, OverlayHostBackend, OverlayPanelSettings, OverlayRenderCallback,
+    OverlayRenderState, OverlaySurfaceHost, OverlayTimerTab,
+};
+pub use hud_modes::{
+    clamp_logical_panel_pos, compute_overlay_rect_px, infer_presentation_mode, monitor_for_rect,
+    physical_cursor_to_logical, DisplayPresentationMode, HudPresentationMode, TargetWindowState,
+};
+pub use minimap::{
+    build_minimap_guide_model, jungle_route_status, render_minimap_guide_pins, MinimapGuideModel,
+};
+pub use panels::{
+    filter_mayhem_cards, missing_trinket_reminder, render_overlay_ui, resolve_personal_build,
+    OVERLAY_ENEMY_SPELL_TIMERS_REMOVED,
+};
+pub use win32_host::Win32OverlayHost;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::live_game::{LiveGameState, ObjectiveKind};
+    use crate::domain::protocol::LIVE_COACH_ENABLED;
+    use crate::platform::window::MonitorMetrics;
+    use eframe::egui::{Pos2, Rect, Vec2};
+    use serde_json::json;
+    use std::time::Duration;
+
+    #[test]
+    fn mixed_dpi_physical_rect_preserves_negative_and_secondary_origins() {
+        let left_monitor = MonitorMetrics {
+            rect_px: [-2560, 0, 0, 1440],
+            work_px: [-2560, 0, 0, 1400],
+            dpi: 144,
+        };
+        let target = TargetWindowState {
+            hwnd: 42,
+            client_rect_px: [-2560, 0, 0, 1440],
+            monitor_dpi: 144,
+            is_foreground: true,
+            presentation: DisplayPresentationMode::Borderless,
+        };
+
+        let integrated = compute_overlay_rect_px(
+            &target,
+            Some(&left_monitor),
+            HudPresentationMode::Integrated,
+            false,
+        );
+        assert_eq!(integrated, [-2560, 0, -1, 1439]);
+
+        let bar = compute_overlay_rect_px(
+            &target,
+            Some(&left_monitor),
+            HudPresentationMode::Bar,
+            false,
+        );
+        // 620 * 1.5 = 930px wide, 54 * 1.5 = 81px tall, centered inside [-2560..0]
+        assert_eq!(bar[2] - bar[0], 930);
+        assert_eq!(bar[3] - bar[1], 81);
+        assert!(bar[0] >= -2560 && bar[2] <= 0);
+    }
+
+    #[test]
+    fn degenerate_monitor_metrics_never_panic_on_clamp() {
+        let degenerate = MonitorMetrics {
+            rect_px: [100, 100, 100, 100],
+            work_px: [100, 100, 100, 100],
+            dpi: 96,
+        };
+        let target = TargetWindowState {
+            hwnd: 99,
+            client_rect_px: [0, 0, 1920, 1080],
+            monitor_dpi: 96,
+            is_foreground: true,
+            presentation: DisplayPresentationMode::Borderless,
+        };
+        let rect =
+            compute_overlay_rect_px(&target, Some(&degenerate), HudPresentationMode::Card, false);
+        assert!(rect[2] > rect[0]);
+        assert!(rect[3] > rect[1]);
+    }
+
+    #[test]
+    fn cursor_physical_to_logical_scales_and_clamps_panel_pos() {
+        let overlay_rect = [1920, 100, 3840, 1180];
+        let pos_150 = physical_cursor_to_logical([1920 + 300, 100 + 150], overlay_rect, 1.5);
+        assert!((pos_150.x - 200.0).abs() < 0.01);
+        assert!((pos_150.y - 100.0).abs() < 0.01);
+
+        let area = Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 720.0));
+        let clamped = clamp_logical_panel_pos([2400.0, 950.0], area, Vec2::new(300.0, 150.0));
+        assert_eq!(clamped, Pos2::new(980.0, 570.0));
+    }
+
+    #[test]
+    fn passthrough_drag_lock_prevents_dropping_fast_drag() {
+        let mut ctrl = PassthroughController::default();
+        ctrl.set_interactive_rects(vec![Rect::from_min_size(
+            Pos2::new(10.0, 10.0),
+            Vec2::new(100.0, 40.0),
+        )]);
+
+        assert!(ctrl.evaluate(Some(Pos2::new(200.0, 200.0)), false, false));
+        assert!(!ctrl.evaluate(Some(Pos2::new(50.0, 25.0)), true, false));
+        // Cursor moves fast outside rect while pointer held down -> stays interactive
+        assert!(!ctrl.evaluate(Some(Pos2::new(400.0, 400.0)), true, false));
+        // Pointer released outside rect -> restores passthrough
+        assert!(ctrl.evaluate(Some(Pos2::new(400.0, 400.0)), false, false));
+        // Force passthrough overrides even inside rect
+        assert!(ctrl.evaluate(Some(Pos2::new(50.0, 25.0)), true, true));
+    }
+
+    #[test]
+    fn overlay_engine_fsm_fallback_and_stationary_pacing() {
+        let (mut host, err) =
+            select_host_or_fallback::<Win32OverlayHost>(Err("dx12 init failed".to_string()));
+        assert_eq!(host.backend_kind(), OverlayHostBackend::PathAEframeFallback);
+        assert_eq!(err.as_deref(), Some("dx12 init failed"));
+
+        let mut engine = OverlayEngine::default();
+        let mut cfg = OverlayConfig::default();
+
+        engine.on_live_game_state(true, &mut cfg);
+        assert_eq!(
+            engine.lifecycle_state(),
+            OverlayLifecycleState::WaitingForGameWindow
+        );
+
+        engine.apply_command(
+            OverlayCommand::UpdateTarget(Some(TargetWindowState {
+                hwnd: 1,
+                client_rect_px: [0, 0, 1920, 1080],
+                monitor_dpi: 96,
+                is_foreground: true,
+                presentation: DisplayPresentationMode::ExclusiveFullscreen,
+            })),
+            &mut cfg,
+        );
+        assert_eq!(
+            engine.lifecycle_state(),
+            OverlayLifecycleState::BlockedByExclusiveFullscreen
+        );
+
+        engine.apply_command(
+            OverlayCommand::UpdateTarget(Some(TargetWindowState {
+                hwnd: 1,
+                client_rect_px: [0, 0, 1920, 1080],
+                monitor_dpi: 96,
+                is_foreground: false,
+                presentation: DisplayPresentationMode::Borderless,
+            })),
+            &mut cfg,
+        );
+        assert_eq!(
+            engine.lifecycle_state(),
+            OverlayLifecycleState::WaitingForForeground
+        );
+
+        engine.apply_command(
+            OverlayCommand::UpdateTarget(Some(TargetWindowState {
+                hwnd: 1,
+                client_rect_px: [0, 0, 1920, 1080],
+                monitor_dpi: 96,
+                is_foreground: true,
+                presentation: DisplayPresentationMode::Borderless,
+            })),
+            &mut cfg,
+        );
+        assert_eq!(
+            engine.lifecycle_state(),
+            OverlayLifecycleState::ActiveVisible
+        );
+
+        let mut state = OverlayRenderState {
+            clock_secs: 42,
+            ..Default::default()
+        };
+        let (lifecycle, next) = engine.tick(
+            host.as_mut(),
+            TickInput {
+                monitor: None,
+                cursor_px: None,
+                pointer_down: false,
+                config: &cfg,
+                render_state: &mut state,
+                force_interactive_redraw: false,
+            },
+            &mut |ui, s, r| render_overlay_ui(ui, s, r),
+        );
+        assert_eq!(lifecycle, OverlayLifecycleState::ActiveVisible);
+        assert_eq!(next, Some(Duration::from_millis(1000)));
+        assert_eq!(host.diagnostics().frames_rendered, 1);
+
+        // Repeated tick with unchanged stationary state skips redundant re-render
+        let _ = engine.tick(
+            host.as_mut(),
+            TickInput {
+                monitor: None,
+                cursor_px: None,
+                pointer_down: false,
+                config: &cfg,
+                render_state: &mut state,
+                force_interactive_redraw: false,
+            },
+            &mut |ui, s, r| render_overlay_ui(ui, s, r),
+        );
+        assert_eq!(host.diagnostics().frames_rendered, 1);
+
+        // Manual user dismissal stays remembered while match continues, then resets when match ends
+        engine.apply_command(
+            OverlayCommand::SetEnabled {
+                enabled: false,
+                automatic: false,
+            },
+            &mut cfg,
+        );
+        engine.on_live_game_state(true, &mut cfg);
+        assert!(!engine.is_enabled());
+        engine.on_live_game_state(false, &mut cfg);
+        engine.on_live_game_state(true, &mut cfg);
+        assert!(engine.is_enabled());
+    }
+
+    #[test]
+    fn compliance_gates_sr_objectives_trinkets_and_mayhem_ranks() {
+        const { assert!(!LIVE_COACH_ENABLED) };
+        const { assert!(OVERLAY_ENEMY_SPELL_TIMERS_REMOVED) };
+
+        // Even if runtime toggle were flipped, protocol gate locks active coaching off
+        let state = OverlayRenderState {
+            live_coach_enabled: true,
+            ..OverlayRenderState::default()
+        };
+        assert!(!state.effective_live_coaching_enabled());
+
+        // Timer drawer exposes only Camps & Objectives (zero enemy spell cooldown tab)
+        assert_ne!(
+            std::mem::discriminant(&OverlayTimerTab::Camps),
+            std::mem::discriminant(&OverlayTimerTab::Objectives)
+        );
+
+        let sr_payload = json!({
+            "gameData": { "gameTime": 1260.0, "gameMode": "CLASSIC", "mapNumber": 11 },
+            "activePlayer": {
+                "summonerName": "PlayerOne",
+                "championName": "Ahri",
+                "scores": { "kills": 3, "deaths": 1, "assists": 4, "creepScore": 140 },
+                "currentGold": 1500.0,
+                "items": [{ "itemID": 6655, "slot": 0, "count": 1, "displayName": "Luden's Companion" }]
+            },
+            "allPlayers": [
+                {
+                    "summonerName": "PlayerOne",
+                    "championName": "Ahri",
+                    "team": "ORDER",
+                    "position": "MIDDLE",
+                    "items": [{ "itemID": 6655, "slot": 0, "count": 1, "displayName": "Luden's Companion" }]
+                }
+            ],
+            "events": { "Events": [] }
+        });
+        let sr = LiveGameState::from_allgamedata(&sr_payload).expect("valid SR payload");
+        assert!(missing_trinket_reminder(Some(&sr)));
+        let (champ, build) = resolve_personal_build(&sr).expect("build profile for Ahri");
+        assert_eq!(champ.name, "Ahri");
+        assert!(!build.core_items.is_empty());
+
+        let area = Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0));
+        let sr_minimap =
+            build_minimap_guide_model(area, &sr, &OverlayPanelSettings::default(), 1260)
+                .expect("SR minimap model");
+        let baron_pins = sr_minimap
+            .objective_pins
+            .iter()
+            .filter(|p| p.kind == ObjectiveKind::Baron)
+            .count();
+        assert_eq!(baron_pins, 1);
+
+        let aram_payload = json!({
+            "gameData": { "gameTime": 600.0, "gameMode": "ARAM", "mapNumber": 12 },
+            "activePlayer": {
+                "summonerName": "PlayerOne",
+                "championName": "Ahri",
+                "items": [{ "itemID": 3348, "slot": 6, "count": 1 }]
+            },
+            "allPlayers": [],
+            "events": { "Events": [] }
+        });
+        let aram = LiveGameState::from_allgamedata(&aram_payload).expect("valid ARAM payload");
+        assert!(!missing_trinket_reminder(Some(&aram)));
+        assert!(
+            build_minimap_guide_model(area, &aram, &OverlayPanelSettings::default(), 600,)
+                .is_none()
+        );
+
+        let mayhem = filter_mayhem_cards("Both", "Prismatic", "");
+        assert!(!mayhem.is_empty());
+        let serialized = serde_json::to_value(mayhem[0]).expect("serialize card");
+        assert!(!serialized.as_object().unwrap().contains_key("rank"));
+    }
+}
