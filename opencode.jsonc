@@ -1,12 +1,31 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "riftcore/gpt-oss-20b",
   "default_agent": "architect",
+  "providers": {
+    "riftcore": {
+      "models": {
+        "gpt-oss-20b": {
+          "name": "GPT-OSS-20B MXFP4 (AUP Radeon AI PRO R9700)",
+          "limit": {
+            "context": 131072,
+            "output": 8192
+          }
+        }
+      }
+    }
+  },
   "compaction": {
     "auto": true,
+    "background": true,
     "keep": {
-      "tokens": 6000
+      "tokens": 15000
     },
-    "buffer": "15%"
+    "buffer": "20%"
+  },
+  "tool_output": {
+    "max_lines": 1200,
+    "max_bytes": 50000
   },
   "experimental": {
     "todo": true,
