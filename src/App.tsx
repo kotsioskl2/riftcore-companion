@@ -82,7 +82,7 @@ export const App: React.FC = () => {
     fontFamily: 'plus-jakarta',
     alwaysOnTop: false,
     closeToTray: true,
-    riotApiKey: 'RGAPI-184ff7f6-57c0-4ae5-a5ce-722df7c55cc9',
+    riotApiKey: '',
     riotRegion: 'eun1',
     hudGoldLead: true,
     hudCsBenchmark: true,
