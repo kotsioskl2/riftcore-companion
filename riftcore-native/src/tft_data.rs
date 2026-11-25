@@ -3,7 +3,6 @@ use std::sync::LazyLock;
 
 #[derive(Clone, Debug)]
 pub struct TftEntry {
-    pub id: String,
     pub name: String,
     pub cost: Option<u32>,
     pub description: String,
@@ -19,9 +18,6 @@ struct TftCatalog {
 }
 
 static CATALOG: LazyLock<TftCatalog> = LazyLock::new(load_catalog);
-static LEGACY_DATA: LazyLock<Value> = LazyLock::new(|| {
-    serde_json::from_str(include_str!("../assets/data/tft_legacy.json")).unwrap_or(Value::Null)
-});
 
 pub fn current_set() -> u32 {
     CATALOG.set
@@ -43,10 +39,6 @@ pub fn augments() -> &'static [TftEntry] {
     &CATALOG.augments
 }
 
-pub fn legacy_data() -> &'static Value {
-    &LEGACY_DATA
-}
-
 static CURRENT_COMPS: LazyLock<Value> = LazyLock::new(|| {
     serde_json::from_str(include_str!("../assets/data/tft_set18_comps.json")).unwrap_or(Value::Null)
 });
@@ -63,6 +55,15 @@ static CURRENT_ITEMS: LazyLock<Value> = LazyLock::new(|| {
 /// Current-set component list and item recipes (see `assets/data/tft_set18_items.json`).
 pub fn current_items() -> &'static Value {
     &CURRENT_ITEMS
+}
+
+static CURRENT_ODDS: LazyLock<Value> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("../assets/data/tft_set18_odds.json")).unwrap_or(Value::Null)
+});
+
+/// Current-set shop odds, XP per level and pool sizes (see `assets/data/tft_set18_odds.json`).
+pub fn current_odds() -> &'static Value {
+    &CURRENT_ODDS
 }
 
 pub fn champion_by_name(name: &str) -> Option<&'static TftEntry> {
@@ -152,7 +153,6 @@ fn entry(value: &Value, kind: &str) -> Option<TftEntry> {
     let id = value.get("id")?.as_str()?.to_owned();
     Some(TftEntry {
         image_key: format!("{kind}_{}", safe_asset_key(&id)),
-        id,
         name: value.get("name")?.as_str()?.to_owned(),
         cost: value
             .get("cost")
@@ -197,6 +197,39 @@ fn set_from_key(key: &str) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn current_odds_rows_sum_to_100_and_pool_matches_set() {
+        let data = current_odds();
+        let levels = data["levels"].as_array().expect("levels");
+        assert_eq!(levels.len(), 10);
+        for (index, row) in levels.iter().enumerate() {
+            assert_eq!(row["level"].as_u64(), Some(index as u64 + 1));
+            let odds: Vec<u64> = row["odds"]
+                .as_array()
+                .expect("odds")
+                .iter()
+                .filter_map(Value::as_u64)
+                .collect();
+            assert_eq!(odds.len(), 5);
+            assert_eq!(odds.iter().sum::<u64>(), 100, "level {}", index + 1);
+        }
+        let per_cost: Vec<u64> = data["champions_per_cost"]
+            .as_array()
+            .expect("per cost")
+            .iter()
+            .filter_map(Value::as_u64)
+            .collect();
+        // The listed champion counts must match the Set 18 Data Dragon roster (Lux forms excluded).
+        for (cost, expected) in per_cost.iter().enumerate() {
+            let cost = cost as u32 + 1;
+            let actual = champions()
+                .iter()
+                .filter(|c| c.cost == Some(cost) && !c.name.starts_with("Lux ("))
+                .count() as u64;
+            assert_eq!(actual, *expected, "{cost}-cost champion count");
+        }
+    }
 
     #[test]
     fn current_recipes_use_real_items_and_cover_every_component_pair() {

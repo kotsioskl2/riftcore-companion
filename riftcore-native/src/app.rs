@@ -10,20 +10,22 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
-const BG: Color32 = Color32::from_rgb(5, 9, 17);
-const SURFACE: Color32 = Color32::from_rgb(10, 17, 30);
-const CARD: Color32 = Color32::from_rgb(15, 25, 42);
-const RAISED: Color32 = Color32::from_rgb(22, 38, 59);
-const CYAN: Color32 = Color32::from_rgb(66, 229, 232);
-const CYAN_DIM: Color32 = Color32::from_rgb(13, 57, 73);
-const VIOLET: Color32 = Color32::from_rgb(157, 117, 255);
-const RED: Color32 = Color32::from_rgb(255, 86, 126);
-const GOLD: Color32 = Color32::from_rgb(255, 197, 103);
-const GREEN: Color32 = Color32::from_rgb(82, 230, 173);
-const TEXT: Color32 = Color32::from_rgb(239, 247, 255);
-const SECONDARY: Color32 = Color32::from_rgb(164, 185, 208);
-const MUTED: Color32 = Color32::from_rgb(105, 132, 158);
-const BORDER: Color32 = Color32::from_rgb(31, 55, 79);
+const BG: Color32 = Color32::from_rgb(11, 13, 18);
+const SURFACE: Color32 = Color32::from_rgb(16, 19, 26);
+const CARD: Color32 = Color32::from_rgb(21, 25, 34);
+const RAISED: Color32 = Color32::from_rgb(30, 35, 47);
+const INSET: Color32 = Color32::from_rgb(15, 18, 24);
+const CYAN: Color32 = Color32::from_rgb(86, 194, 255);
+const CYAN_DIM: Color32 = Color32::from_rgb(24, 52, 74);
+const ACCENT_SOFT: Color32 = Color32::from_rgb(25, 44, 62);
+const BUTTON_HOVER: Color32 = Color32::from_rgb(40, 46, 61);
+const RED: Color32 = Color32::from_rgb(251, 113, 133);
+const GOLD: Color32 = Color32::from_rgb(251, 191, 84);
+const GREEN: Color32 = Color32::from_rgb(52, 211, 153);
+const TEXT: Color32 = Color32::from_rgb(232, 235, 241);
+const SECONDARY: Color32 = Color32::from_rgb(163, 171, 187);
+const MUTED: Color32 = Color32::from_rgb(110, 118, 136);
+const BORDER: Color32 = Color32::from_rgb(31, 36, 48);
 const OVERLAY_WINDOW_TITLE: &str = "RiftCore In-Game HUD";
 
 fn overlay_viewport_id() -> egui::ViewportId {
@@ -170,9 +172,13 @@ pub struct RiftCoreApp {
     overlay_timer_tab: String,
     show_close_confirmation: bool,
     force_exit: bool,
+    /// The main window is hidden in the system tray (the app keeps running).
+    hidden_in_tray: bool,
     update_banner_dismissed: bool,
     #[cfg(windows)]
     tray_icon: Option<TrayIcon>,
+    /// New in-game HUD (Path B). `None` means the original child-viewport HUD is used.
+    path_b: Option<crate::path_b::PathBOverlay>,
     primary_tree: u32,
     secondary_tree: u32,
     selected_perks: [i64; 9],
@@ -221,9 +227,13 @@ impl RiftCoreApp {
             style
                 .text_styles
                 .insert(egui::TextStyle::Heading, FontId::proportional(22.0));
-            style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
-            style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
-            style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(6);
+            style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(12);
+            style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(12);
+            style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(12);
+            style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(12);
+            style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+            style.visuals.widgets.noninteractive.bg_stroke = Stroke::NONE;
+            style.visuals.extreme_bg_color = INSET;
         });
 
         let settings_path = settings_file();
@@ -252,6 +262,13 @@ impl RiftCoreApp {
         let show_quick_tour = !show_whats_new && !settings.first_run_tour_seen;
         #[cfg(windows)]
         let tray_icon = build_tray_icon();
+        let path_b = match crate::path_b::PathBOverlay::new(creation.wgpu_render_state.clone()) {
+            Ok(overlay) => Some(overlay),
+            Err(err) => {
+                eprintln!("RiftCore: new in-game HUD unavailable ({err}); using classic HUD");
+                None
+            }
+        };
         let champions: Vec<Champion> =
             serde_json::from_str(include_str!("../../all_champions.json")).unwrap_or_default();
         let champion_textures = crate::assets::CHAMPION_PORTRAITS
@@ -357,9 +374,11 @@ impl RiftCoreApp {
             overlay_timer_tab: "SPELLS".to_string(),
             show_close_confirmation: false,
             force_exit: false,
+            hidden_in_tray: false,
             update_banner_dismissed: false,
             #[cfg(windows)]
             tray_icon,
+            path_b,
             primary_tree: 8100,
             secondary_tree: 8000,
             selected_perks: [8112, 8126, 8140, 8135, 9111, 8014, 5008, 5008, 5001],
@@ -574,29 +593,6 @@ impl RiftCoreApp {
                     .inner_margin(egui::Margin::symmetric(12, 0)),
             )
             .show(ui, |ui| {
-                let titlebar_rect = ui.max_rect();
-                let rail_y = titlebar_rect.top() + 1.0;
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(titlebar_rect.left(), rail_y),
-                        egui::pos2(titlebar_rect.right(), rail_y),
-                    ],
-                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(66, 229, 232, 72)),
-                );
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(titlebar_rect.left(), rail_y),
-                        egui::pos2(titlebar_rect.left() + 196.0, rail_y),
-                    ],
-                    Stroke::new(2.0, CYAN),
-                );
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(titlebar_rect.left() + 196.0, rail_y),
-                        egui::pos2(titlebar_rect.left() + 252.0, rail_y),
-                    ],
-                    Stroke::new(2.0, VIOLET),
-                );
                 let header_size = Vec2::new(ui.available_width(), ui.available_height());
                 let drag_response = ui.interact(
                     ui.max_rect().shrink(1.0),
@@ -773,7 +769,7 @@ impl RiftCoreApp {
                                         .strong()
                                         .color(TEXT),
                                 )
-                                .fill(Color32::from_rgb(26, 30, 44))
+                                .fill(RAISED)
                                 .stroke(Stroke::new(1.0, CYAN_DIM)),
                             )
                             .clicked()
@@ -803,40 +799,31 @@ impl RiftCoreApp {
         let selected = self.active_page == page;
         let (rect, response) =
             ui.allocate_exact_size(Vec2::new(ui.available_width(), 42.0), Sense::click());
-        let fill = if selected {
-            Color32::from_rgb(8, 41, 57)
-        } else if response.hovered() {
-            Color32::from_rgb(18, 31, 48)
-        } else {
-            Color32::TRANSPARENT
-        };
+        let hover =
+            ui.ctx()
+                .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.15);
+        let picked = ui
+            .ctx()
+            .animate_bool_with_time(response.id.with("selected"), selected, 0.22);
+        let fill = lerp_color(
+            lerp_color(Color32::TRANSPARENT, RAISED, hover),
+            ACCENT_SOFT,
+            picked,
+        );
         ui.painter()
-            .rect_filled(rect, egui::CornerRadius::same(6), fill);
-        if selected || response.hovered() {
-            ui.painter().rect_stroke(
-                rect,
-                egui::CornerRadius::same(6),
-                Stroke::new(
-                    if selected { 1.0 } else { 0.7 },
-                    if selected {
-                        Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 120)
-                    } else {
-                        BORDER
-                    },
-                ),
-                egui::StrokeKind::Inside,
-            );
-        }
-        if selected {
+            .rect_filled(rect, egui::CornerRadius::same(12), fill);
+        if picked > 0.01 {
+            let inset = 7.0 + (rect.height() * 0.5 - 7.0) * (1.0 - picked);
             ui.painter().rect_filled(
                 egui::Rect::from_min_max(
-                    rect.min + Vec2::new(1.0, 7.0),
-                    rect.min + Vec2::new(4.0, rect.height() - 7.0),
+                    rect.min + Vec2::new(1.0, inset),
+                    rect.min + Vec2::new(4.0, rect.height() - inset),
                 ),
-                egui::CornerRadius::same(1),
-                accent,
+                egui::CornerRadius::same(2),
+                accent.gamma_multiply(picked),
             );
         }
+        let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
         let foreground = if response.hovered() || selected {
             TEXT
         } else {
@@ -928,7 +915,7 @@ impl RiftCoreApp {
                 if let Some(until) = self.notice_until {
                     if Instant::now() < until {
                         Frame::new()
-                            .fill(Color32::from_rgb(9, 32, 42))
+                            .fill(ACCENT_SOFT)
                             .stroke(Stroke::new(1.0, CYAN_DIM))
                             .corner_radius(egui::CornerRadius::same(10))
                             .inner_margin(egui::Margin::same(12))
@@ -974,7 +961,7 @@ impl RiftCoreApp {
                             })
                         });
                     Frame::new()
-                        .fill(Color32::from_rgb(28, 35, 48))
+                        .fill(RAISED)
                         .stroke(Stroke::new(1.0, GOLD))
                         .corner_radius(egui::CornerRadius::same(12))
                         .inner_margin(egui::Margin::symmetric(13, 9))
@@ -1064,6 +1051,16 @@ impl RiftCoreApp {
                         });
                     ui.add_space(10.0);
                 }
+                page_transition(
+                    ui,
+                    (
+                        self.active_page,
+                        &self.tft_tab,
+                        self.selected_game_mode,
+                        self.champ_select_detail_tab,
+                        self.show_mayhem_cards,
+                    ),
+                );
                 if self.active_page == Page::ChampSelect {
                     self.render_champ_select(ui);
                 } else {
@@ -1105,19 +1102,15 @@ impl RiftCoreApp {
         } else {
             ("CLIENT OFFLINE", MUTED)
         };
-        let heading = Frame::new()
-            .fill(SURFACE)
-            .stroke(Stroke::new(1.0, BORDER))
-            .corner_radius(egui::CornerRadius::same(10))
-            .inner_margin(egui::Margin::symmetric(22, 18))
+        Frame::new()
+            .inner_margin(egui::Margin::symmetric(6, 4))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
                         ui.label(
-                            RichText::new(format!("RIFTCORE // {}", eyebrow.to_uppercase()))
-                                .size(9.5)
+                            RichText::new(eyebrow.to_uppercase())
+                                .size(10.5)
                                 .strong()
-                                .monospace()
                                 .color(CYAN),
                         );
                         ui.add_space(2.0);
@@ -1130,50 +1123,14 @@ impl RiftCoreApp {
                             badge(ui, link_label, link_color);
                             ui.add_space(5.0);
                             ui.label(
-                                RichText::new(format!(
-                                    "PHASE // {}",
-                                    phase_name(&self.snapshot.phase).to_uppercase()
-                                ))
-                                .size(8.5)
-                                .strong()
-                                .monospace()
-                                .color(MUTED),
-                            );
-                            ui.label(
-                                RichText::new("TACTICAL CORE  /  NATIVE")
-                                    .size(8.0)
-                                    .monospace()
+                                RichText::new(phase_name(&self.snapshot.phase))
+                                    .size(11.0)
                                     .color(MUTED),
                             );
                         });
-                        ui.add_space(14.0);
-                        render_tactical_core(ui, link_color);
                     });
                 });
             });
-        let rect = heading.response.rect;
-        let painter = ui.painter();
-        painter.line_segment(
-            [
-                egui::pos2(rect.left() + 18.0, rect.top() + 1.0),
-                egui::pos2(rect.left() + 154.0, rect.top() + 1.0),
-            ],
-            Stroke::new(2.0, CYAN),
-        );
-        painter.line_segment(
-            [
-                egui::pos2(rect.left() + 154.0, rect.top() + 1.0),
-                egui::pos2(rect.left() + 194.0, rect.top() + 1.0),
-            ],
-            Stroke::new(2.0, VIOLET),
-        );
-        painter.line_segment(
-            [
-                egui::pos2(rect.right() - 46.0, rect.bottom() - 1.0),
-                egui::pos2(rect.right() - 18.0, rect.bottom() - 1.0),
-            ],
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(157, 117, 255, 150)),
-        );
         ui.add_space(14.0);
     }
 
@@ -1395,11 +1352,7 @@ impl RiftCoreApp {
                                             ui.painter().rect_filled(
                                                 rect,
                                                 egui::CornerRadius::same(10),
-                                                lerp_color(
-                                                    CARD,
-                                                    Color32::from_rgb(12, 39, 53),
-                                                    emphasis,
-                                                ),
+                                                lerp_color(CARD, ACCENT_SOFT, emphasis),
                                             );
                                             ui.painter().rect_stroke(
                                                 rect,
@@ -1553,8 +1506,8 @@ impl RiftCoreApp {
                                     } else {
                                         // Champion Hero Card
                                         Frame::new()
-                                            .fill(Color32::from_rgb(11, 17, 27))
-                                            .stroke(Stroke::new(1.0, Color32::from_rgb(26, 42, 62)))
+                                            .fill(INSET)
+                                            .stroke(Stroke::new(1.0, BORDER))
                                             .corner_radius(egui::CornerRadius::same(12))
                                             .inner_margin(egui::Margin::same(12))
                                             .show(ui, |ui| {
@@ -1952,11 +1905,7 @@ impl RiftCoreApp {
                     let cta_size = Vec2::new(210.0, 36.0);
                     let (cta_rect, cta_resp) = ui.allocate_exact_size(cta_size, Sense::click());
                     let cta_hover = ui.ctx().animate_bool(cta_resp.id, cta_resp.hovered());
-                    let cta_fill = lerp_color(
-                        Color32::from_rgb(14, 55, 75),
-                        Color32::from_rgb(20, 95, 125),
-                        cta_hover,
-                    );
+                    let cta_fill = lerp_color(ACCENT_SOFT, CYAN_DIM, cta_hover);
                     ui.painter()
                         .rect_filled(cta_rect, egui::CornerRadius::same(8), cta_fill);
                     ui.painter().rect_stroke(
@@ -2004,7 +1953,7 @@ impl RiftCoreApp {
             ui.add_space(8.0);
             ui.columns(3, |columns| {
                 Frame::new()
-                    .fill(Color32::from_rgb(11, 16, 26))
+                    .fill(INSET)
                     .stroke(Stroke::new(1.0, rune_tree_color(self.primary_tree)))
                     .corner_radius(egui::CornerRadius::same(10))
                     .inner_margin(egui::Margin::same(10))
@@ -2073,7 +2022,7 @@ impl RiftCoreApp {
                     });
 
                 Frame::new()
-                    .fill(Color32::from_rgb(11, 16, 26))
+                    .fill(INSET)
                     .stroke(Stroke::new(1.0, rune_tree_color(self.secondary_tree)))
                     .corner_radius(egui::CornerRadius::same(10))
                     .inner_margin(egui::Margin::same(10))
@@ -2156,8 +2105,8 @@ impl RiftCoreApp {
                         }
                     });
                 Frame::new()
-                    .fill(Color32::from_rgb(11, 16, 26))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(26, 36, 52)))
+                    .fill(INSET)
+                    .stroke(Stroke::new(1.0, BORDER))
                     .corner_radius(egui::CornerRadius::same(10))
                     .inner_margin(egui::Margin::same(10))
                     .show(&mut columns[2], |ui| {
@@ -2322,8 +2271,8 @@ impl RiftCoreApp {
                 });
             } else {
                 Frame::new()
-                    .fill(Color32::from_rgb(11, 16, 26))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
+                    .fill(INSET)
+                    .stroke(Stroke::new(1.0, BORDER))
                     .corner_radius(egui::CornerRadius::same(10))
                     .inner_margin(egui::Margin::same(16))
                     .show(ui, |ui| {
@@ -2436,8 +2385,8 @@ impl RiftCoreApp {
                     let readout = draft_team_analysis(ids, &self.champions);
                     columns[column].vertical(|ui| {
                         Frame::new()
-                            .fill(Color32::from_rgb(11, 16, 26))
-                            .stroke(Stroke::new(1.0, Color32::from_rgb(25, 36, 52)))
+                            .fill(INSET)
+                            .stroke(Stroke::new(1.0, BORDER))
                             .corner_radius(egui::CornerRadius::same(10))
                             .inner_margin(egui::Margin::same(12))
                             .show(ui, |ui| {
@@ -3429,7 +3378,7 @@ impl RiftCoreApp {
     fn render_tft(&mut self, ui: &mut egui::Ui) {
         self.render_page_heading(
             ui,
-            "TACTICAL TEAMFIGHT",
+            "TEAMFIGHT TACTICS",
             "TFT Companion",
             &format!(
                 "Set {} data, composition guides, item recipes, augments and saved board",
@@ -3552,11 +3501,7 @@ impl RiftCoreApp {
                             let avg = comp.get("avg_place").and_then(Value::as_f64).unwrap_or(0.0);
                             let is_selected = self.selected_tft_comp == id;
                             let response = Frame::new()
-                                .fill(if is_selected {
-                                    Color32::from_rgb(8, 41, 57)
-                                } else {
-                                    CARD
-                                })
+                                .fill(if is_selected { ACCENT_SOFT } else { CARD })
                                 .stroke(Stroke::new(1.0, if is_selected { CYAN } else { BORDER }))
                                 .corner_radius(egui::CornerRadius::same(10))
                                 .inner_margin(egui::Margin::same(10))
@@ -3845,14 +3790,7 @@ impl RiftCoreApp {
     fn tft_unit_icon(&self, ui: &mut egui::Ui, name: &str, size: f32) {
         let entry = crate::tft_data::champion_by_name(name);
         let cost = entry.and_then(|entry| entry.cost).unwrap_or(0);
-        let border = match cost {
-            1 => Color32::from_rgb(150, 160, 175),
-            2 => Color32::from_rgb(60, 200, 120),
-            3 => Color32::from_rgb(60, 140, 240),
-            4 => Color32::from_rgb(190, 90, 240),
-            5 => Color32::from_rgb(245, 190, 60),
-            _ => BORDER,
-        };
+        let border = tft_cost_color(cost);
         let texture = entry.and_then(|entry| self.tft_textures.get(&entry.image_key));
         let response = Frame::new()
             .stroke(Stroke::new(2.0, border))
@@ -4074,63 +4012,156 @@ impl RiftCoreApp {
     }
 
     fn render_tft_odds(&self, ui: &mut egui::Ui) {
-        let odds = crate::tft_data::legacy_data()
-            .get("TFT_ROLL_ODDS")
+        let data = crate::tft_data::current_odds();
+        let levels = data
+            .get("levels")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
+        let numbers = |key: &str| -> Vec<u64> {
+            data.get(key)
+                .and_then(Value::as_array)
+                .map(|list| list.iter().filter_map(Value::as_u64).collect())
+                .unwrap_or_default()
+        };
+        let pool = numbers("pool_copies");
+        let per_cost = numbers("champions_per_cost");
+        let patch = data.get("patch").and_then(Value::as_str).unwrap_or("—");
+        let source = data
+            .get("source")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let colors = [1u32, 2, 3, 4, 5].map(tft_cost_color);
+
         panel(ui, |ui| {
             panel_title(
                 ui,
-                "SHOP ROLL ODDS",
-                "Reference table preserved from the previous TFT companion",
+                &format!("SET {} SHOP ODDS", crate::tft_data::current_set()),
+                &format!("Chance per shop slot by level · patch {patch}"),
             );
-            ui.label(RichText::new("The previous app's table is archived for Set 13. Confirm current-set odds in-game before using it for planning.").size(10.0).color(GOLD));
+            ui.horizontal(|ui| {
+                for (index, color) in colors.iter().enumerate() {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(2), *color);
+                    ui.label(
+                        RichText::new(format!("{}-cost", index + 1))
+                            .size(9.5)
+                            .color(SECONDARY),
+                    );
+                    ui.add_space(8.0);
+                }
+            });
             ui.add_space(8.0);
             egui::Grid::new("tft-odds-table")
-                .num_columns(6)
-                .spacing([16.0, 8.0])
+                .num_columns(8)
+                .spacing([14.0, 7.0])
+                .min_col_width(0.0)
                 .show(ui, |ui| {
-                    for header in ["LEVEL", "1 COST", "2 COST", "3 COST", "4 COST", "5 COST"] {
+                    for header in ["LEVEL", "", "1", "2", "3", "4", "5", "XP TO NEXT"] {
                         ui.label(RichText::new(header).size(9.0).strong().color(MUTED));
                     }
                     ui.end_row();
-                    for row in odds {
+                    for row in &levels {
+                        let level = row.get("level").and_then(Value::as_u64).unwrap_or(0);
+                        let odds: Vec<u64> = row
+                            .get("odds")
+                            .and_then(Value::as_array)
+                            .map(|list| list.iter().filter_map(Value::as_u64).collect())
+                            .unwrap_or_default();
                         ui.label(
-                            RichText::new(format!(
-                                "Level {}",
-                                row.get("level").and_then(Value::as_u64).unwrap_or(0)
-                            ))
-                            .strong()
-                            .color(TEXT),
+                            RichText::new(format!("Lv {level}"))
+                                .size(12.0)
+                                .strong()
+                                .color(TEXT),
                         );
-                        for key in ["cost1", "cost2", "cost3", "cost4", "cost5"] {
+                        let (rect, _) =
+                            ui.allocate_exact_size(Vec2::new(260.0, 16.0), Sense::hover());
+                        ui.painter()
+                            .rect_filled(rect, egui::CornerRadius::same(4), CARD);
+                        let mut x = rect.left();
+                        for (index, value) in odds.iter().enumerate() {
+                            let width = rect.width() * (*value as f32 / 100.0);
+                            if width > 0.0 {
+                                let segment = egui::Rect::from_min_size(
+                                    egui::pos2(x, rect.top()),
+                                    Vec2::new(width, rect.height()),
+                                );
+                                ui.painter().rect_filled(
+                                    segment,
+                                    egui::CornerRadius::ZERO,
+                                    colors[index],
+                                );
+                                x += width;
+                            }
+                        }
+                        for (index, value) in odds.iter().enumerate() {
+                            let color = if *value == 0 { MUTED } else { colors[index] };
                             ui.label(
-                                RichText::new(format!(
-                                    "{}%",
-                                    row.get(key).and_then(Value::as_u64).unwrap_or(0)
-                                ))
-                                .color(CYAN),
+                                RichText::new(format!("{value}%"))
+                                    .size(11.0)
+                                    .strong()
+                                    .color(color),
                             );
                         }
-                        ui.end_row();
-                        ui.label(
-                            RichText::new(format!(
-                                "Round {}  ·  {} XP to next  ·  about {}g",
-                                row.get("recommendedRound")
-                                    .and_then(Value::as_str)
-                                    .unwrap_or("—"),
-                                row.get("xpToNext").and_then(Value::as_u64).unwrap_or(0),
-                                row.get("goldCostEstimate")
-                                    .and_then(Value::as_u64)
-                                    .unwrap_or(0)
-                            ))
-                            .size(9.0)
-                            .color(MUTED),
-                        );
+                        let xp = row
+                            .get("xp_to_next")
+                            .and_then(Value::as_u64)
+                            .map(|xp| format!("{xp} XP"))
+                            .unwrap_or_else(|| "max".to_string());
+                        ui.label(RichText::new(xp).size(10.5).color(SECONDARY));
                         ui.end_row();
                     }
                 });
+
+            if pool.len() == 5 {
+                ui.add_space(14.0);
+                ui.label(
+                    RichText::new("CHAMPION POOL")
+                        .size(9.0)
+                        .strong()
+                        .color(MUTED),
+                );
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    for index in 0..5 {
+                        let champions = per_cost.get(index).copied().unwrap_or(0);
+                        Frame::new()
+                            .fill(CARD)
+                            .stroke(Stroke::new(1.0, colors[index]))
+                            .corner_radius(egui::CornerRadius::same(8))
+                            .inner_margin(egui::Margin::symmetric(10, 6))
+                            .show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    ui.label(
+                                        RichText::new(format!("{}-COST", index + 1))
+                                            .size(8.5)
+                                            .strong()
+                                            .color(colors[index]),
+                                    );
+                                    ui.label(
+                                        RichText::new(format!("{} copies each", pool[index]))
+                                            .size(11.5)
+                                            .strong()
+                                            .color(TEXT),
+                                    );
+                                    if champions > 0 {
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "{champions} champions · {} total",
+                                                champions * pool[index]
+                                            ))
+                                            .size(9.0)
+                                            .color(SECONDARY),
+                                        );
+                                    }
+                                });
+                            });
+                    }
+                });
+            }
+            ui.add_space(10.0);
+            ui.label(RichText::new(source).size(9.0).color(MUTED));
         });
     }
 
@@ -4141,7 +4172,6 @@ impl RiftCoreApp {
                 &format!("SET {} AUGMENTS", crate::tft_data::current_set()),
                 "Current Data Dragon augment names and descriptions",
             );
-            ui.label(RichText::new("Data Dragon does not provide augment win rates. The prior app's Set 13 percentages were static, so they are not shown as current stats.").size(10.0).color(MUTED));
             ui.add_space(6.0);
             ui.add_sized(
                 [ui.available_width(), 27.0],
@@ -4159,13 +4189,10 @@ impl RiftCoreApp {
                         ui.vertical(|ui| {
                             ui.label(RichText::new(&augment.name).size(11.0).strong().color(TEXT));
                             ui.label(
-                                RichText::new(&augment.description)
+                                RichText::new(clean_tft_text(&augment.description))
                                     .size(9.5)
                                     .color(SECONDARY),
                             );
-                        });
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            ui.label(RichText::new(&augment.id).size(8.0).color(MUTED));
                         });
                     });
                     ui.separator();
@@ -4187,72 +4214,97 @@ impl RiftCoreApp {
                     .hint_text("Search current set data…"),
             );
         });
-        let query = self.tft_search.to_lowercase();
+        let query = self.tft_search.trim().to_lowercase();
+        let category = self.tft_data_category.clone();
         panel(ui, |ui| {
-            let title = match self.tft_data_category.as_str() {
-                "TRAITS" => "TRAITS",
-                "ITEMS" => "ITEMS",
-                _ => "UNITS",
+            let (title, source) = match category.as_str() {
+                "TRAITS" => ("TRAITS", crate::tft_data::traits()),
+                "ITEMS" => ("ITEMS", crate::tft_data::items()),
+                _ => ("UNITS", crate::tft_data::champions()),
             };
-            let entries = match self.tft_data_category.as_str() {
-                "TRAITS" => crate::tft_data::traits(),
-                "ITEMS" => crate::tft_data::items(),
-                _ => crate::tft_data::champions(),
-            };
+            let mut entries: Vec<&crate::tft_data::TftEntry> = source
+                .iter()
+                .filter(|entry| query.is_empty() || entry.name.to_lowercase().contains(&query))
+                .collect();
+            entries.sort_by(|a, b| {
+                a.cost
+                    .unwrap_or(0)
+                    .cmp(&b.cost.unwrap_or(0))
+                    .then(a.name.cmp(&b.name))
+            });
             panel_title(
                 ui,
                 &format!("SET {} {title}", crate::tft_data::current_set()),
-                &format!("{} current-set entries from Data Dragon", entries.len()),
+                &format!("{} of {} entries", entries.len(), source.len()),
             );
-            ScrollArea::vertical().max_height(540.0).show(ui, |ui| {
-                egui::Grid::new("tft-set-data-grid")
-                    .num_columns(4)
-                    .spacing([10.0, 6.0])
-                    .show(ui, |ui| {
-                        let mut shown = 0;
-                        for entry in entries.iter().filter(|entry| {
-                            entry.name.to_lowercase().contains(&query)
-                                || entry.id.to_lowercase().contains(&query)
-                        }) {
-                            let cost = entry
-                                .cost
-                                .map(|cost| format!("{} cost", cost))
-                                .unwrap_or_else(|| entry.id.clone());
-                            ui.vertical_centered(|ui| {
-                                texture_icon(ui, &self.tft_textures, &entry.image_key, 42.0);
-                                if action_button(
-                                    ui,
-                                    &format!("{}\n{cost}", entry.name),
-                                    false,
-                                    CYAN,
-                                )
-                                .clicked()
-                                    && self.tft_selected_cell.is_some()
-                                {
-                                    {
-                                        self.tft_unit_input = entry.name.clone();
-                                        if let Some(index) = self.tft_selected_cell {
-                                            if let Some(cell) =
-                                                self.settings.tft_board.get_mut(index)
-                                            {
-                                                *cell = entry.name.clone();
+            let placing = category == "UNITS" && self.tft_selected_cell.is_some();
+            // Tiles are 96px wide + 12px margin + 2px stroke, with an 8px gap.
+            let per_row = ((ui.available_width() - 16.0) / 118.0).floor().max(1.0) as usize;
+            ScrollArea::vertical()
+                .id_salt("tft-set-data-scroll")
+                .max_height(540.0)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
+                    for row in entries.chunks(per_row) {
+                        ui.horizontal(|ui| {
+                            for entry in row {
+                                let tile = Frame::new()
+                                    .fill(CARD)
+                                    .stroke(Stroke::new(1.0, BORDER))
+                                    .corner_radius(egui::CornerRadius::same(8))
+                                    .inner_margin(egui::Margin::same(6))
+                                    .show(ui, |ui| {
+                                        ui.set_width(96.0);
+                                        ui.vertical_centered(|ui| {
+                                            if category == "UNITS" {
+                                                self.tft_unit_icon(ui, &entry.name, 46.0);
+                                            } else {
+                                                texture_icon(
+                                                    ui,
+                                                    &self.tft_textures,
+                                                    &entry.image_key,
+                                                    46.0,
+                                                );
                                             }
-                                        }
-                                        self.save_settings();
-                                        self.tft_tab = "BOARD".to_string();
+                                            ui.add(
+                                                egui::Label::new(
+                                                    RichText::new(&entry.name)
+                                                        .size(10.0)
+                                                        .strong()
+                                                        .color(TEXT),
+                                                )
+                                                .truncate(),
+                                            );
+                                            if let (Some(cost), "UNITS") =
+                                                (entry.cost, category.as_str())
+                                            {
+                                                ui.label(
+                                                    RichText::new(format!("{cost}g"))
+                                                        .size(9.0)
+                                                        .color(tft_cost_color(cost)),
+                                                );
+                                            }
+                                        });
+                                    })
+                                    .response
+                                    .interact(Sense::click())
+                                    .on_hover_text(&entry.name);
+                                if placing && tile.clicked() {
+                                    self.tft_unit_input = entry.name.clone();
+                                    if let Some(cell) = self
+                                        .tft_selected_cell
+                                        .and_then(|index| self.settings.tft_board.get_mut(index))
+                                    {
+                                        *cell = entry.name.clone();
                                     }
+                                    self.save_settings();
+                                    self.tft_tab = "BOARD".to_string();
                                 }
-                            });
-                            shown += 1;
-                            if shown % 4 == 0 {
-                                ui.end_row();
                             }
-                        }
-                        if shown % 4 != 0 {
-                            ui.end_row();
-                        }
-                    });
-            });
+                        });
+                    }
+                });
         });
         if self.tft_selected_cell.is_none() && self.tft_data_category == "UNITS" {
             ui.label(
@@ -4278,7 +4330,7 @@ impl RiftCoreApp {
                             let label = if name.is_empty() { format!("{}·{}", row + 1, col + 1) } else { name.chars().take(8).collect() };
                             let selected = self.tft_selected_cell == Some(index);
                             let button = egui::Button::new(RichText::new(label).size(9.5).strong().color(if selected { CYAN } else if name.is_empty() { MUTED } else { TEXT }))
-                                .fill(if selected { Color32::from_rgb(11, 39, 54) } else { CARD })
+                                .fill(if selected { ACCENT_SOFT } else { CARD })
                                 .stroke(Stroke::new(1.0, if selected { CYAN } else { BORDER }));
                             if ui.add_sized([54.0, 42.0], button).clicked() {
                                 self.tft_selected_cell = Some(index);
@@ -4864,8 +4916,8 @@ impl RiftCoreApp {
                             let color = tier_color(tier);
 
                             Frame::new()
-                                .fill(Color32::from_rgb(11, 16, 26))
-                                .stroke(Stroke::new(1.0, Color32::from_rgb(26, 38, 54)))
+                                .fill(INSET)
+                                .stroke(Stroke::new(1.0, BORDER))
                                 .corner_radius(egui::CornerRadius::same(10))
                                 .inner_margin(egui::Margin::same(12))
                                 .show(col, |ui| {
@@ -6114,6 +6166,7 @@ impl RiftCoreApp {
                 self.settings.close_to_tray = self.tray_icon_available();
                 self.save_settings();
                 if self.tray_icon_available() {
+                    self.hidden_in_tray = true;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
@@ -6129,6 +6182,52 @@ impl RiftCoreApp {
                 self.show_close_confirmation = false;
             }
         }
+    }
+
+    /// Drives the new in-game HUD and applies what its panels asked for.
+    fn tick_path_b(&mut self, ctx: &egui::Context) {
+        let Some(path_b) = self.path_b.as_mut() else {
+            return;
+        };
+        let output = path_b.tick(crate::path_b::PathBFrame {
+            enabled: self.overlay_mode,
+            automatic: self.overlay_auto_entered,
+            settings: &self.settings,
+            force_passthrough: self.overlay_mouse_passthrough,
+            show_mayhem_cards: self.show_mayhem_cards,
+        });
+        self.show_mayhem_cards = output.show_mayhem_cards;
+        if let Some(next) = output.next_repaint {
+            ctx.request_repaint_after(next);
+        }
+        let actions = output.actions;
+        let mut save = false;
+        for (key, pos) in actions.updated_positions {
+            self.settings.hud_positions.insert(key, pos);
+            save = true;
+        }
+        if save {
+            self.save_settings();
+        }
+        if let Some(set) = actions.export_item_set {
+            let _ = self.commands.send(CoreCommand::ExportItemSet(set));
+        }
+        if let Some(text) = actions.copy_clipboard {
+            ctx.copy_text(text);
+        }
+        if let Some(notice) = actions.notice {
+            self.set_notice(notice);
+        }
+        if actions.request_close_overlay {
+            self.set_overlay_mode(ctx, false, false);
+        }
+    }
+
+    fn show_from_tray(&mut self, ctx: &egui::Context) {
+        self.hidden_in_tray = false;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
     }
 
     fn tray_icon_available(&self) -> bool {
@@ -7327,6 +7426,22 @@ impl RiftCoreApp {
 }
 
 impl eframe::App for RiftCoreApp {
+    fn on_exit(&mut self) {
+        if let Some(path_b) = self.path_b.as_mut() {
+            path_b.close();
+        }
+    }
+
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // eframe skips `ui` for a hidden window, but RiftCore does its background work there
+        // (tray menu, League client updates, hotkeys, HUD auto-start). Keep it running while
+        // the window sits in the tray.
+        if self.hidden_in_tray {
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaintWhileHidden);
+            ctx.request_repaint_after(Duration::from_millis(250));
+        }
+    }
+
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         // The child HUD viewport is a per-pixel transparent window. An opaque GL
         // clear turns the unused part of that viewport into a black rectangle.
@@ -7339,10 +7454,7 @@ impl eframe::App for RiftCoreApp {
         {
             while let Ok(event) = MenuEvent::receiver().try_recv() {
                 match event.id.as_ref() {
-                    "riftcore-show" => {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    }
+                    "riftcore-show" => self.show_from_tray(&ctx),
                     "riftcore-hud" => self.set_overlay_mode(&ctx, !self.overlay_mode, false),
                     "riftcore-exit" => {
                         self.force_exit = true;
@@ -7351,9 +7463,22 @@ impl eframe::App for RiftCoreApp {
                     _ => {}
                 }
             }
-            while tray_icon::TrayIconEvent::receiver().try_recv().is_ok() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
+                // Hovering the icon also produces events; only a left click reopens.
+                let clicked = matches!(
+                    event,
+                    tray_icon::TrayIconEvent::Click {
+                        button: tray_icon::MouseButton::Left,
+                        button_state: tray_icon::MouseButtonState::Up,
+                        ..
+                    } | tray_icon::TrayIconEvent::DoubleClick {
+                        button: tray_icon::MouseButton::Left,
+                        ..
+                    }
+                );
+                if clicked {
+                    self.show_from_tray(&ctx);
+                }
             }
         }
         let close_requested = ctx.input(|input| input.viewport().close_requested());
@@ -7364,6 +7489,7 @@ impl eframe::App for RiftCoreApp {
             } else if self.settings.close_to_tray {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 if self.tray_icon_available() {
+                    self.hidden_in_tray = true;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
@@ -7378,6 +7504,9 @@ impl eframe::App for RiftCoreApp {
                 if self.snapshot.notice != Some(notice.clone()) {
                     self.set_notice(notice);
                 }
+            }
+            if let Some(path_b) = self.path_b.as_mut() {
+                path_b.set_live_game(snapshot.live_game.as_ref());
             }
             self.snapshot = snapshot;
             if self.snapshot.phase == "ChampSelect" {
@@ -7464,7 +7593,11 @@ impl eframe::App for RiftCoreApp {
             self.render_main(ui);
         });
         self.render_dialogs(&ctx);
-        self.render_overlay_viewport(&ctx);
+        if self.path_b.is_some() {
+            self.tick_path_b(&ctx);
+        } else {
+            self.render_overlay_viewport(&ctx);
+        }
         ctx.request_repaint_after(Duration::from_millis(if self.overlay_mode {
             33
         } else {
@@ -7473,137 +7606,26 @@ impl eframe::App for RiftCoreApp {
     }
 }
 
-fn paint_command_grid(ui: &egui::Ui) {
-    let rect = ui.max_rect();
-    let painter = ui.painter_at(rect);
-    let step = 42.0;
-    let grid = Color32::from_rgba_unmultiplied(40, 133, 171, 11);
-    let major = Color32::from_rgba_unmultiplied(80, 105, 200, 10);
-
-    let columns = (rect.width() / step).ceil() as usize;
-    for column in 0..=columns {
-        let x = rect.left() + column as f32 * step;
-        let color = if column % 4 == 0 { major } else { grid };
-        painter.line_segment(
-            [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
-            Stroke::new(1.0, color),
-        );
-    }
-    let rows = (rect.height() / step).ceil() as usize;
-    for row in 0..=rows {
-        let y = rect.top() + row as f32 * step;
-        let color = if row % 4 == 0 { major } else { grid };
-        painter.line_segment(
-            [egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)],
-            Stroke::new(1.0, color),
-        );
-    }
-
-    let radar_center = egui::pos2(rect.right() - 52.0, rect.top() + 112.0);
-    for radius in [34.0, 48.0, 62.0] {
-        painter.circle_stroke(
-            radar_center,
-            radius,
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(66, 229, 232, 15)),
-        );
-    }
-}
-
-fn render_tactical_core(ui: &mut egui::Ui, signal: Color32) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::splat(62.0), Sense::hover());
-    let painter = ui.painter();
-    let center = rect.center();
-    let tint = |alpha| Color32::from_rgba_unmultiplied(signal.r(), signal.g(), signal.b(), alpha);
-
-    painter.circle_filled(center, 27.0, tint(13));
-    painter.circle_stroke(center, 29.0, Stroke::new(1.0, tint(75)));
-    painter.circle_stroke(center, 22.0, Stroke::new(1.0, tint(120)));
-    painter.circle_stroke(center, 13.0, Stroke::new(1.0, tint(170)));
-    painter.line_segment(
-        [
-            egui::pos2(rect.left() + 2.0, center.y),
-            egui::pos2(rect.right() - 2.0, center.y),
-        ],
-        Stroke::new(1.0, tint(65)),
-    );
-    painter.line_segment(
-        [
-            egui::pos2(center.x, rect.top() + 2.0),
-            egui::pos2(center.x, rect.bottom() - 2.0),
-        ],
-        Stroke::new(1.0, tint(65)),
-    );
-    painter.rect_filled(
-        egui::Rect::from_center_size(center, Vec2::splat(15.0)),
-        egui::CornerRadius::same(3),
-        Color32::from_rgb(10, 23, 39),
-    );
-    painter.rect_stroke(
-        egui::Rect::from_center_size(center, Vec2::splat(15.0)),
-        egui::CornerRadius::same(3),
-        Stroke::new(1.0, tint(190)),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        center,
-        egui::Align2::CENTER_CENTER,
-        "RC",
-        FontId::monospace(7.5),
-        TEXT,
-    );
-
-    for (angle, color) in [
-        (0.0_f32, signal),
-        (90.0, CYAN),
-        (180.0, VIOLET),
-        (270.0, signal),
-    ] {
-        let radians = angle.to_radians();
-        let node = center + Vec2::new(radians.cos() * 28.0, radians.sin() * 28.0);
-        painter.circle_filled(node, 2.3, color);
-    }
-}
+fn paint_command_grid(_ui: &egui::Ui) {}
 
 fn panel(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     let inner_width = (ui.available_width() - 32.0).max(0.0);
-    let frame = Frame::new()
+    Frame::new()
         .fill(CARD)
-        .stroke(Stroke::new(1.0, BORDER))
-        .corner_radius(egui::CornerRadius::same(8))
-        .inner_margin(egui::Margin::same(15))
+        .corner_radius(egui::CornerRadius::same(18))
+        .inner_margin(egui::Margin::same(16))
         .show(ui, |ui| {
             ui.set_min_width(inner_width);
             add_contents(ui);
         });
-    let rect = frame.response.rect;
-    let painter = ui.painter();
-    painter.line_segment(
-        [
-            egui::pos2(rect.left() + 12.0, rect.top() + 1.0),
-            egui::pos2(rect.left() + 52.0, rect.top() + 1.0),
-        ],
-        Stroke::new(1.5, CYAN),
-    );
-    painter.line_segment(
-        [
-            egui::pos2(rect.left() + 52.0, rect.top() + 1.0),
-            egui::pos2(rect.left() + 66.0, rect.top() + 1.0),
-        ],
-        Stroke::new(1.5, VIOLET),
-    );
 }
 
 fn panel_title(ui: &mut egui::Ui, title: &str, description: &str) {
     ui.horizontal(|ui| {
-        let (accent, _) = ui.allocate_exact_size(Vec2::splat(11.0), Sense::hover());
-        ui.painter().rect_stroke(
-            accent,
-            egui::CornerRadius::same(2),
-            Stroke::new(1.0, CYAN),
-            egui::StrokeKind::Inside,
-        );
-        ui.painter().circle_filled(accent.center(), 2.2, CYAN);
-        ui.add_space(2.0);
+        let (accent, _) = ui.allocate_exact_size(Vec2::new(3.0, 30.0), Sense::hover());
+        ui.painter()
+            .rect_filled(accent, egui::CornerRadius::same(2), CYAN);
+        ui.add_space(4.0);
         ui.vertical(|ui| {
             ui.label(RichText::new(title).size(15.0).strong().color(TEXT));
             ui.label(RichText::new(description).size(12.5).color(SECONDARY));
@@ -7616,11 +7638,10 @@ fn nav_section(ui: &mut egui::Ui, label: &str) {
     ui.add_space(13.0);
     ui.horizontal(|ui| {
         ui.label(
-            RichText::new(format!("// {}", label))
-                .size(8.5)
+            RichText::new(label.to_uppercase())
+                .size(9.5)
                 .strong()
-                .monospace()
-                .color(CYAN),
+                .color(MUTED),
         );
         let (line, _) =
             ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
@@ -7663,11 +7684,8 @@ fn custom_progress_bar(ui: &mut egui::Ui, fraction: f32, color: Color32, height:
     let width = ui.available_width().max(40.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
     let r = (height * 0.5).round() as u8;
-    ui.painter().rect_filled(
-        rect,
-        egui::CornerRadius::same(r),
-        Color32::from_rgb(20, 26, 38),
-    );
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(r), RAISED);
     let fill_width = (rect.width() * fraction.clamp(0.0, 1.0)).max(0.0);
     if fill_width > 0.0 {
         let fill_rect = egui::Rect::from_min_size(rect.min, Vec2::new(fill_width, height));
@@ -7684,7 +7702,7 @@ fn toggle_switch(ui: &mut egui::Ui, value: &mut bool) -> egui::Response {
         response.mark_changed();
     }
     let how_on = ui.ctx().animate_bool(response.id, *value);
-    let bg_color = lerp_color(Color32::from_rgb(25, 33, 46), CYAN, how_on);
+    let bg_color = lerp_color(RAISED, CYAN, how_on);
     ui.painter()
         .rect_filled(rect, egui::CornerRadius::same(10), bg_color);
     let circle_x = egui::lerp((rect.left() + 10.0)..=(rect.right() - 10.0), how_on);
@@ -7717,25 +7735,17 @@ fn render_hud_mockup(ui: &mut egui::Ui, hud_mode: &str) {
     let height = (width * 0.38).clamp(110.0, 240.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
     let painter = ui.painter();
-    painter.rect_filled(
-        rect,
-        egui::CornerRadius::same(10),
-        Color32::from_rgb(8, 12, 18),
-    );
+    painter.rect_filled(rect, egui::CornerRadius::same(10), INSET);
     painter.rect_stroke(
         rect,
         egui::CornerRadius::same(10),
-        Stroke::new(1.0, Color32::from_rgb(26, 38, 54)),
+        Stroke::new(1.0, BORDER),
         egui::StrokeKind::Inside,
     );
 
     let top_center = egui::pos2(rect.center().x, rect.top() + 18.0);
     let top_bar_rect = egui::Rect::from_center_size(top_center, Vec2::new(width * 0.54, 22.0));
-    painter.rect_filled(
-        top_bar_rect,
-        egui::CornerRadius::same(6),
-        Color32::from_rgb(14, 22, 34),
-    );
+    painter.rect_filled(top_bar_rect, egui::CornerRadius::same(6), INSET);
     painter.rect_stroke(
         top_bar_rect,
         egui::CornerRadius::same(6),
@@ -7758,15 +7768,11 @@ fn render_hud_mockup(ui: &mut egui::Ui, hud_mode: &str) {
         ),
         Vec2::splat(map_size),
     );
-    painter.rect_filled(
-        map_rect,
-        egui::CornerRadius::same(6),
-        Color32::from_rgb(12, 18, 25),
-    );
+    painter.rect_filled(map_rect, egui::CornerRadius::same(6), INSET);
     painter.rect_stroke(
         map_rect,
         egui::CornerRadius::same(6),
-        Stroke::new(1.0, Color32::from_rgb(35, 48, 65)),
+        Stroke::new(1.0, BORDER),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -7794,11 +7800,7 @@ fn render_hud_mockup(ui: &mut egui::Ui, hud_mode: &str) {
             egui::pos2(rect.left() + 16.0, rect.top() + 20.0),
             Vec2::new(130.0, height * 0.70),
         );
-        painter.rect_filled(
-            card_rect,
-            egui::CornerRadius::same(8),
-            Color32::from_rgb(14, 22, 34),
-        );
+        painter.rect_filled(card_rect, egui::CornerRadius::same(8), INSET);
         painter.rect_stroke(
             card_rect,
             egui::CornerRadius::same(8),
@@ -7870,6 +7872,40 @@ fn trait_chip(ui: &mut egui::Ui, name: &str) {
         });
 }
 
+/// Strips Riot's tooltip markup (`<br>`, `<rules>…</rules>`, other tags) from Data Dragon text.
+fn clean_tft_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find('<') {
+        out.push_str(&rest[..start]);
+        let after = &rest[start..];
+        if after.starts_with("<rules>") {
+            rest = after
+                .find("</rules>")
+                .map(|end| &after[end + "</rules>".len()..])
+                .unwrap_or("");
+        } else if let Some(end) = after.find('>') {
+            out.push(' ');
+            rest = &after[end + 1..];
+        } else {
+            rest = "";
+        }
+    }
+    out.push_str(rest);
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn tft_cost_color(cost: u32) -> Color32 {
+    match cost {
+        1 => Color32::from_rgb(150, 160, 175),
+        2 => Color32::from_rgb(60, 200, 120),
+        3 => Color32::from_rgb(60, 140, 240),
+        4 => Color32::from_rgb(190, 90, 240),
+        5 => Color32::from_rgb(245, 190, 60),
+        _ => BORDER,
+    }
+}
+
 fn tier_badge(ui: &mut egui::Ui, tier: &str) {
     let color = match tier {
         "S" => Color32::from_rgb(255, 110, 110),
@@ -7930,7 +7966,7 @@ fn filter_chip(ui: &mut egui::Ui, text: &str, selected: bool, accent: Color32) -
     ui.painter().rect_filled(
         rect,
         egui::CornerRadius::same(5),
-        lerp_color(CARD, Color32::from_rgb(8, 54, 72), emphasis),
+        lerp_color(CARD, ACCENT_SOFT, emphasis),
     );
     ui.painter().rect_stroke(
         rect,
@@ -7946,6 +7982,35 @@ fn filter_chip(ui: &mut egui::Ui, text: &str, selected: bool, accent: Color32) -
         lerp_color(SECONDARY, accent, active),
     );
     response
+}
+
+/// Fades and slides the rest of `ui` in whenever `key` changes (page or sub-tab switch).
+fn page_transition(ui: &mut egui::Ui, key: impl std::hash::Hash) {
+    const DURATION: f64 = 0.24;
+    let key = {
+        use std::hash::Hasher;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        hasher.finish()
+    };
+    let now = ui.input(|input| input.time);
+    let started = ui.ctx().data_mut(|data| {
+        let entry = data
+            .get_temp_mut_or_insert_with(egui::Id::unique("riftcore-page-transition"), || {
+                (key, now - DURATION)
+            });
+        if entry.0 != key {
+            *entry = (key, now);
+        }
+        entry.1
+    });
+    let progress = ((now - started) / DURATION).clamp(0.0, 1.0) as f32;
+    let eased = 1.0 - (1.0 - progress).powi(3);
+    if progress < 1.0 {
+        ui.ctx().request_repaint();
+    }
+    ui.multiply_opacity(eased);
+    ui.add_space(12.0 * (1.0 - eased));
 }
 
 fn lerp_color(start: Color32, end: Color32, amount: f32) -> Color32 {
@@ -8012,9 +8077,9 @@ fn titlebar_action_button(
     let width = (text.chars().count() as f32 * 5.7 + 14.0).max(36.0);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 24.0), Sense::click());
     let fill = if active {
-        Color32::from_rgb(15, 45, 58)
+        ACCENT_SOFT
     } else if response.hovered() {
-        Color32::from_rgb(30, 38, 52)
+        RAISED
     } else {
         CARD
     };
@@ -8042,8 +8107,7 @@ fn titlebar_action_button(
 fn metric(ui: &mut egui::Ui, label: &str, value: &str, color: Color32) {
     Frame::new()
         .fill(SURFACE)
-        .stroke(Stroke::new(1.0, BORDER))
-        .corner_radius(egui::CornerRadius::same(8))
+        .corner_radius(egui::CornerRadius::same(12))
         .inner_margin(egui::Margin::same(10))
         .show(ui, |ui| {
             ui.set_min_width(120.0);
@@ -8053,23 +8117,45 @@ fn metric(ui: &mut egui::Ui, label: &str, value: &str, color: Color32) {
 }
 
 fn action_button(ui: &mut egui::Ui, text: &str, active: bool, accent: Color32) -> egui::Response {
-    let fill = if active {
-        Color32::from_rgb(8, 54, 70)
-    } else {
-        Color32::from_rgb(18, 30, 48)
-    };
-    ui.add(
-        egui::Button::new(RichText::new(text).size(12.0).strong().color(if active {
-            accent
-        } else {
-            TEXT
-        }))
-        .fill(fill)
-        .stroke(Stroke::new(
-            if active { 1.0 } else { 0.8 },
-            if active { accent } else { BORDER },
-        )),
-    )
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), FontId::proportional(12.0), TEXT);
+    let padding = ui.spacing().button_padding;
+    let size = Vec2::new(
+        galley.size().x + padding.x * 2.0,
+        (galley.size().y + padding.y * 2.0).max(ui.spacing().interact_size.y),
+    );
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    if ui.is_rect_visible(rect) {
+        let ctx = ui.ctx();
+        let hover = ctx.animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.14);
+        let on = ctx.animate_bool_with_time(response.id.with("active"), active, 0.2);
+        let press = ctx.animate_bool_with_time(
+            response.id.with("press"),
+            response.is_pointer_button_down_on(),
+            0.08,
+        );
+        let fill = lerp_color(
+            lerp_color(RAISED, BUTTON_HOVER, hover),
+            lerp_color(ACCENT_SOFT, CYAN_DIM, hover),
+            on,
+        );
+        let shape = rect.shrink(press * 1.5);
+        let radius = egui::CornerRadius::same((shape.height() * 0.5).min(255.0) as u8);
+        ui.painter().rect_filled(shape, radius, fill);
+        if on > 0.01 {
+            ui.painter().rect_stroke(
+                shape,
+                radius,
+                Stroke::new(1.0, accent.gamma_multiply(0.55 * on)),
+                egui::StrokeKind::Inside,
+            );
+        }
+        let text_pos = shape.center() - galley.size() * 0.5;
+        ui.painter()
+            .galley(text_pos, galley, lerp_color(TEXT, accent, on));
+    }
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 fn window_button(ui: &mut egui::Ui, text: &str, color: Color32) -> egui::Response {
@@ -8114,7 +8200,7 @@ fn avatar(
             .paint_at(ui, rect);
     } else {
         ui.painter()
-            .circle_filled(rect.center(), size * 0.48, Color32::from_rgb(17, 36, 50));
+            .circle_filled(rect.center(), size * 0.48, RAISED);
         ui.painter().text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
@@ -9184,13 +9270,13 @@ fn render_draft_team(
             };
 
             Frame::new()
-                .fill(Color32::from_rgb(11, 16, 26))
+                .fill(INSET)
                 .stroke(Stroke::new(
                     1.0,
                     if picked_champ.is_some() {
-                        Color32::from_rgb(28, 44, 64)
+                        CYAN_DIM
                     } else {
-                        Color32::from_rgb(20, 26, 38)
+                        RAISED
                     },
                 ))
                 .corner_radius(egui::CornerRadius::same(8))
@@ -9217,7 +9303,7 @@ fn render_draft_team(
                             ui.painter().rect_stroke(
                                 placeholder_rect,
                                 egui::CornerRadius::same(6),
-                                Stroke::new(1.0, Color32::from_rgb(35, 45, 60)),
+                                Stroke::new(1.0, BORDER),
                                 egui::StrokeKind::Inside,
                             );
                             ui.painter().text(
@@ -9844,6 +9930,8 @@ fn build_tray_icon() -> Option<TrayIcon> {
         .with_menu(Box::new(menu))
         .with_icon(icon)
         .with_tooltip("RiftCore Companion")
+        // Left click opens the app; right click shows the menu.
+        .with_menu_on_left_click(false)
         .build()
         .ok()
 }
@@ -9955,4 +10043,23 @@ fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, Option<std::thread::JoinHa
     #[cfg(not(windows))]
     let handle = None;
     (receiver, handle)
+}
+
+#[cfg(test)]
+mod tft_text_tests {
+    use super::clean_tft_text;
+
+    #[test]
+    fn strips_riot_tooltip_markup() {
+        assert_eq!(
+            clean_tft_text("Gain a champion. <br><br><rules>Champion: 0</rules>"),
+            "Gain a champion."
+        );
+        assert_eq!(
+            clean_tft_text("Deal <magicDamage>50</magicDamage> damage"),
+            "Deal 50 damage"
+        );
+        assert_eq!(clean_tft_text("plain text"), "plain text");
+        assert_eq!(clean_tft_text("broken <tag"), "broken");
+    }
 }

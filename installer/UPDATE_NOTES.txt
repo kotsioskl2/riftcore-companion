@@ -1,4 +1,33 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.3.3
+--------------------------------------------------
+
+* New in-game HUD:
+  - The HUD now runs in its own see-through window drawn with DirectX 12, so the area around
+    the panels stays fully transparent (fixes black pixels showing through on some PCs).
+  - It still turns on automatically when a match starts and shows only while the game is in front.
+  - PCs that cannot run it automatically use the previous HUD instead.
+    Set RIFTCORE_OVERLAY=classic to force the previous HUD.
+
+* New look:
+  - Calmer graphite colours with a soft blue accent, rounder borderless cards and pill buttons.
+  - Removed the neon stripes, background grid and radar decorations.
+  - Smooth animations: pages fade in, buttons and the sidebar react on hover and click.
+
+* System tray:
+  - Left-click the tray icon to open RiftCore, right-click for the menu.
+  - Hovering over the tray icon no longer pops the window open.
+  - RiftCore keeps working (League client, hotkeys, HUD auto-start) while hidden in the tray.
+
+* TFT Companion:
+  - Odds tab rebuilt for Set 18: shop odds per level, XP needed and champion pool sizes.
+  - Set Data tab shows tidy unit/trait/item tiles sorted by cost.
+  - Augment descriptions no longer show raw code; heading now reads "Teamfight Tactics".
+
+* Known limitations:
+  - The new HUD has not yet been verified in a live match on every GPU; please report issues.
+
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.3.2
 --------------------------------------------------
 

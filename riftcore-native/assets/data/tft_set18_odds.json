@@ -1,0 +1,20 @@
+{
+  "set": 18,
+  "patch": "18.6",
+  "updated": "2026-11-04",
+  "source": "TFTSense champion pool & odds guide (checked against Set 18, patch 18.6). Single source; confirm in-game when it matters.",
+  "levels": [
+    { "level": 1, "odds": [100, 0, 0, 0, 0], "xp_to_next": 2 },
+    { "level": 2, "odds": [100, 0, 0, 0, 0], "xp_to_next": 2 },
+    { "level": 3, "odds": [75, 25, 0, 0, 0], "xp_to_next": 6 },
+    { "level": 4, "odds": [55, 30, 15, 0, 0], "xp_to_next": 10 },
+    { "level": 5, "odds": [45, 33, 20, 2, 0], "xp_to_next": 20 },
+    { "level": 6, "odds": [30, 40, 25, 5, 0], "xp_to_next": 36 },
+    { "level": 7, "odds": [19, 30, 40, 10, 1], "xp_to_next": 56 },
+    { "level": 8, "odds": [15, 20, 32, 30, 3], "xp_to_next": 68 },
+    { "level": 9, "odds": [10, 17, 25, 33, 15], "xp_to_next": 68 },
+    { "level": 10, "odds": [5, 10, 20, 40, 25], "xp_to_next": null }
+  ],
+  "pool_copies": [30, 25, 18, 10, 9],
+  "champions_per_cost": [14, 13, 14, 14, 10]
+}

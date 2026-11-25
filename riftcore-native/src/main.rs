@@ -4,6 +4,7 @@ mod app;
 mod assets;
 mod backend;
 mod builds;
+mod path_b;
 mod tft_data;
 
 use riftcore_native::overlay::host::build_dx12_visual_wgpu_options;
@@ -26,7 +27,18 @@ fn main() -> eframe::Result {
             }
         }
     }
-    run_legacy()
+    // The classic app renders on DirectX 12 + DirectComposition so the new (Path B) in-game
+    // HUD can share its GPU device. PCs where that renderer cannot start get the original
+    // renderer and the original child-window HUD.
+    match run_legacy(true) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            eprintln!("RiftCore: DirectX 12 HUD renderer failed ({err}); using the classic HUD");
+            // SAFETY: single-threaded at this point; the failed event loop has shut down.
+            unsafe { std::env::set_var("RIFTCORE_OVERLAY", "classic") };
+            run_legacy(false)
+        }
+    }
 }
 
 fn app_icon() -> std::sync::Arc<eframe::egui::IconData> {
@@ -71,8 +83,8 @@ fn run_modular() -> eframe::Result {
     )
 }
 
-fn run_legacy() -> eframe::Result {
-    let options = eframe::NativeOptions {
+fn run_legacy(path_b_renderer: bool) -> eframe::Result {
+    let mut options = eframe::NativeOptions {
         viewport: base_viewport()
             // The HUD child viewport shares the Glow framebuffer config with the
             // root. Request alpha here so the child can composite over League;
@@ -84,6 +96,9 @@ fn run_legacy() -> eframe::Result {
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };
+    if path_b_renderer {
+        options.wgpu_options = build_dx12_visual_wgpu_options();
+    }
 
     eframe::run_native(
         "RiftCore Companion",

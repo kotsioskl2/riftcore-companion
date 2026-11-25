@@ -13,7 +13,7 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "RiftCore Companion"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "2.3.2"
+  !define PRODUCT_VERSION "2.3.3"
 !endif
 !ifndef PORTABLE_DIR
   !define PORTABLE_DIR "..\RiftCore_Rust_Portable"
