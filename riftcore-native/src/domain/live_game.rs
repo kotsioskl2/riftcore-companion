@@ -166,7 +166,11 @@ impl ObjectiveTimer {
         if self.ready || self.remaining_secs == 0 {
             "READY".to_string()
         } else {
-            format!("{:02}:{:02}", self.remaining_secs / 60, self.remaining_secs % 60)
+            format!(
+                "{:02}:{:02}",
+                self.remaining_secs / 60,
+                self.remaining_secs % 60
+            )
         }
     }
 }
@@ -463,7 +467,10 @@ pub fn parse_spell_cooldowns(raw_description: &str) -> Vec<f64> {
     // 3. Fallback for bracketed or standalone seconds notations like "[180s]" or "180s"
     for token in cleaned.split_whitespace() {
         let trimmed = token.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '.');
-        if let Some(num_str) = trimmed.strip_suffix('s').or_else(|| trimmed.strip_suffix('S')) {
+        if let Some(num_str) = trimmed
+            .strip_suffix('s')
+            .or_else(|| trimmed.strip_suffix('S'))
+        {
             if let Ok(val) = num_str.parse::<f64>() {
                 if val.is_finite() && val > 0.0 {
                     return vec![val];
@@ -964,7 +971,9 @@ mod tests {
     #[test]
     fn parses_raw_description_cooldowns() {
         assert_eq!(
-            parse_spell_cooldowns("Teleport to an allied unit. <font color='#999999'>360s Cooldown</font>"),
+            parse_spell_cooldowns(
+                "Teleport to an allied unit. <font color='#999999'>360s Cooldown</font>"
+            ),
             vec![360.0]
         );
         assert_eq!(

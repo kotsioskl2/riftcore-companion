@@ -11,8 +11,8 @@ use crate::domain::protocol::{CoreCommand, LIVE_COACH_ENABLED};
 use crate::ui::pages::{HudSettingsTab, PageContext};
 use crate::ui::theme::{Spacing, ThemePalette};
 use crate::ui::widgets::{
-    action_button, avatar, badge, inset_card, item_slot, kda_display, metric_card, page_heading,
-    panel, panel_title, toggle_row,
+    action_button, avatar, badge, item_slot, kda_display, metric_card, page_heading, panel,
+    panel_title, toggle_row,
 };
 use eframe::egui::{self, Color32, CornerRadius, FontId, RichText, Sense, Stroke, Vec2};
 use std::time::{Duration, Instant};
@@ -26,9 +26,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         "LIVE COMPANION",
         "In-Game HUD",
         "Native transparent overlay for live match telemetry, objective timers, and minimap guides.",
-        ctx.snapshot.connected,
-        ctx.snapshot.riot_client_open,
-        ctx.snapshot.phase.display_label(),
+        ctx.snapshot,
     );
 
     if let Some(live) = ctx.state.parsed_live_game.clone() {
@@ -42,8 +40,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
             {
                 ctx.effects.set_overlay = Some((!ctx.state.overlay_mode, false));
             }
-            if action_button(ui, &palette, "REFRESH LIVE DATA", false, palette.secondary)
-                .clicked()
+            if action_button(ui, &palette, "REFRESH LIVE DATA", false, palette.secondary).clicked()
             {
                 ctx.send_command(CoreCommand::Refresh);
             }
@@ -294,12 +291,7 @@ fn render_live_summary(ctx: &mut PageContext<'_>, ui: &mut egui::Ui, live: &Live
             .spacing([14.0, 4.0])
             .show(ui, |ui| {
                 for h in ["TEAM", "SUMMONER", "CHAMPION", "K / D / A  ·  CS"] {
-                    ui.label(
-                        RichText::new(h)
-                            .size(9.5)
-                            .strong()
-                            .color(palette.muted),
-                    );
+                    ui.label(RichText::new(h).size(9.5).strong().color(palette.muted));
                 }
                 ui.end_row();
                 for team in ["ORDER", "CHAOS"] {
@@ -531,7 +523,12 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 );
             });
             panel(&mut columns[1], &palette, |ui| {
-                panel_title(ui, &palette, "PLAYER TELEMETRY", "Inventory and ability ranks");
+                panel_title(
+                    ui,
+                    &palette,
+                    "PLAYER TELEMETRY",
+                    "Inventory and ability ranks",
+                );
                 changed |= toggle_row(
                     ui,
                     &palette,
@@ -557,7 +554,12 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         }),
         HudSettingsTab::Guides => ui.columns(2, |columns| {
             panel(&mut columns[0], &palette, |ui| {
-                panel_title(ui, &palette, "ROUTE & MODE REFERENCES", "Jungle and mode reference");
+                panel_title(
+                    ui,
+                    &palette,
+                    "ROUTE & MODE REFERENCES",
+                    "Jungle and mode reference",
+                );
                 changed |= toggle_row(
                     ui,
                     &palette,
@@ -579,9 +581,10 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                                 .size(10.5)
                                 .color(palette.secondary),
                         );
-                        for (side, label, accent) in
-                            [("red", "RED", palette.red), ("blue", "BLUE", palette.accent)]
-                        {
+                        for (side, label, accent) in [
+                            ("red", "RED", palette.red),
+                            ("blue", "BLUE", palette.accent),
+                        ] {
                             if action_button(
                                 ui,
                                 &palette,
@@ -638,14 +641,8 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                         ("card", "TACTICAL CARD"),
                         ("pill", "MINIMAP PILL"),
                     ] {
-                        if action_button(
-                            ui,
-                            &palette,
-                            label,
-                            s.hud_mode == mode,
-                            palette.accent,
-                        )
-                        .clicked()
+                        if action_button(ui, &palette, label, s.hud_mode == mode, palette.accent)
+                            .clicked()
                         {
                             s.hud_mode = mode.to_string();
                             ctx.commands
@@ -678,7 +675,11 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 );
                 changed |= ui
                     .horizontal(|ui| {
-                        ui.label(RichText::new("Map scale").size(10.5).color(palette.secondary));
+                        ui.label(
+                            RichText::new("Map scale")
+                                .size(10.5)
+                                .color(palette.secondary),
+                        );
                         ui.add(
                             egui::Slider::new(&mut s.hud_minimap_scale, 1.0..=3.0).show_value(true),
                         )
@@ -687,7 +688,11 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     .inner;
                 changed |= ui
                     .horizontal(|ui| {
-                        ui.label(RichText::new("Dock size").size(10.5).color(palette.secondary));
+                        ui.label(
+                            RichText::new("Dock size")
+                                .size(10.5)
+                                .color(palette.secondary),
+                        );
                         ui.add(
                             egui::Slider::new(&mut s.hud_minimap_zoom, 0.75..=1.35)
                                 .show_value(true),
@@ -745,11 +750,7 @@ fn render_hud_mockup(ui: &mut egui::Ui, palette: &ThemePalette, hud_mode: &str) 
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
     let painter = ui.painter();
 
-    painter.rect_filled(
-        rect,
-        CornerRadius::same(Spacing::RADIUS_MD),
-        palette.inset,
-    );
+    painter.rect_filled(rect, CornerRadius::same(Spacing::RADIUS_MD), palette.inset);
     painter.rect_stroke(
         rect,
         CornerRadius::same(Spacing::RADIUS_MD),
@@ -759,8 +760,7 @@ fn render_hud_mockup(ui: &mut egui::Ui, palette: &ThemePalette, hud_mode: &str) 
 
     if hud_mode == "bar" || hud_mode == "integrated" {
         let top_center = egui::pos2(rect.center().x, rect.top() + 18.0);
-        let top_bar_rect =
-            egui::Rect::from_center_size(top_center, Vec2::new(width * 0.56, 22.0));
+        let top_bar_rect = egui::Rect::from_center_size(top_center, Vec2::new(width * 0.56, 22.0));
         painter.rect_filled(top_bar_rect, CornerRadius::same(6), palette.surface);
         painter.rect_stroke(
             top_bar_rect,

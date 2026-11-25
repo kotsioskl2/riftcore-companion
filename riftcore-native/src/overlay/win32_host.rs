@@ -200,7 +200,8 @@ mod imp {
                                 st.tracking_leave = true;
                             }
                         }
-                        st.events.push(egui::Event::PointerMoved(lparam_pos(lparam)));
+                        st.events
+                            .push(egui::Event::PointerMoved(lparam_pos(lparam)));
                     }
                     WM_MOUSELEAVE => {
                         st.tracking_leave = false;
@@ -506,10 +507,8 @@ mod imp {
                     let _ = ReleaseCapture();
                 }
                 let mut ex = GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE) as usize;
-                ex |= WS_EX_NOREDIRECTIONBITMAP
-                    | WS_EX_TOPMOST
-                    | WS_EX_TOOLWINDOW
-                    | WS_EX_NOACTIVATE;
+                ex |=
+                    WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
                 ex &= !WS_EX_APPWINDOW;
                 if passthrough {
                     ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
@@ -607,10 +606,7 @@ mod imp {
                 }
                 // SAFETY: `self.hwnd` is verified non-null; `SW_SHOWNOACTIVATE`/`SW_HIDE` never activates.
                 unsafe {
-                    ShowWindow(
-                        self.hwnd,
-                        if visible { SW_SHOWNOACTIVATE } else { SW_HIDE },
-                    );
+                    ShowWindow(self.hwnd, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE });
                 }
                 if visible {
                     self.apply_ex_style(self.passthrough);
@@ -672,7 +668,8 @@ mod imp {
             let full_output = self.egui_ctx.run_ui(raw_input, |ui| {
                 render_ui(ui, state, &mut rects);
             });
-            self.pending_textures_delta.append(full_output.textures_delta);
+            self.pending_textures_delta
+                .append(full_output.textures_delta);
 
             let clipped_primitives = self
                 .egui_ctx

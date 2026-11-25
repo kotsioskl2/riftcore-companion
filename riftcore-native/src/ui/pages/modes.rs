@@ -9,12 +9,11 @@ use crate::domain::mayhem::{filter_cards, CardMode, CardTier};
 use crate::domain::protocol::{CoreCommand, CoreNotice};
 use crate::domain::runes;
 use crate::ui::pages::{spell_name, Page, PageContext};
-use crate::ui::theme::ThemePalette;
 use crate::ui::widgets::{
     action_button, avatar, badge, inset_card, metric_card, page_heading, panel, panel_title,
     search_box,
 };
-use eframe::egui::{self, RichText, Vec2};
+use eframe::egui::{self, RichText};
 
 pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
     let palette = *ctx.palette;
@@ -25,22 +24,13 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         "GAME MODE CENTER",
         "Game Modes",
         "Mode-specific setup, rune & spell imports, strategy prompts, and ARAM Mayhem / Arena augment cards.",
-        ctx.snapshot.connected,
-        ctx.snapshot.riot_client_open,
-        ctx.snapshot.phase.display_label(),
+        ctx.snapshot,
     );
 
     ui.horizontal_wrapped(|ui| {
-        for (index, label) in [
-            "RIFT",
-            "ARAM",
-            "ARENA",
-            "URF",
-            "ONE FOR ALL",
-            "ARAM MAYHEM",
-        ]
-        .iter()
-        .enumerate()
+        for (index, label) in ["RIFT", "ARAM", "ARENA", "URF", "ONE FOR ALL", "ARAM MAYHEM"]
+            .iter()
+            .enumerate()
         {
             let accent = if index == 1 || index == 5 {
                 palette.gold
@@ -166,9 +156,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
     if let Some(champ) = champions::champion_by_id(ctx.state.champ_select.selected_champion) {
         let build = builds::build_for_champion(champ.id, ctx.state.champ_select.build_role)
             .cloned()
-            .unwrap_or_else(|| {
-                builds::recommend(&champ.key, &champ.name, &champ.roles, None)
-            });
+            .unwrap_or_else(|| builds::recommend(&champ.key, &champ.name, &champ.roles, None));
         let (spell_one, spell_two) = match mode_index {
             1 | 5 => (4, 32), // Flash + Mark/Snowball
             2 | 3 => (4, 14), // Flash + Ignite
@@ -215,12 +203,10 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
             });
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
-                if action_button(ui, &palette, "OPEN FULL BUILD", false, palette.accent).clicked()
-                {
+                if action_button(ui, &palette, "OPEN FULL BUILD", false, palette.accent).clicked() {
                     ctx.navigate_to_champion(champ.id, Some(build.role));
                 }
-                if action_button(ui, &palette, "APPLY MODE RUNES + SPELLS", false, accent)
-                    .clicked()
+                if action_button(ui, &palette, "APPLY MODE RUNES + SPELLS", false, accent).clicked()
                 {
                     let (primary, secondary, perks) = match mode_index {
                         1 | 5 => (
@@ -562,14 +548,8 @@ fn render_mode_champion_picker(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     ui.horizontal(|ui| {
                         let portrait = ctx.textures.champion(&egui_ctx, &champ.key);
                         avatar(ui, &palette, &champ.name, 28.0, palette.accent, portrait);
-                        if action_button(
-                            ui,
-                            &palette,
-                            &champ.name,
-                            is_selected,
-                            palette.accent,
-                        )
-                        .clicked()
+                        if action_button(ui, &palette, &champ.name, is_selected, palette.accent)
+                            .clicked()
                         {
                             selected_id = Some(champ.id);
                         }

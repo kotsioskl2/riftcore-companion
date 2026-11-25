@@ -3,12 +3,12 @@
 use crate::domain::builds::{self, BuildProfile};
 use crate::domain::champions::{self, Champion, Role};
 use crate::ui::pages::{PageContext, TierSort};
-use crate::ui::theme::{role_color, ThemePalette};
+use crate::ui::theme::role_color;
 use crate::ui::widgets::{
     action_button, avatar, badge, filter_chip, inset_card, item_slot, page_heading, panel,
     panel_title, role_tag, search_box,
 };
-use eframe::egui::{self, CornerRadius, Frame, Margin, RichText, Stroke, Vec2};
+use eframe::egui::{self, RichText, Vec2};
 
 struct TierRow<'a> {
     champion: &'a Champion,
@@ -24,24 +24,28 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         ui,
         &palette,
         "TIER LIST & META EXPLORER",
+        "Champion Meta Matrix",
         "Complete 172-champion matrix with offline build archetypes, skill priorities, and instant Champ Select jump",
+        ctx.snapshot,
     );
 
     panel(ui, &palette, |ui| {
         ui.horizontal_wrapped(|ui| {
             let all_active = ctx.state.tier_list.role_filter.is_none();
-            if filter_chip(ui, &palette, "ALL ROLES", all_active, palette.accent) {
+            if filter_chip(ui, &palette, "ALL ROLES", all_active, palette.accent).clicked() {
                 ctx.state.tier_list.role_filter = None;
             }
-            for &role in Role::ALL {
+            for role in Role::ALL {
                 let active = ctx.state.tier_list.role_filter == Some(role);
                 if filter_chip(
                     ui,
                     &palette,
                     role.short_label(),
                     active,
-                    role_color(&palette, role.as_str()),
-                ) {
+                    role_color(role, &palette),
+                )
+                .clicked()
+                {
                     ctx.state.tier_list.role_filter = Some(role);
                 }
             }
@@ -58,17 +62,19 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     label,
                     ctx.state.tier_list.sort == sort,
                     palette.violet,
-                ) {
+                )
+                .clicked()
+                {
                     ctx.state.tier_list.sort = sort;
                 }
             }
 
             ui.add_space(12.0);
             let view_cards = ctx.state.tier_list.view_cards;
-            if filter_chip(ui, &palette, "TABLE", !view_cards, palette.gold) {
+            if filter_chip(ui, &palette, "TABLE", !view_cards, palette.gold).clicked() {
                 ctx.state.tier_list.view_cards = false;
             }
-            if filter_chip(ui, &palette, "CARDS", view_cards, palette.gold) {
+            if filter_chip(ui, &palette, "CARDS", view_cards, palette.gold).clicked() {
                 ctx.state.tier_list.view_cards = true;
             }
         });
@@ -77,8 +83,10 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         search_box(
             ui,
             &palette,
+            "tier-list-search",
             &mut ctx.state.tier_list.search,
             "Filter champions by name, role, or archetype...",
+            None,
         );
     });
 
@@ -89,57 +97,53 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
 
     let mut rows: Vec<TierRow<'static>> = champions::all_champions()
         .iter()
-        .filter(|champ| {
-            let matches_role = role_filter
-                .map(|r| champ.roles.contains(&r))
-                .unwrap_or(true);
-            if !matches_role {
-                return false;
-            }
-            if query.is_empty() {
-                return true;
-            }
-            let role_for_lookup = role_filter
-                .filter(|r| champ.roles.contains(r))
-                .unwrap_or(champ.roles[0]);
-            let profile = builds::build_for_champion(champ.id, role_for_lookup);
-            champ.name.to_ascii_lowercase().contains(&query)
-                || champ.key.to_ascii_lowercase().contains(&query)
-                || profile.archetype.label().to_ascii_lowercase().contains(&query)
-                || champ
-                    .roles
-                    .iter()
-                    .any(|r| r.as_str().to_ascii_lowercase().contains(&query))
-        })
-        .map(|champ| {
+        .filter(|champ| role_filter.is_none_or(|r| champ.supports_role(r)))
+        .filter_map(|champ| {
             let primary_role = role_filter
-                .filter(|r| champ.roles.contains(r))
-                .unwrap_or(champ.roles[0]);
-            let profile = builds::build_for_champion(champ.id, primary_role);
+                .filter(|&r| champ.supports_role(r))
+                .unwrap_or_else(|| champ.primary_role());
+            let profile = builds::build_for_champion(champ.id, primary_role)
+                .or_else(|| builds::default_build_for_champion(champ.id))?;
+            if !query.is_empty() {
+                let matches = champ.name.to_ascii_lowercase().contains(&query)
+                    || champ.key.to_ascii_lowercase().contains(&query)
+                    || profile
+                        .archetype
+                        .display_name()
+                        .to_ascii_lowercase()
+                        .contains(&query)
+                    || champ
+                        .roles
+                        .iter()
+                        .any(|r| r.as_str().to_ascii_lowercase().contains(&query));
+                if !matches {
+                    return None;
+                }
+            }
             let favorite = ctx.store.settings.favorite_champions.contains(&champ.id);
-            TierRow {
+            Some(TierRow {
                 champion: champ,
                 primary_role,
                 profile,
                 favorite,
-            }
+            })
         })
         .collect();
 
     match ctx.state.tier_list.sort {
-        TierSort::Name => rows.sort_by(|a, b| a.champion.name.cmp(b.champion.name)),
+        TierSort::Name => rows.sort_by(|a, b| a.champion.name.cmp(&b.champion.name)),
         TierSort::Role => rows.sort_by(|a, b| {
             a.primary_role
                 .as_str()
                 .cmp(b.primary_role.as_str())
-                .then(a.champion.name.cmp(b.champion.name))
+                .then(a.champion.name.cmp(&b.champion.name))
         }),
         TierSort::Archetype => rows.sort_by(|a, b| {
             a.profile
                 .archetype
-                .label()
-                .cmp(b.profile.archetype.label())
-                .then(a.champion.name.cmp(b.champion.name))
+                .as_str()
+                .cmp(b.profile.archetype.as_str())
+                .then(a.champion.name.cmp(&b.champion.name))
         }),
     }
 
@@ -183,10 +187,15 @@ fn render_table_view(ctx: &mut PageContext<'_>, ui: &mut egui::Ui, rows: &[TierR
                 .spacing(Vec2::new(10.0, 6.0))
                 .striped(true)
                 .show(ui, |ui| {
-                    for (idx, header) in
-                        ["CHAMPION", "ROLES", "ARCHETYPE", "CORE ITEMS & SKILLS", "ACTIONS"]
-                            .into_iter()
-                            .enumerate()
+                    for (idx, header) in [
+                        "CHAMPION",
+                        "ROLES",
+                        "ARCHETYPE",
+                        "CORE ITEMS & SKILLS",
+                        "ACTIONS",
+                    ]
+                    .into_iter()
+                    .enumerate()
                     {
                         let min_w = match idx {
                             0 => (total_w * 0.24).max(165.0),
@@ -212,17 +221,17 @@ fn render_table_view(ctx: &mut PageContext<'_>, ui: &mut egui::Ui, rows: &[TierR
 
                     for row in rows {
                         ui.horizontal(|ui| {
-                            let tex = ctx.textures.champion(ui.ctx(), row.champion.key);
+                            let tex = ctx.textures.champion(ui.ctx(), &row.champion.key);
                             avatar(
                                 ui,
                                 &palette,
-                                tex.as_ref(),
-                                row.champion.name,
+                                &row.champion.name,
                                 26.0,
-                                role_color(&palette, row.primary_role.as_str()),
+                                role_color(row.primary_role, &palette),
+                                tex,
                             );
                             ui.label(
-                                RichText::new(row.champion.name)
+                                RichText::new(&row.champion.name)
                                     .size(12.0)
                                     .strong()
                                     .color(palette.text),
@@ -230,19 +239,18 @@ fn render_table_view(ctx: &mut PageContext<'_>, ui: &mut egui::Ui, rows: &[TierR
                         });
 
                         ui.horizontal_wrapped(|ui| {
-                            for &r in row.champion.roles {
-                                role_tag(ui, &palette, r);
+                            for &r in &row.champion.roles {
+                                role_tag(ui, r, &palette);
                             }
                         });
 
                         ui.horizontal(|ui| {
-                            badge(ui, row.profile.archetype.label(), palette.violet);
+                            badge(ui, &row.profile.archetype.display_name(), palette.violet);
                         });
 
                         ui.horizontal(|ui| {
                             for &item_id in row.profile.core_items.iter().take(3) {
-                                let tex = ctx.textures.item(ui.ctx(), item_id);
-                                item_slot(ui, &palette, item_id, tex.as_ref(), 24.0);
+                                item_slot(ui, &palette, ctx.textures, item_id, 24.0, false);
                             }
                             ui.add_space(4.0);
                             ui.label(
@@ -255,11 +263,17 @@ fn render_table_view(ctx: &mut PageContext<'_>, ui: &mut egui::Ui, rows: &[TierR
 
                         ui.horizontal(|ui| {
                             let star = if row.favorite { "★" } else { "☆" };
-                            let star_color = if row.favorite { palette.gold } else { palette.muted };
-                            if action_button(ui, &palette, star, star_color) {
+                            let star_color = if row.favorite {
+                                palette.gold
+                            } else {
+                                palette.muted
+                            };
+                            if action_button(ui, &palette, star, row.favorite, star_color).clicked()
+                            {
                                 toggle_fav = Some(row.champion.id);
                             }
-                            if action_button(ui, &palette, "OPEN", palette.accent) {
+                            if action_button(ui, &palette, "OPEN", false, palette.accent).clicked()
+                            {
                                 navigate_id = Some(row.champion.id);
                             }
                         });
@@ -306,77 +320,95 @@ fn render_cards_view(ctx: &mut PageContext<'_>, ui: &mut egui::Ui, rows: &[TierR
                             Vec2::new(card_w, 128.0),
                             egui::Layout::top_down(egui::Align::Min),
                             |ui| {
-                                let fill = palette.surface_inset;
-                                Frame::new()
-                                    .fill(fill)
-                                    .stroke(Stroke::new(1.0, palette.border))
-                                    .corner_radius(CornerRadius::same(10))
-                                    .inner_margin(Margin::same(10))
-                                    .show(ui, |ui| {
-                                        ui.set_min_width(ui.available_width());
-                                        ui.horizontal(|ui| {
-                                            let tex = ctx
-                                                .textures
-                                                .champion(ui.ctx(), row.champion.key);
-                                            avatar(
-                                                ui,
-                                                &palette,
-                                                tex.as_ref(),
-                                                row.champion.name,
-                                                32.0,
-                                                role_color(&palette, row.primary_role.as_str()),
+                                let stroke = if row.favorite {
+                                    palette.gold
+                                } else {
+                                    palette.border
+                                };
+                                inset_card(ui, &palette, stroke, |ui| {
+                                    ui.set_min_width(ui.available_width());
+                                    ui.horizontal(|ui| {
+                                        let tex =
+                                            ctx.textures.champion(ui.ctx(), &row.champion.key);
+                                        avatar(
+                                            ui,
+                                            &palette,
+                                            &row.champion.name,
+                                            32.0,
+                                            role_color(row.primary_role, &palette),
+                                            tex,
+                                        );
+                                        ui.vertical(|ui| {
+                                            ui.label(
+                                                RichText::new(&row.champion.name)
+                                                    .size(12.5)
+                                                    .strong()
+                                                    .color(palette.text),
                                             );
-                                            ui.vertical(|ui| {
-                                                ui.label(
-                                                    RichText::new(row.champion.name)
-                                                        .size(12.5)
-                                                        .strong()
-                                                        .color(palette.text),
+                                            ui.horizontal_wrapped(|ui| {
+                                                role_tag(ui, row.primary_role, &palette);
+                                                badge(
+                                                    ui,
+                                                    &row.profile.archetype.display_name(),
+                                                    palette.violet,
                                                 );
-                                                ui.horizontal_wrapped(|ui| {
-                                                    role_tag(ui, &palette, row.primary_role);
-                                                    badge(
-                                                        ui,
-                                                        row.profile.archetype.label(),
-                                                        palette.violet,
-                                                    );
-                                                });
                                             });
                                         });
+                                    });
 
-                                        ui.add_space(6.0);
-                                        ui.horizontal(|ui| {
-                                            for &item_id in row.profile.core_items.iter().take(3) {
-                                                let tex = ctx.textures.item(ui.ctx(), item_id);
-                                                item_slot(ui, &palette, item_id, tex.as_ref(), 24.0);
-                                            }
-                                            ui.add_space(4.0);
-                                            ui.label(
-                                                RichText::new(row.profile.compact_skill_priority())
-                                                    .size(10.5)
-                                                    .strong()
-                                                    .color(palette.gold),
-                                            );
-                                        });
-
-                                        ui.add_space(6.0);
-                                        ui.horizontal(|ui| {
-                                            let star = if row.favorite { "★ FAV" } else { "☆ FAV" };
-                                            let star_color =
-                                                if row.favorite { palette.gold } else { palette.muted };
-                                            if action_button(ui, &palette, star, star_color) {
-                                                toggle_fav = Some(row.champion.id);
-                                            }
-                                            if action_button(
+                                    ui.add_space(6.0);
+                                    ui.horizontal(|ui| {
+                                        for &item_id in row.profile.core_items.iter().take(3) {
+                                            item_slot(
                                                 ui,
                                                 &palette,
-                                                "BUILD",
-                                                palette.accent,
-                                            ) {
-                                                navigate_id = Some(row.champion.id);
-                                            }
-                                        });
+                                                ctx.textures,
+                                                item_id,
+                                                24.0,
+                                                false,
+                                            );
+                                        }
+                                        ui.add_space(4.0);
+                                        ui.label(
+                                            RichText::new(row.profile.compact_skill_priority())
+                                                .size(10.5)
+                                                .strong()
+                                                .color(palette.gold),
+                                        );
                                     });
+
+                                    ui.add_space(6.0);
+                                    ui.horizontal(|ui| {
+                                        let star = if row.favorite { "★ FAV" } else { "☆ FAV" };
+                                        let star_color = if row.favorite {
+                                            palette.gold
+                                        } else {
+                                            palette.muted
+                                        };
+                                        if action_button(
+                                            ui,
+                                            &palette,
+                                            star,
+                                            row.favorite,
+                                            star_color,
+                                        )
+                                        .clicked()
+                                        {
+                                            toggle_fav = Some(row.champion.id);
+                                        }
+                                        if action_button(
+                                            ui,
+                                            &palette,
+                                            "BUILD",
+                                            false,
+                                            palette.accent,
+                                        )
+                                        .clicked()
+                                        {
+                                            navigate_id = Some(row.champion.id);
+                                        }
+                                    });
+                                });
                             },
                         );
                     }
@@ -406,9 +438,4 @@ fn toggle_favorite_champion(ctx: &mut PageContext<'_>, champ_id: u32) {
         ctx.store.settings.favorite_champions.push(champ_id);
     }
     ctx.request_save();
-}
-
-#[allow(dead_code)]
-fn _unused_palette_check(_: &ThemePalette) {
-    let _ = inset_card;
 }

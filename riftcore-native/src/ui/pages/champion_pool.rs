@@ -3,7 +3,7 @@
 use crate::domain::builds;
 use crate::domain::champions::{self, Champion, Role};
 use crate::ui::pages::PageContext;
-use crate::ui::theme::role_color;
+use crate::ui::theme::{role_color, ThemePalette};
 use crate::ui::widgets::{
     action_button, avatar, badge, filter_chip, inset_card, page_heading, panel, panel_title,
     role_tag, search_box,
@@ -18,21 +18,25 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
     page_heading(
         ui,
         &palette,
-        "CHAMPION POOL PLANNER",
+        "DRAFT PREPARATION",
+        "Champion Pool Planner",
         "Curate your 3-slot role matrix (Blind / Counter / Pocket) and pin favorite builds for fast Champ Select access",
+        ctx.snapshot,
     );
 
     panel(ui, &palette, |ui| {
         ui.horizontal_wrapped(|ui| {
-            for &role in Role::ALL {
+            for role in Role::ALL {
                 let active = ctx.state.champion_pool.role == role;
                 if filter_chip(
                     ui,
                     &palette,
                     role.as_str(),
                     active,
-                    role_color(&palette, role.as_str()),
-                ) {
+                    role_color(role, &palette),
+                )
+                .clicked()
+                {
                     ctx.state.champion_pool.role = role;
                     ctx.state.champion_pool.assign_slot = None;
                 }
@@ -64,8 +68,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         let gap = 10.0;
         let card_w = ((ui.available_width() - gap * (cols as f32 - 1.0)) / cols as f32).max(210.0);
 
-        let mut open_champ: Option<u32> = None;
-        let mut clear_slot: Option<usize> = None;
+        let mut actions = SlotActions::default();
 
         if cols == 3 {
             ui.horizontal_top(|ui| {
@@ -81,8 +84,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                         slot_idx,
                         champ_id,
                         active_role,
-                        &mut open_champ,
-                        &mut clear_slot,
+                        &mut actions,
                     );
                 }
             });
@@ -96,22 +98,25 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     slot_idx,
                     champ_id,
                     active_role,
-                    &mut open_champ,
-                    &mut clear_slot,
+                    &mut actions,
                 );
                 ui.add_space(6.0);
             }
         }
 
-        if let Some(slot_idx) = clear_slot {
-            if let Some(entry) = ctx.store.settings.champion_pool.get_mut(&role_key) {
-                if slot_idx < entry.len() {
-                    entry[slot_idx] = 0;
-                    ctx.request_save();
-                }
+        if let Some(slot_idx) = actions.clear_slot {
+            if let Some(slot) = ctx
+                .store
+                .settings
+                .champion_pool
+                .get_mut(&role_key)
+                .and_then(|entry| entry.get_mut(slot_idx))
+            {
+                *slot = 0;
+                ctx.request_save();
             }
         }
-        if let Some(champ_id) = open_champ {
+        if let Some(champ_id) = actions.open_champ {
             ctx.navigate_to_champion(champ_id, Some(active_role));
         }
     });
@@ -137,11 +142,13 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
             search_box(
                 ui,
                 &palette,
+                "champion-pool-search",
                 &mut ctx.state.champion_pool.search,
                 "Search champions to assign or favorite...",
+                Some(320.0),
             );
             if ctx.state.champion_pool.assign_slot.is_some()
-                && action_button(ui, &palette, "CANCEL ASSIGN", palette.muted)
+                && action_button(ui, &palette, "CANCEL ASSIGN", false, palette.muted).clicked()
             {
                 ctx.state.champion_pool.assign_slot = None;
             }
@@ -152,17 +159,18 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         let mut roster: Vec<&Champion> = champions::all_champions()
             .iter()
             .filter(|champ| {
-                let matches_role = query.is_empty()
-                    && champ.roles.contains(&active_role)
-                    || !query.is_empty() && champ.name.to_ascii_lowercase().contains(&query);
-                matches_role
+                if query.is_empty() {
+                    champ.supports_role(active_role)
+                } else {
+                    champ.name.to_ascii_lowercase().contains(&query)
+                }
             })
             .collect();
 
         roster.sort_by(|a, b| {
             let a_fav = ctx.store.settings.favorite_champions.contains(&a.id);
             let b_fav = ctx.store.settings.favorite_champions.contains(&b.id);
-            b_fav.cmp(&a_fav).then(a.name.cmp(b.name))
+            b_fav.cmp(&a_fav).then_with(|| a.name.cmp(&b.name))
         });
 
         if roster.is_empty() {
@@ -201,10 +209,10 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                             }
                             let is_fav = ctx.store.settings.favorite_champions.contains(&champ.id);
                             let assign_mode = ctx.state.champion_pool.assign_slot.is_some();
-                            let build_role = if champ.roles.contains(&active_role) {
+                            let build_role = if champ.supports_role(active_role) {
                                 active_role
                             } else {
-                                champ.roles[0]
+                                champ.primary_role()
                             };
                             let profile = builds::build_for_champion(champ.id, build_role);
 
@@ -212,33 +220,44 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                                 Vec2::new(card_w, 108.0),
                                 egui::Layout::top_down(egui::Align::Min),
                                 |ui| {
-                                    inset_card(ui, &palette, |ui| {
+                                    let card_stroke = if is_fav {
+                                        ThemePalette::with_alpha(palette.gold, 120)
+                                    } else {
+                                        palette.border
+                                    };
+                                    inset_card(ui, &palette, card_stroke, |ui| {
                                         ui.set_min_width(ui.available_width());
                                         ui.horizontal(|ui| {
-                                            let tex =
-                                                ctx.textures.champion(ui.ctx(), champ.key);
+                                            let tex = ctx.textures.champion(ui.ctx(), &champ.key);
                                             avatar(
                                                 ui,
                                                 &palette,
-                                                tex.as_ref(),
-                                                champ.name,
+                                                &champ.name,
                                                 30.0,
-                                                role_color(&palette, build_role.as_str()),
+                                                role_color(build_role, &palette),
+                                                tex,
                                             );
                                             ui.vertical(|ui| {
                                                 ui.label(
-                                                    RichText::new(champ.name)
+                                                    RichText::new(&champ.name)
                                                         .size(12.0)
                                                         .strong()
                                                         .color(palette.text),
                                                 );
                                                 ui.horizontal_wrapped(|ui| {
-                                                    role_tag(ui, &palette, build_role);
-                                                    badge(
-                                                        ui,
-                                                        profile.archetype.label(),
-                                                        palette.violet,
-                                                    );
+                                                    role_tag(ui, build_role, &palette);
+                                                    match profile {
+                                                        Some(profile) => badge(
+                                                            ui,
+                                                            &profile.archetype.display_name(),
+                                                            palette.violet,
+                                                        ),
+                                                        None => badge(
+                                                            ui,
+                                                            "NO BUILD DATA",
+                                                            palette.muted,
+                                                        ),
+                                                    }
                                                 });
                                             });
                                         });
@@ -247,7 +266,9 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                                             let star = if is_fav { "★" } else { "☆" };
                                             let star_col =
                                                 if is_fav { palette.gold } else { palette.muted };
-                                            if action_button(ui, &palette, star, star_col) {
+                                            if action_button(ui, &palette, star, is_fav, star_col)
+                                                .clicked()
+                                            {
                                                 toggle_fav = Some(champ.id);
                                             }
                                             if assign_mode {
@@ -255,16 +276,22 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                                                     ui,
                                                     &palette,
                                                     "ASSIGN",
+                                                    true,
                                                     palette.green,
-                                                ) {
+                                                )
+                                                .clicked()
+                                                {
                                                     assign_champ = Some(champ.id);
                                                 }
                                             } else if action_button(
                                                 ui,
                                                 &palette,
                                                 "SETUP",
+                                                false,
                                                 palette.accent,
-                                            ) {
+                                            )
+                                            .clicked()
+                                            {
                                                 open_champ = Some(champ.id);
                                             }
                                         });
@@ -299,8 +326,11 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     .champion_pool
                     .entry(role_key)
                     .or_default();
-                if slot_idx < entry.len() {
-                    entry[slot_idx] = champ_id;
+                if entry.len() < SLOT_LABELS.len() {
+                    entry.resize(SLOT_LABELS.len(), 0);
+                }
+                if let Some(slot) = entry.get_mut(slot_idx) {
+                    *slot = champ_id;
                     ctx.request_save();
                 }
             }
@@ -311,7 +341,13 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
     });
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Deferred slot interactions collected while rendering plan cards.
+#[derive(Default)]
+struct SlotActions {
+    open_champ: Option<u32>,
+    clear_slot: Option<usize>,
+}
+
 fn render_plan_slot(
     ctx: &mut PageContext<'_>,
     ui: &mut egui::Ui,
@@ -319,8 +355,7 @@ fn render_plan_slot(
     slot_idx: usize,
     champ_id: u32,
     role: Role,
-    open_champ: &mut Option<u32>,
-    clear_slot: &mut Option<usize>,
+    actions: &mut SlotActions,
 ) {
     let palette = *ctx.palette;
     let assigning = ctx.state.champion_pool.assign_slot == Some(slot_idx);
@@ -330,9 +365,9 @@ fn render_plan_slot(
         _ => palette.violet,
     };
     let fill = if assigning {
-        crate::ui::theme::ThemePalette::with_alpha(accent, 30)
+        ThemePalette::with_alpha(accent, 30)
     } else {
-        palette.surface_inset
+        palette.inset
     };
     let stroke = if assigning {
         Stroke::new(1.5, accent)
@@ -359,27 +394,32 @@ fn render_plan_slot(
                     if let Some(champ) = champions::champion_by_id(champ_id) {
                         let profile = builds::build_for_champion(champ.id, role);
                         ui.horizontal(|ui| {
-                            let tex = ctx.textures.champion(ui.ctx(), champ.key);
+                            let tex = ctx.textures.champion(ui.ctx(), &champ.key);
                             avatar(
                                 ui,
                                 &palette,
-                                tex.as_ref(),
-                                champ.name,
+                                &champ.name,
                                 34.0,
-                                role_color(&palette, role.as_str()),
+                                role_color(role, &palette),
+                                tex,
                             );
                             ui.vertical(|ui| {
                                 ui.label(
-                                    RichText::new(champ.name)
+                                    RichText::new(&champ.name)
                                         .size(13.0)
                                         .strong()
                                         .color(palette.text),
                                 );
                                 ui.label(
-                                    RichText::new(format!(
-                                        "{} · {}",
-                                        profile.archetype.label(),
-                                        profile.compact_skill_priority()
+                                    RichText::new(profile.map_or_else(
+                                        || "No build data for this role".to_string(),
+                                        |profile| {
+                                            format!(
+                                                "{} · {}",
+                                                profile.archetype.display_name(),
+                                                profile.compact_skill_priority()
+                                            )
+                                        },
                                     ))
                                     .size(10.5)
                                     .color(palette.muted),
@@ -388,14 +428,16 @@ fn render_plan_slot(
                         });
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
-                            if action_button(ui, &palette, "OPEN BUILD", accent) {
-                                *open_champ = Some(champ.id);
+                            if action_button(ui, &palette, "OPEN BUILD", false, accent).clicked() {
+                                actions.open_champ = Some(champ.id);
                             }
-                            if action_button(ui, &palette, "SWAP", palette.violet) {
+                            if action_button(ui, &palette, "SWAP", assigning, palette.violet)
+                                .clicked()
+                            {
                                 ctx.state.champion_pool.assign_slot = Some(slot_idx);
                             }
-                            if action_button(ui, &palette, "CLEAR", palette.red) {
-                                *clear_slot = Some(slot_idx);
+                            if action_button(ui, &palette, "CLEAR", false, palette.red).clicked() {
+                                actions.clear_slot = Some(slot_idx);
                             }
                         });
                     } else {
@@ -410,12 +452,9 @@ fn render_plan_slot(
                         } else {
                             "ASSIGN CHAMPION"
                         };
-                        if action_button(ui, &palette, label, accent) {
-                            ctx.state.champion_pool.assign_slot = if assigning {
-                                None
-                            } else {
-                                Some(slot_idx)
-                            };
+                        if action_button(ui, &palette, label, assigning, accent).clicked() {
+                            ctx.state.champion_pool.assign_slot =
+                                if assigning { None } else { Some(slot_idx) };
                         }
                     }
                 });

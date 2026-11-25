@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn live_coach_gate_remains_disabled() {
         let coach = OfflineHeuristicCoach;
-        assert!(!LIVE_COACH_ENABLED);
+        const { assert!(!LIVE_COACH_ENABLED) };
         assert!(!coach.is_live_coaching_enabled());
     }
 

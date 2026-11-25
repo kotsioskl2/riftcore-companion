@@ -12,7 +12,9 @@ use crate::ui::widgets::{
     action_button, avatar, badge, inset_card, page_heading, panel, panel_title, progress_bar,
     role_tag, stat_bar,
 };
-use eframe::egui::{self, Align, Color32, CornerRadius, FontId, Layout, RichText, Sense, Stroke, Vec2};
+use eframe::egui::{
+    self, Align, Color32, CornerRadius, FontId, Layout, RichText, Sense, Stroke, Vec2,
+};
 
 pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
     let palette = *ctx.palette;
@@ -23,9 +25,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         "TEAM COMPOSITION",
         "Draft Coach",
         "Build a 5v5 draft or sync picks from the live League Client session for composition & counter analysis.",
-        ctx.snapshot.connected,
-        ctx.snapshot.riot_client_open,
-        ctx.snapshot.phase.display_label(),
+        ctx.snapshot,
     );
 
     ui.horizontal_wrapped(|ui| {
@@ -284,8 +284,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("•").size(12.0).color(palette.accent));
                     ui.add(
-                        egui::Label::new(RichText::new(line).size(11.0).color(palette.text))
-                            .wrap(),
+                        egui::Label::new(RichText::new(line).size(11.0).color(palette.text)).wrap(),
                     );
                 });
             }
@@ -335,11 +334,7 @@ fn render_draft_team(
                                 .map(|r| r.as_str())
                                 .collect::<Vec<_>>()
                                 .join(" / ");
-                            ui.label(
-                                RichText::new(role_list)
-                                    .size(9.0)
-                                    .color(palette.secondary),
-                            );
+                            ui.label(RichText::new(role_list).size(9.0).color(palette.secondary));
                         });
                     } else {
                         let (placeholder_rect, _) =

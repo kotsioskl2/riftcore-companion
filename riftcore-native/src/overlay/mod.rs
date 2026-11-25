@@ -64,8 +64,12 @@ mod tests {
         );
         assert_eq!(integrated, [-2560, 0, -1, 1439]);
 
-        let bar =
-            compute_overlay_rect_px(&target, Some(&left_monitor), HudPresentationMode::Bar, false);
+        let bar = compute_overlay_rect_px(
+            &target,
+            Some(&left_monitor),
+            HudPresentationMode::Bar,
+            false,
+        );
         // 620 * 1.5 = 930px wide, 54 * 1.5 = 81px tall, centered inside [-2560..0]
         assert_eq!(bar[2] - bar[0], 930);
         assert_eq!(bar[3] - bar[1], 81);
@@ -86,12 +90,8 @@ mod tests {
             is_foreground: true,
             presentation: DisplayPresentationMode::Borderless,
         };
-        let rect = compute_overlay_rect_px(
-            &target,
-            Some(&degenerate),
-            HudPresentationMode::Card,
-            false,
-        );
+        let rect =
+            compute_overlay_rect_px(&target, Some(&degenerate), HudPresentationMode::Card, false);
         assert!(rect[2] > rect[0]);
         assert!(rect[3] > rect[1]);
     }
@@ -182,7 +182,10 @@ mod tests {
             })),
             &mut cfg,
         );
-        assert_eq!(engine.lifecycle_state(), OverlayLifecycleState::ActiveVisible);
+        assert_eq!(
+            engine.lifecycle_state(),
+            OverlayLifecycleState::ActiveVisible
+        );
 
         let mut state = OverlayRenderState {
             clock_secs: 42,
@@ -236,12 +239,14 @@ mod tests {
 
     #[test]
     fn compliance_gates_sr_objectives_trinkets_and_mayhem_ranks() {
-        assert!(!LIVE_COACH_ENABLED);
-        assert!(OVERLAY_ENEMY_SPELL_TIMERS_REMOVED);
+        const { assert!(!LIVE_COACH_ENABLED) };
+        const { assert!(OVERLAY_ENEMY_SPELL_TIMERS_REMOVED) };
 
-        let mut state = OverlayRenderState::default();
         // Even if runtime toggle were flipped, protocol gate locks active coaching off
-        state.live_coach_enabled = true;
+        let state = OverlayRenderState {
+            live_coach_enabled: true,
+            ..OverlayRenderState::default()
+        };
         assert!(!state.effective_live_coaching_enabled());
 
         // Timer drawer exposes only Camps & Objectives (zero enemy spell cooldown tab)
@@ -277,13 +282,9 @@ mod tests {
         assert!(!build.core_items.is_empty());
 
         let area = Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0));
-        let sr_minimap = build_minimap_guide_model(
-            area,
-            &sr,
-            &OverlayPanelSettings::default(),
-            1260,
-        )
-        .expect("SR minimap model");
+        let sr_minimap =
+            build_minimap_guide_model(area, &sr, &OverlayPanelSettings::default(), 1260)
+                .expect("SR minimap model");
         let baron_pins = sr_minimap
             .objective_pins
             .iter()
@@ -303,13 +304,10 @@ mod tests {
         });
         let aram = LiveGameState::from_allgamedata(&aram_payload).expect("valid ARAM payload");
         assert!(!missing_trinket_reminder(Some(&aram)));
-        assert!(build_minimap_guide_model(
-            area,
-            &aram,
-            &OverlayPanelSettings::default(),
-            600,
-        )
-        .is_none());
+        assert!(
+            build_minimap_guide_model(area, &aram, &OverlayPanelSettings::default(), 600,)
+                .is_none()
+        );
 
         let mayhem = filter_mayhem_cards("Both", "Prismatic", "");
         assert!(!mayhem.is_empty());

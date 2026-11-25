@@ -73,9 +73,10 @@ pub fn missing_trinket_reminder(live: Option<&LiveGameState>) -> bool {
     let Some(live) = live else {
         return false;
     };
-    let has_trinket = live.active_player.items.iter().any(|item| {
-        item.item_id > 0 && (item.slot == 6 || items::has_trinket_tag(item.item_id))
-    });
+    let has_trinket =
+        live.active_player.items.iter().any(|item| {
+            item.item_id > 0 && (item.slot == 6 || items::has_trinket_tag(item.item_id))
+        });
     !has_trinket
 }
 
@@ -128,7 +129,11 @@ pub fn render_overlay_ui(
     let ctx = ui.ctx().clone();
 
     egui::CentralPanel::default()
-        .frame(Frame::new().fill(Color32::TRANSPARENT).inner_margin(Margin::same(14)))
+        .frame(
+            Frame::new()
+                .fill(Color32::TRANSPARENT)
+                .inner_margin(Margin::same(14)),
+        )
         .show(ui, |ui| {
             let area = ui.available_rect_before_wrap();
             let live_ref = state.live_game.as_ref();
@@ -147,7 +152,11 @@ pub fn render_overlay_ui(
             let game_mode = live_ref
                 .map(|g| g.game_mode.as_str())
                 .filter(|m| !m.is_empty())
-                .unwrap_or(if state.preview_mode { "PREVIEW" } else { "LIVE" });
+                .unwrap_or(if state.preview_mode {
+                    "PREVIEW"
+                } else {
+                    "LIVE"
+                });
 
             match state.settings.hud_mode {
                 HudPresentationMode::Bar => {
@@ -354,7 +363,9 @@ pub fn render_overlay_ui(
                         .inner_margin(Margin::same(10))
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("◆ RIFTCORE").size(11.0).strong().color(CYAN));
+                                ui.label(
+                                    RichText::new("◆ RIFTCORE").size(11.0).strong().color(CYAN),
+                                );
                                 ui.separator();
                                 ui.label(
                                     RichText::new(format_clock(clock))
@@ -393,8 +404,14 @@ pub fn render_overlay_ui(
                 });
             if top_resp.response.drag_stopped() {
                 let pos = [top_resp.response.rect.min.x, top_resp.response.rect.min.y];
-                state.settings.hud_positions.insert("scoreboard".to_string(), pos);
-                state.pending_actions.updated_positions.push(("scoreboard".to_string(), pos));
+                state
+                    .settings
+                    .hud_positions
+                    .insert("scoreboard".to_string(), pos);
+                state
+                    .pending_actions
+                    .updated_positions
+                    .push(("scoreboard".to_string(), pos));
             }
             if state.settings.hud_edit_layout {
                 interactive_rects_out.push(top_resp.response.rect);
@@ -430,17 +447,15 @@ pub fn render_overlay_ui(
                         .stroke(Stroke::new(1.0, BORDER))
                         .inner_margin(Margin::same(10))
                         .show(ui, |ui| {
-                            ui.set_min_width(150.0 * state.settings.hud_minimap_zoom.clamp(0.75, 1.35));
-                            ui.label(
-                                RichText::new("OBJECTIVES").size(10.0).strong().color(CYAN),
+                            ui.set_min_width(
+                                150.0 * state.settings.hud_minimap_zoom.clamp(0.75, 1.35),
                             );
+                            ui.label(RichText::new("OBJECTIVES").size(10.0).strong().color(CYAN));
                             if state.settings.hud_objective_timers {
                                 if let Some(live) = live_ref {
                                     let timers = live.objective_timers();
                                     if timers.is_empty() {
-                                        ui.label(
-                                            RichText::new("SR only").size(9.5).color(MUTED),
-                                        );
+                                        ui.label(RichText::new("SR only").size(9.5).color(MUTED));
                                     } else {
                                         for timer in timers {
                                             ui.label(
@@ -449,7 +464,10 @@ pub fn render_overlay_ui(
                                                     timer.label,
                                                     timer.formatted_remaining()
                                                 ))
-                                                .size((11.0 * state.settings.hud_minimap_zoom).clamp(9.0, 15.0))
+                                                .size(
+                                                    (11.0 * state.settings.hud_minimap_zoom)
+                                                        .clamp(9.0, 15.0),
+                                                )
                                                 .monospace()
                                                 .color(TEXT),
                                             );
@@ -461,8 +479,14 @@ pub fn render_overlay_ui(
                 });
             if dock_resp.response.drag_stopped() {
                 let pos = [dock_resp.response.rect.min.x, dock_resp.response.rect.min.y];
-                state.settings.hud_positions.insert("objectives".to_string(), pos);
-                state.pending_actions.updated_positions.push(("objectives".to_string(), pos));
+                state
+                    .settings
+                    .hud_positions
+                    .insert("objectives".to_string(), pos);
+                state
+                    .pending_actions
+                    .updated_positions
+                    .push(("objectives".to_string(), pos));
             }
             if state.settings.hud_edit_layout {
                 interactive_rects_out.push(dock_resp.response.rect);
@@ -512,7 +536,9 @@ pub fn render_overlay_ui(
                                             let remaining = state
                                                 .manual_timers
                                                 .get(&ally.timer_key)
-                                                .map(|end| end.saturating_duration_since(now).as_secs())
+                                                .map(|end| {
+                                                    end.saturating_duration_since(now).as_secs()
+                                                })
                                                 .unwrap_or(0);
                                             let btn_label = if remaining > 0 {
                                                 format!("{} · RESET", format_clock(remaining))
@@ -614,7 +640,9 @@ pub fn render_overlay_ui(
                             }
                             if state.settings.hud_item_goal {
                                 ui.add_space(5.0);
-                                ui.label(RichText::new("INVENTORY").size(10.0).strong().color(GOLD));
+                                ui.label(
+                                    RichText::new("INVENTORY").size(10.0).strong().color(GOLD),
+                                );
                                 if let Some(live) = live_ref {
                                     let equipped: Vec<_> = live
                                         .active_player
@@ -672,9 +700,18 @@ pub fn render_overlay_ui(
                         });
                 });
             if player_resp.response.drag_stopped() {
-                let pos = [player_resp.response.rect.min.x, player_resp.response.rect.min.y];
-                state.settings.hud_positions.insert("player".to_string(), pos);
-                state.pending_actions.updated_positions.push(("player".to_string(), pos));
+                let pos = [
+                    player_resp.response.rect.min.x,
+                    player_resp.response.rect.min.y,
+                ];
+                state
+                    .settings
+                    .hud_positions
+                    .insert("player".to_string(), pos);
+                state
+                    .pending_actions
+                    .updated_positions
+                    .push(("player".to_string(), pos));
             }
             if state.settings.hud_edit_layout {
                 interactive_rects_out.push(player_resp.response.rect);
@@ -690,7 +727,10 @@ pub fn render_overlay_ui(
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    RichText::new("ALT + ~  HUD").size(10.0).strong().color(CYAN),
+                                    RichText::new("ALT + ~  HUD")
+                                        .size(10.0)
+                                        .strong()
+                                        .color(CYAN),
                                 );
                                 ui.label(
                                     RichText::new("ALT + SHIFT + ~  INPUT")
@@ -699,10 +739,7 @@ pub fn render_overlay_ui(
                                 );
                                 if !state.passthrough_active {
                                     ui.label(
-                                        RichText::new("SMART INPUT")
-                                            .size(9.0)
-                                            .strong()
-                                            .color(GOLD),
+                                        RichText::new("SMART INPUT").size(9.0).strong().color(GOLD),
                                     );
                                 }
                                 if state.settings.hud_mayhem_cards
@@ -871,7 +908,12 @@ fn render_mayhem_drawer(
                                     .strong()
                                     .color(GOLD),
                             );
-                            ui.label(RichText::new("Augment guide").size(16.0).strong().color(TEXT));
+                            ui.label(
+                                RichText::new("Augment guide")
+                                    .size(16.0)
+                                    .strong()
+                                    .color(TEXT),
+                            );
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if overlay_button(ui, "CLOSE", false, SECONDARY).clicked() {
@@ -959,9 +1001,7 @@ fn render_mayhem_drawer(
                                                 .size(9.0)
                                                 .color(SECONDARY),
                                         );
-                                        ui.label(
-                                            RichText::new(&card.tip).size(9.5).color(TEXT),
-                                        );
+                                        ui.label(RichText::new(&card.tip).size(9.5).color(TEXT));
                                     });
                             }
                         });
@@ -1013,7 +1053,12 @@ fn render_build_drawer(
                     ui.set_width(292.0);
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
-                            ui.label(RichText::new("PERSONAL BUILD").size(9.0).strong().color(CYAN));
+                            ui.label(
+                                RichText::new("PERSONAL BUILD")
+                                    .size(9.0)
+                                    .strong()
+                                    .color(CYAN),
+                            );
                             ui.label(
                                 RichText::new(format!("{} · {}", champ.name, build.role))
                                     .size(15.0)
@@ -1025,7 +1070,8 @@ fn render_build_drawer(
                             close = overlay_button(ui, "×", false, RED).clicked();
                         });
                     });
-                    if let Some(&target_item) = build.core_items.get(1).or(build.core_items.first()) {
+                    if let Some(&target_item) = build.core_items.get(1).or(build.core_items.first())
+                    {
                         ui.label(
                             RichText::new(format!(
                                 "NEXT CORE TARGET  ·  {}  ·  {current_gold}g held",
@@ -1088,7 +1134,10 @@ fn render_build_drawer(
     if resp.response.drag_stopped() {
         let p = [resp.response.rect.min.x, resp.response.rect.min.y];
         state.settings.hud_positions.insert("build".to_string(), p);
-        state.pending_actions.updated_positions.push(("build".to_string(), p));
+        state
+            .pending_actions
+            .updated_positions
+            .push(("build".to_string(), p));
     }
     if close {
         state.show_build_panel = false;
@@ -1096,7 +1145,8 @@ fn render_build_drawer(
     if export {
         let item_set = builds::champion_item_set(champ, &build).to_json();
         state.pending_actions.export_item_set = Some(item_set);
-        state.pending_actions.notice = Some("Sending recommended build to League shop…".to_string());
+        state.pending_actions.notice =
+            Some("Sending recommended build to League shop…".to_string());
     }
 }
 
@@ -1186,9 +1236,7 @@ fn render_timers_drawer(
                             OverlayTimerTab::Camps if state.settings.hud_manual_camp_timers => {
                                 render_manual_camp_timers(ui, &mut state.manual_timers);
                             }
-                            OverlayTimerTab::Objectives
-                                if state.settings.hud_objective_timers =>
-                            {
+                            OverlayTimerTab::Objectives if state.settings.hud_objective_timers => {
                                 if let Some(live) = state.live_game.as_ref() {
                                     let timers = live.objective_timers();
                                     if timers.is_empty() {
@@ -1229,11 +1277,9 @@ fn render_timers_drawer(
                             }
                             _ => {
                                 ui.label(
-                                    RichText::new(
-                                        "Enable a timer section in Settings → Overlay.",
-                                    )
-                                    .size(10.0)
-                                    .color(SECONDARY),
+                                    RichText::new("Enable a timer section in Settings → Overlay.")
+                                        .size(10.0)
+                                        .color(SECONDARY),
                                 );
                             }
                         });
@@ -1243,7 +1289,10 @@ fn render_timers_drawer(
     if resp.response.drag_stopped() {
         let p = [resp.response.rect.min.x, resp.response.rect.min.y];
         state.settings.hud_positions.insert("timers".to_string(), p);
-        state.pending_actions.updated_positions.push(("timers".to_string(), p));
+        state
+            .pending_actions
+            .updated_positions
+            .push(("timers".to_string(), p));
     }
     if close {
         state.show_timers_panel = false;
@@ -1302,7 +1351,10 @@ fn render_manual_camp_timers(ui: &mut egui::Ui, timers: &mut HashMap<String, Ins
     ui.add_space(5.0);
     let now = Instant::now();
     for (camp, duration) in CAMPS {
-        let key = format!("jungle-camp-{}", camp.to_ascii_lowercase().replace(' ', "-"));
+        let key = format!(
+            "jungle-camp-{}",
+            camp.to_ascii_lowercase().replace(' ', "-")
+        );
         let remaining = timers
             .get(&key)
             .map(|ready_at| ready_at.saturating_duration_since(now).as_secs())

@@ -7,8 +7,8 @@ use crate::services::updater::{release_asset_url, RELEASES_FALLBACK_URL};
 use crate::ui::pages::{self, Page, PageContext};
 use crate::ui::theme::{Spacing, ThemePalette};
 use crate::ui::widgets::{
-    action_button, avatar, badge, filter_chip, inset_card, item_slot, kda_display, metric_card,
-    notice_banner, paint_command_grid, toggle_switch,
+    action_button, avatar, badge, inset_card, item_slot, kda_display, metric_card, notice_banner,
+    paint_command_grid, toggle_switch,
 };
 use eframe::egui::{
     self, Align, Color32, CornerRadius, FontId, Frame, Layout, Margin, RichText, ScrollArea, Sense,
@@ -30,7 +30,7 @@ pub fn render_titlebar(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 .stroke(Stroke::new(1.0, palette.border))
                 .inner_margin(Margin::symmetric(12, 0)),
         )
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
             let titlebar_rect = ui.max_rect();
             let rail_y = titlebar_rect.top() + 1.0;
             ui.painter().line_segment(
@@ -43,7 +43,10 @@ pub fn render_titlebar(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
             ui.painter().line_segment(
                 [
                     egui::pos2(titlebar_rect.left(), rail_y),
-                    egui::pos2((titlebar_rect.left() + 196.0).min(titlebar_rect.right()), rail_y),
+                    egui::pos2(
+                        (titlebar_rect.left() + 196.0).min(titlebar_rect.right()),
+                        rail_y,
+                    ),
                 ],
                 Stroke::new(2.0, palette.accent),
             );
@@ -59,14 +62,13 @@ pub fn render_titlebar(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
 
             let drag_response = ui.interact(
                 ui.max_rect().shrink(1.0),
-                egui::Id::new("riftcore-titlebar-drag-area"),
+                egui::Id::unique("riftcore-titlebar-drag-area"),
                 Sense::click_and_drag(),
             );
             if drag_response.drag_started() {
                 egui_ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
             } else if drag_response.double_clicked() {
-                let maximized =
-                    egui_ctx.input(|input| input.viewport().maximized.unwrap_or(false));
+                let maximized = egui_ctx.input(|input| input.viewport().maximized.unwrap_or(false));
                 egui_ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
             }
 
@@ -85,7 +87,10 @@ pub fn render_titlebar(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 ui.vertical(|ui| {
                     let brand = ui.add(
                         egui::Label::new(
-                            RichText::new("RIFTCORE").size(11.5).strong().color(palette.text),
+                            RichText::new("RIFTCORE")
+                                .size(11.5)
+                                .strong()
+                                .color(palette.text),
                         )
                         .sense(Sense::click_and_drag()),
                     );
@@ -201,25 +206,97 @@ pub fn render_sidebar(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 .inner_margin(Margin::same(14))
                 .stroke(Stroke::new(1.0, palette.border)),
         )
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
             ScrollArea::vertical()
                 .id_salt("nav-scroll-v4")
                 .show(ui, |ui| {
                     nav_section(ui, &palette, "MATCH & LIVE");
-                    nav_button(ctx, ui, Page::ChampSelect, "CS", "Champ Select", "LIVE", palette.accent);
-                    nav_button(ctx, ui, Page::Draft, "DR", "Draft Coach", "SIM", palette.red);
-                    nav_button(ctx, ui, Page::Lobby, "LB", "Lobby Scout", "LIVE", palette.green);
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::ChampSelect,
+                        "CS",
+                        "Champ Select",
+                        "LIVE",
+                        palette.accent,
+                    );
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::Draft,
+                        "DR",
+                        "Draft Coach",
+                        "SIM",
+                        palette.red,
+                    );
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::Lobby,
+                        "LB",
+                        "Lobby Scout",
+                        "LIVE",
+                        palette.green,
+                    );
                     nav_button(ctx, ui, Page::Hud, "HD", "In-Game HUD", "", palette.accent);
 
                     nav_section(ui, &palette, "GAME MODES & META");
-                    nav_button(ctx, ui, Page::Tft, "TF", "TFT Companion", "SET 18", palette.gold);
-                    nav_button(ctx, ui, Page::Modes, "MD", "Arena & Modes", "MODES", palette.gold);
-                    nav_button(ctx, ui, Page::TierList, "BD", "Builds & Roster", "", palette.accent);
-                    nav_button(ctx, ui, Page::ChampionPool, "PL", "Champion Pool", "", palette.accent);
-                    nav_button(ctx, ui, Page::Profile, "PR", "Profile & Analysis", "", palette.accent);
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::Tft,
+                        "TF",
+                        "TFT Companion",
+                        "SET 18",
+                        palette.gold,
+                    );
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::Modes,
+                        "MD",
+                        "Arena & Modes",
+                        "MODES",
+                        palette.gold,
+                    );
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::TierList,
+                        "BD",
+                        "Builds & Roster",
+                        "",
+                        palette.accent,
+                    );
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::ChampionPool,
+                        "PL",
+                        "Champion Pool",
+                        "",
+                        palette.accent,
+                    );
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::Profile,
+                        "PR",
+                        "Profile & Analysis",
+                        "",
+                        palette.accent,
+                    );
 
                     nav_section(ui, &palette, "CONFIGURATION");
-                    nav_button(ctx, ui, Page::Settings, "CF", "Preferences", "", palette.accent);
+                    nav_button(
+                        ctx,
+                        ui,
+                        Page::Settings,
+                        "CF",
+                        "Preferences",
+                        "",
+                        palette.accent,
+                    );
 
                     ui.add_space(6.0);
                     if action_button(ui, &palette, "QUICK TOUR", false, palette.gold).clicked() {
@@ -304,7 +381,7 @@ pub fn render_main(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 .fill(palette.bg)
                 .inner_margin(Margin::same(Spacing::PAGE_MARGIN)),
         )
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
             paint_command_grid(ui, &palette);
             render_banners(ctx, ui);
 
@@ -314,9 +391,7 @@ pub fn render_main(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 ScrollArea::vertical()
                     .id_salt(("main-scroll-v4", ctx.state.active_page))
                     .auto_shrink([false, false])
-                    .scroll_bar_visibility(
-                        egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
-                    )
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                     .show(ui, |ui| {
                         pages::render_active_page(ctx, ui);
                     });
@@ -391,14 +466,8 @@ fn render_banners(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                             ctx.state.update_banner_dismissed = true;
                         }
                         if verification_failed || !has_verified_assets {
-                            if action_button(
-                                ui,
-                                &palette,
-                                "OPEN IN BROWSER",
-                                false,
-                                palette.gold,
-                            )
-                            .clicked()
+                            if action_button(ui, &palette, "OPEN IN BROWSER", false, palette.gold)
+                                .clicked()
                             {
                                 ctx.open_url(release_url.clone());
                             }
@@ -424,14 +493,10 @@ fn render_banners(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         ui.add_space(8.0);
     }
 
-    let waiting_for_accept = ctx
-        .snapshot
-        .ready_check
-        .as_ref()
-        .is_some_and(|check| {
-            check.get("state").and_then(Value::as_str) == Some("InProgress")
-                && check.get("playerResponse").and_then(Value::as_str) == Some("None")
-        });
+    let waiting_for_accept = ctx.snapshot.ready_check.as_ref().is_some_and(|check| {
+        check.get("state").and_then(Value::as_str) == Some("InProgress")
+            && check.get("playerResponse").and_then(Value::as_str) == Some("None")
+    });
     if waiting_for_accept {
         Frame::new()
             .fill(ThemePalette::with_alpha(palette.green, 24))
@@ -479,7 +544,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
 
     if ctx.state.show_whats_new {
         let mut dismissed = false;
-        egui::Modal::new(egui::Id::new("riftcore-whats-new-modal"))
+        egui::Modal::new(egui::Id::unique("riftcore-whats-new-modal"))
             .frame(
                 Frame::new()
                     .fill(palette.surface)
@@ -549,7 +614,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
     if ctx.state.show_quick_tour {
         let mut close = false;
         let mut open_champ_select = false;
-        egui::Modal::new(egui::Id::new("riftcore-quick-tour-modal"))
+        egui::Modal::new(egui::Id::unique("riftcore-quick-tour-modal"))
             .frame(
                 Frame::new()
                     .fill(palette.surface)
@@ -632,7 +697,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
 
     if ctx.state.show_mayhem_cards {
         let mut close = false;
-        egui::Modal::new(egui::Id::new("riftcore-mayhem-guide-modal"))
+        egui::Modal::new(egui::Id::unique("riftcore-mayhem-guide-modal"))
             .frame(
                 Frame::new()
                     .fill(palette.surface)
@@ -797,7 +862,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
         let coach = OfflineHeuristicCoach;
         let advice = coach.post_game_advice(&summary);
 
-        egui::Modal::new(egui::Id::new("riftcore-postgame-analysis-modal"))
+        egui::Modal::new(egui::Id::unique("riftcore-postgame-analysis-modal"))
             .frame(
                 Frame::new()
                     .fill(palette.surface)
@@ -850,7 +915,8 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
                         );
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if action_button(ui, &palette, "CLOSE", false, palette.secondary).clicked() {
+                        if action_button(ui, &palette, "CLOSE", false, palette.secondary).clicked()
+                        {
                             close = true;
                         }
                     });
@@ -908,7 +974,12 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
 
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("SCORE LINE").size(10.0).strong().color(palette.muted));
+                            ui.label(
+                                RichText::new("SCORE LINE")
+                                    .size(10.0)
+                                    .strong()
+                                    .color(palette.muted),
+                            );
                             kda_display(
                                 ui,
                                 &palette,
@@ -921,7 +992,12 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
 
                         if !summary.items.is_empty() {
                             ui.add_space(6.0);
-                            ui.label(RichText::new("FINAL INVENTORY").size(9.5).strong().color(palette.muted));
+                            ui.label(
+                                RichText::new("FINAL INVENTORY")
+                                    .size(9.5)
+                                    .strong()
+                                    .color(palette.muted),
+                            );
                             ui.horizontal_wrapped(|ui| {
                                 for &item_id in summary.items.iter().filter(|&&id| id > 0) {
                                     item_slot(ui, &palette, ctx.textures, item_id, 30.0, true);
@@ -961,7 +1037,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
         let mut cancel = false;
         let mut hide = false;
         let mut exit = false;
-        egui::Modal::new(egui::Id::new("riftcore-close-confirmation-modal"))
+        egui::Modal::new(egui::Id::unique("riftcore-close-confirmation-modal"))
             .frame(
                 Frame::new()
                     .fill(palette.surface)
@@ -1242,8 +1318,7 @@ fn titlebar_action_button(
     } else {
         palette.card
     };
-    ui.painter()
-        .rect_filled(rect, CornerRadius::same(7), fill);
+    ui.painter().rect_filled(rect, CornerRadius::same(7), fill);
     ui.painter().rect_stroke(
         rect,
         CornerRadius::same(7),

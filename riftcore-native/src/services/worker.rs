@@ -228,7 +228,10 @@ impl BackgroundWorker {
     }
 
     /// Sends a command to the background worker without blocking the UI thread.
-    pub fn try_send_command(&self, command: CoreCommand) -> Result<(), mpsc::error::TrySendError<CoreCommand>> {
+    pub fn try_send_command(
+        &self,
+        command: CoreCommand,
+    ) -> Result<(), mpsc::error::TrySendError<CoreCommand>> {
         self.cmd_tx.try_send(command)
     }
 
@@ -369,7 +372,9 @@ async fn run_command_loop(
                     let notice = match client {
                         Some(lcu) => match lcu.accept_match().await {
                             Ok(()) => CoreNotice::Success("Match accepted".to_string()),
-                            Err(err) => CoreNotice::LcuError(format!("Could not accept the match: {err}")),
+                            Err(err) => {
+                                CoreNotice::LcuError(format!("Could not accept the match: {err}"))
+                            }
                         },
                         None => CoreNotice::Warning("League Client is not connected".to_string()),
                     };
@@ -382,8 +387,12 @@ async fn run_command_loop(
                     let client = c.shared.lock().await.lcu.clone();
                     let notice = match client {
                         Some(lcu) => match lcu.import_spells(spell1, spell2).await {
-                            Ok(()) => CoreNotice::Success("Summoner spells sent to League Client".to_string()),
-                            Err(err) => CoreNotice::LcuError(format!("Could not set summoner spells: {err}")),
+                            Ok(()) => CoreNotice::Success(
+                                "Summoner spells sent to League Client".to_string(),
+                            ),
+                            Err(err) => CoreNotice::LcuError(format!(
+                                "Could not set summoner spells: {err}"
+                            )),
                         },
                         None => CoreNotice::Warning("League Client is not connected".to_string()),
                     };
@@ -397,7 +406,9 @@ async fn run_command_loop(
                     let notice = match client {
                         Some(lcu) => match lcu.import_runes(page).await {
                             Ok(msg) => CoreNotice::Success(msg),
-                            Err(err) => CoreNotice::LcuError(format!("Could not import rune page: {err}")),
+                            Err(err) => {
+                                CoreNotice::LcuError(format!("Could not import rune page: {err}"))
+                            }
                         },
                         None => CoreNotice::Warning("League Client is not connected".to_string()),
                     };
@@ -412,9 +423,14 @@ async fn run_command_loop(
                         (guard.lcu.clone(), guard.snapshot.summoner.clone())
                     };
                     let notice = match client {
-                        Some(lcu) => match lcu.export_item_set(item_set, cached_summoner.as_ref()).await {
+                        Some(lcu) => match lcu
+                            .export_item_set(item_set, cached_summoner.as_ref())
+                            .await
+                        {
                             Ok(msg) => CoreNotice::Success(msg),
-                            Err(err) => CoreNotice::LcuError(format!("Could not export item set: {err}")),
+                            Err(err) => {
+                                CoreNotice::LcuError(format!("Could not export item set: {err}"))
+                            }
                         },
                         None => CoreNotice::Warning("League Client is not connected".to_string()),
                     };
@@ -443,10 +459,7 @@ async fn run_command_loop(
                                 let mut guard = c.shared.lock().await;
                                 guard.snapshot.riot_lookup = Some(data);
                             }
-                            c.emit_event(CoreEvent::RiotLookupCompleted {
-                                riot_id,
-                                ok: true,
-                            });
+                            c.emit_event(CoreEvent::RiotLookupCompleted { riot_id, ok: true });
                             c.publish_snapshot(Some(CoreNotice::Success(
                                 "Riot account lookup complete".to_string(),
                             )))
@@ -456,12 +469,10 @@ async fn run_command_loop(
                             let msg = err.to_string();
                             {
                                 let mut guard = c.shared.lock().await;
-                                guard.snapshot.riot_lookup = Some(serde_json::json!({ "error": msg }));
+                                guard.snapshot.riot_lookup =
+                                    Some(serde_json::json!({ "error": msg }));
                             }
-                            c.emit_event(CoreEvent::RiotLookupCompleted {
-                                riot_id,
-                                ok: false,
-                            });
+                            c.emit_event(CoreEvent::RiotLookupCompleted { riot_id, ok: false });
                             c.publish_snapshot(Some(CoreNotice::RiotApiError(msg)))
                                 .await;
                         }
@@ -487,7 +498,8 @@ async fn run_command_loop(
                 tokio::spawn(async move {
                     {
                         let mut guard = c.shared.lock().await;
-                        guard.snapshot.update_status = Some("Checking GitHub Releases…".to_string());
+                        guard.snapshot.update_status =
+                            Some("Checking GitHub Releases…".to_string());
                     }
                     c.publish_snapshot(None).await;
 
@@ -509,7 +521,8 @@ async fn run_command_loop(
                             let notice = if check.is_newer {
                                 Some(CoreNotice::UpdateAvailable {
                                     version: check.latest_tag.clone(),
-                                    downloadable: check.has_binary_asset && check.has_checksum_asset,
+                                    downloadable: check.has_binary_asset
+                                        && check.has_checksum_asset,
                                 })
                             } else {
                                 None
@@ -662,10 +675,9 @@ async fn run_lcu_loop(
         let mut dirty = false;
 
         if last_discovery.elapsed() >= LCU_DISCOVERY_INTERVAL {
-            let discovered = tokio::task::spawn_blocking(|| {
-                (discover_credentials(), is_riot_client_open())
-            })
-            .await;
+            let discovered =
+                tokio::task::spawn_blocking(|| (discover_credentials(), is_riot_client_open()))
+                    .await;
             last_discovery = Instant::now();
 
             if let Ok((new_creds, riot_open)) = discovered {

@@ -22,7 +22,10 @@ impl fmt::Display for SetupConflictError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AlreadyExists(champion_id) => {
-                write!(f, "Champion setup already exists for champion {champion_id}")
+                write!(
+                    f,
+                    "Champion setup already exists for champion {champion_id}"
+                )
             }
         }
     }
@@ -569,7 +572,11 @@ fn serialize_settings_toml(
     push_kv_bool(&mut out, "sound_alerts", s.sound_alerts);
     push_kv_bool(&mut out, "always_on_top", s.always_on_top);
     push_kv_bool(&mut out, "close_to_tray", s.close_to_tray);
-    push_kv_bool(&mut out, "close_confirmation_seen", s.close_confirmation_seen);
+    push_kv_bool(
+        &mut out,
+        "close_confirmation_seen",
+        s.close_confirmation_seen,
+    );
     push_kv_str(&mut out, "theme", &s.theme);
     push_kv_str(&mut out, "font_family", &s.font_family);
     push_kv_bool(&mut out, "first_run_tour_seen", s.first_run_tour_seen);
@@ -632,7 +639,10 @@ fn serialize_settings_toml(
         out.push_str(&format!("primary_tree = {}\n", setup.primary_tree));
         out.push_str(&format!("secondary_tree = {}\n", setup.secondary_tree));
         push_kv_i64_array(&mut out, "perks", &setup.perks);
-        let rows = [setup.secondary_rows[0] as i64, setup.secondary_rows[1] as i64];
+        let rows = [
+            setup.secondary_rows[0] as i64,
+            setup.secondary_rows[1] as i64,
+        ];
         push_kv_i64_array(&mut out, "secondary_rows", &rows);
         out.push_str(&format!("spell_one = {}\n", setup.spell_one));
         out.push_str(&format!("spell_two = {}\n", setup.spell_two));
@@ -755,10 +765,9 @@ fn parse_settings_toml(
             if current_section == "champion_pool" {
                 saw_pool_section = true;
             } else if let Some(id_str) = current_section.strip_prefix("champion_setups.") {
-                let id = id_str
-                    .trim()
-                    .parse::<u32>()
-                    .map_err(|_| format!("Invalid champion setup ID '{id_str}' on line {line_no}"))?;
+                let id = id_str.trim().parse::<u32>().map_err(|_| {
+                    format!("Invalid champion setup ID '{id_str}' on line {line_no}")
+                })?;
                 setups.entry(id).or_default();
             }
             continue;
@@ -766,8 +775,8 @@ fn parse_settings_toml(
 
         let (raw_key, raw_val) = split_toml_kv(&stmt)
             .ok_or_else(|| format!("Expected key = value on line {line_no}"))?;
-        let key = parse_toml_key(raw_key)
-            .ok_or_else(|| format!("Invalid TOML key on line {line_no}"))?;
+        let key =
+            parse_toml_key(raw_key).ok_or_else(|| format!("Invalid TOML key on line {line_no}"))?;
         let val = parse_toml_val(raw_val)
             .map_err(|err| format!("Invalid TOML value for '{key}' on line {line_no}: {err}"))?;
 
@@ -801,8 +810,7 @@ fn parse_settings_toml(
                     settings.first_run_tour_seen = val.as_bool().ok_or("expected bool")?
                 }
                 "last_seen_version" => {
-                    settings.last_seen_version =
-                        val.as_str().ok_or("expected string")?.to_string()
+                    settings.last_seen_version = val.as_str().ok_or("expected string")?.to_string()
                 }
                 "riot_region" => {
                     settings.riot_region = val.as_str().ok_or("expected string")?.to_string()
@@ -877,13 +885,14 @@ fn parse_settings_toml(
                     settings.hud_map_ward_pins = val.as_bool().ok_or("expected bool")?
                 }
                 "jungle_start_buff" => {
-                    settings.jungle_start_buff =
-                        val.as_str().ok_or("expected string")?.to_string()
+                    settings.jungle_start_buff = val.as_str().ok_or("expected string")?.to_string()
                 }
                 "hud_aram_health_timers" => {
                     settings.hud_aram_health_timers = val.as_bool().ok_or("expected bool")?
                 }
-                "hud_mode" => settings.hud_mode = val.as_str().ok_or("expected string")?.to_string(),
+                "hud_mode" => {
+                    settings.hud_mode = val.as_str().ok_or("expected string")?.to_string()
+                }
                 "hud_minimap_scale" => {
                     settings.hud_minimap_scale = val.as_f32().ok_or("expected float")?
                 }
@@ -945,7 +954,10 @@ fn parse_settings_toml(
             }
             pool_entries.insert(key, ids);
         } else if let Some(id_str) = current_section.strip_prefix("champion_setups.") {
-            let id = id_str.trim().parse::<u32>().map_err(|_| "invalid setup id")?;
+            let id = id_str
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| "invalid setup id")?;
             let setup = setups.entry(id).or_default();
             match key.as_str() {
                 "role" => setup.role = val.as_str().ok_or("expected string")?.to_string(),
@@ -1096,7 +1108,9 @@ fn split_toml_statements(input: &str) -> Result<Vec<(usize, String)>, String> {
         return Err(format!("Unterminated string literal on line {line_no}"));
     }
     if bracket_depth != 0 {
-        return Err(format!("Unclosed '[' bracket starting on line {start_line}"));
+        return Err(format!(
+            "Unclosed '[' bracket starting on line {start_line}"
+        ));
     }
     let trimmed = current.trim();
     if !trimmed.is_empty() {

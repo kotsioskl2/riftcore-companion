@@ -313,7 +313,13 @@ pub type OverlayRenderCallback =
 pub trait OverlaySurfaceHost {
     fn backend_kind(&self) -> OverlayHostBackend;
 
-    fn sync_window(&mut self, visible: bool, rect_px: [i32; 4], monitor_dpi: u32, passthrough: bool);
+    fn sync_window(
+        &mut self,
+        visible: bool,
+        rect_px: [i32; 4],
+        monitor_dpi: u32,
+        passthrough: bool,
+    );
 
     fn render_if_needed(
         &mut self,

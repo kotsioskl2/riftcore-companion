@@ -27,8 +27,8 @@ pub fn sha256_verify_file(path: &Path, expected_hex: &str) -> Result<bool, Strin
     let Some(expected_bytes) = decode_sha256_hex(expected_hex) else {
         return Ok(false);
     };
-    let mut file =
-        std::fs::File::open(path).map_err(|err| format!("Could not open file for hashing: {err}"))?;
+    let mut file = std::fs::File::open(path)
+        .map_err(|err| format!("Could not open file for hashing: {err}"))?;
     let mut ctx = ring::digest::Context::new(&ring::digest::SHA256);
     let mut buffer = [0u8; 64 * 1024];
     loop {
@@ -181,9 +181,24 @@ pub fn dpapi_protect(plaintext: &[u8]) -> Result<Vec<u8>, String> {
         pb_data: std::ptr::null_mut(),
     };
     let descr: [u16; 19] = [
-        b'R' as u16, b'i' as u16, b'f' as u16, b't' as u16, b'C' as u16, b'o' as u16,
-        b'r' as u16, b'e' as u16, b'.' as u16, b'R' as u16, b'i' as u16, b'o' as u16,
-        b't' as u16, b'A' as u16, b'p' as u16, b'i' as u16, b'K' as u16, b'e' as u16,
+        b'R' as u16,
+        b'i' as u16,
+        b'f' as u16,
+        b't' as u16,
+        b'C' as u16,
+        b'o' as u16,
+        b'r' as u16,
+        b'e' as u16,
+        b'.' as u16,
+        b'R' as u16,
+        b'i' as u16,
+        b'o' as u16,
+        b't' as u16,
+        b'A' as u16,
+        b'p' as u16,
+        b'i' as u16,
+        b'K' as u16,
+        b'e' as u16,
         0,
     ];
 
@@ -206,7 +221,9 @@ pub fn dpapi_protect(plaintext: &[u8]) -> Result<Vec<u8>, String> {
             if !out_blob.pb_data.is_null() {
                 let _ = LocalFree(out_blob.pb_data.cast::<c_void>());
             }
-            return Err(format!("CryptProtectData failed with Win32 error {code:#x}"));
+            return Err(format!(
+                "CryptProtectData failed with Win32 error {code:#x}"
+            ));
         }
         if out_blob.pb_data.is_null() || out_blob.cb_data == 0 {
             if !out_blob.pb_data.is_null() {
@@ -291,7 +308,9 @@ pub fn dpapi_unprotect(ciphertext: &[u8]) -> Result<Zeroizing<Vec<u8>>, String> 
             if !out_blob.pb_data.is_null() {
                 let _ = LocalFree(out_blob.pb_data.cast::<c_void>());
             }
-            return Err(format!("CryptUnprotectData failed with Win32 error {code:#x}"));
+            return Err(format!(
+                "CryptUnprotectData failed with Win32 error {code:#x}"
+            ));
         }
         if out_blob.pb_data.is_null() {
             return Err("CryptUnprotectData returned a null plaintext buffer".to_string());
@@ -468,7 +487,8 @@ mod tests {
         let protected = protect_secret_string(secret).expect("dpapi protect should succeed");
         assert!(is_dpapi_protected_value(&protected));
         assert!(!protected.contains("RGAPI-"));
-        let recovered = unprotect_secret_string(&protected).expect("dpapi unprotect should succeed");
+        let recovered =
+            unprotect_secret_string(&protected).expect("dpapi unprotect should succeed");
         assert_eq!(recovered.as_str(), secret);
     }
 
@@ -478,10 +498,8 @@ mod tests {
         let missing = Path::new("D:\\definitely_missing_riftcore_probe.exe");
         assert!(!is_authenticode_valid(missing));
 
-        let temp_path = std::env::temp_dir().join(format!(
-            "riftcore-unsigned-test-{}.exe",
-            std::process::id()
-        ));
+        let temp_path =
+            std::env::temp_dir().join(format!("riftcore-unsigned-test-{}.exe", std::process::id()));
         std::fs::write(&temp_path, b"MZnot-a-signed-pe").expect("write temp probe");
         let valid = is_authenticode_valid(&temp_path);
         let _ = std::fs::remove_file(&temp_path);

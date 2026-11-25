@@ -208,7 +208,12 @@ pub fn query_monitors() -> Vec<MonitorMetrics> {
         fn EnumDisplayMonitors(
             hdc: *mut c_void,
             clip: *const WinRect,
-            enum_proc: unsafe extern "system" fn(*mut c_void, *mut c_void, *mut WinRect, isize) -> i32,
+            enum_proc: unsafe extern "system" fn(
+                *mut c_void,
+                *mut c_void,
+                *mut WinRect,
+                isize,
+            ) -> i32,
             data: isize,
         ) -> i32;
         fn GetMonitorInfoW(monitor: *mut c_void, info: *mut MonitorInfo) -> i32;

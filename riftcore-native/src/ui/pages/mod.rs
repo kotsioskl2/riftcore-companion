@@ -505,7 +505,8 @@ pub fn select_champion_setup_inner(
     });
 
     if let Some(setup) = use_saved {
-        cs.build_role = Role::from_str_lossy(&setup.role).unwrap_or_else(|| champion.primary_role());
+        cs.build_role =
+            Role::from_str_lossy(&setup.role).unwrap_or_else(|| champion.primary_role());
         cs.primary_tree = setup.primary_tree;
         cs.secondary_tree = if setup.secondary_tree == setup.primary_tree {
             runes::RUNE_TREE_NAMES
@@ -537,7 +538,12 @@ pub fn select_champion_setup_inner(
         )
         .cloned()
         .unwrap_or_else(|| {
-            builds::recommend(&champion.key, &champion.name, &champion.roles, requested_role)
+            builds::recommend(
+                &champion.key,
+                &champion.name,
+                &champion.roles,
+                requested_role,
+            )
         });
         cs.build_role = profile.role;
         cs.primary_tree = profile.primary_tree;
@@ -572,17 +578,16 @@ pub fn select_champion_setup_inner(
         return;
     }
 
-    let recommendation =
-        builds::build_for_champion(champion.id, cs.build_role)
-            .cloned()
-            .unwrap_or_else(|| {
-                builds::recommend(
-                    &champion.key,
-                    &champion.name,
-                    &champion.roles,
-                    Some(cs.build_role),
-                )
-            });
+    let recommendation = builds::build_for_champion(champion.id, cs.build_role)
+        .cloned()
+        .unwrap_or_else(|| {
+            builds::recommend(
+                &champion.key,
+                &champion.name,
+                &champion.roles,
+                Some(cs.build_role),
+            )
+        });
 
     if store.settings.auto_import_spells {
         commands.push(CoreCommand::ImportSpells {
@@ -716,7 +721,15 @@ mod tests {
 
         // Select Ahri (loads custom setup)
         let ahri = champions::champion_by_id(103).unwrap();
-        select_champion_setup_inner(&snapshot, &store, &mut state, &mut commands, ahri, None, false);
+        select_champion_setup_inner(
+            &snapshot,
+            &store,
+            &mut state,
+            &mut commands,
+            ahri,
+            None,
+            false,
+        );
         assert_eq!(state.champ_select.selected_champion, 103);
         assert_eq!(state.champ_select.secondary_tree, runes::TREE_PRECISION);
 

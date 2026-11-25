@@ -197,10 +197,7 @@ pub enum CoreNotice {
     Success(String),
     Warning(String),
     OverlayError(String),
-    UpdateAvailable {
-        version: String,
-        downloadable: bool,
-    },
+    UpdateAvailable { version: String, downloadable: bool },
     LcuError(String),
     RiotApiError(String),
 }
@@ -234,14 +231,23 @@ mod tests {
 
     #[test]
     fn live_coach_gate_is_false_by_default() {
-        assert!(!LIVE_COACH_ENABLED);
+        const { assert!(!LIVE_COACH_ENABLED) };
     }
 
     #[test]
     fn maps_lcu_phases_and_roundtrips_snapshot() {
-        assert_eq!(GameflowPhase::from_lcu("ChampSelect"), GameflowPhase::ChampSelect);
-        assert_eq!(GameflowPhase::from_lcu("InProgress"), GameflowPhase::InProgress);
-        assert_eq!(GameflowPhase::from_lcu("CustomOther"), GameflowPhase::Unknown);
+        assert_eq!(
+            GameflowPhase::from_lcu("ChampSelect"),
+            GameflowPhase::ChampSelect
+        );
+        assert_eq!(
+            GameflowPhase::from_lcu("InProgress"),
+            GameflowPhase::InProgress
+        );
+        assert_eq!(
+            GameflowPhase::from_lcu("CustomOther"),
+            GameflowPhase::Unknown
+        );
 
         let snap = CoreSnapshot {
             connected: true,
@@ -287,13 +293,7 @@ mod tests {
         };
         let cmd_json = serde_json::to_string(&cmd).expect("serialize CoreCommand");
         let ev_json = serde_json::to_string(&event).expect("serialize CoreEvent");
-        assert_eq!(
-            serde_json::from_str::<CoreCommand>(&cmd_json).unwrap(),
-            cmd
-        );
-        assert_eq!(
-            serde_json::from_str::<CoreEvent>(&ev_json).unwrap(),
-            event
-        );
+        assert_eq!(serde_json::from_str::<CoreCommand>(&cmd_json).unwrap(), cmd);
+        assert_eq!(serde_json::from_str::<CoreEvent>(&ev_json).unwrap(), event);
     }
 }

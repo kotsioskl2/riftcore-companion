@@ -77,8 +77,7 @@ pub fn is_process_running(pid: u32) -> bool {
             return false;
         }
         let mut exit_code = 0u32;
-        let active =
-            GetExitCodeProcess(process, &mut exit_code) != 0 && exit_code == STILL_ACTIVE;
+        let active = GetExitCodeProcess(process, &mut exit_code) != 0 && exit_code == STILL_ACTIVE;
         let _ = CloseHandle(process);
         active
     }
@@ -129,11 +128,8 @@ pub fn find_process_exe_path(exe_name: &str) -> Option<PathBuf> {
             loop {
                 let candidate = utf16_z_to_string(&entry.sz_exe_file);
                 if candidate.eq_ignore_ascii_case(exe_name) {
-                    let process = OpenProcess(
-                        PROCESS_QUERY_LIMITED_INFORMATION,
-                        0,
-                        entry.th32_process_id,
-                    );
+                    let process =
+                        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32_process_id);
                     if !process.is_null() {
                         let mut buffer = [0u16; 1024];
                         let mut size = buffer.len() as u32;
@@ -293,13 +289,16 @@ mod tests {
     #[test]
     fn parse_lockfile_rejects_port_injection_and_bad_pid() {
         let path = Path::new("C:\\Riot Games\\League of Legends\\lockfile");
-        assert!(parse_lockfile_str("LeagueClient:1234:80@evil.com:tok:https", path, false).is_none());
+        assert!(
+            parse_lockfile_str("LeagueClient:1234:80@evil.com:tok:https", path, false).is_none()
+        );
         assert!(parse_lockfile_str("LeagueClient:abc:51234:tok:https", path, false).is_none());
         assert!(parse_lockfile_str("LeagueClient:1234:0:tok:https", path, false).is_none());
         assert!(parse_lockfile_str("LeagueClient:1234:70000:tok:https", path, false).is_none());
 
-        let valid = parse_lockfile_str("LeagueClient:1234:51234:secretToken_123:https", path, false)
-            .expect("valid lockfile should parse");
+        let valid =
+            parse_lockfile_str("LeagueClient:1234:51234:secretToken_123:https", path, false)
+                .expect("valid lockfile should parse");
         assert_eq!(valid.pid, 1234);
         assert_eq!(valid.port, 51234);
         assert_eq!(valid.token, "secretToken_123");
@@ -310,7 +309,10 @@ mod tests {
         let prev = std::env::var("RIFTCORE_LOCKFILE").ok();
         std::env::set_var("RIFTCORE_LOCKFILE", "D:\\custom\\test_lockfile");
         let candidates = lcu_lockfile_candidates();
-        assert_eq!(candidates.first(), Some(&PathBuf::from("D:\\custom\\test_lockfile")));
+        assert_eq!(
+            candidates.first(),
+            Some(&PathBuf::from("D:\\custom\\test_lockfile"))
+        );
         match prev {
             Some(v) => std::env::set_var("RIFTCORE_LOCKFILE", v),
             None => std::env::remove_var("RIFTCORE_LOCKFILE"),

@@ -4,6 +4,7 @@ use crate::domain::analytics::NormalizedMatchSummary;
 use crate::domain::champions::{champion_by_id, Role};
 use crate::domain::items;
 use crate::domain::protocol::CoreNotice;
+use crate::domain::protocol::CoreSnapshot;
 use crate::domain::runes;
 use crate::ui::textures::TextureManager;
 use crate::ui::theme::{lerp_color, role_color, rune_tree_color, Spacing, ThemePalette};
@@ -120,12 +121,9 @@ pub fn render_tactical_core(ui: &mut egui::Ui, signal: Color32, palette: &ThemeP
 }
 
 /// Primary card container with tactical accent top rail.
-pub fn panel(
-    ui: &mut egui::Ui,
-    palette: &ThemePalette,
-    add_contents: impl FnOnce(&mut egui::Ui),
-) {
-    let inner_width = (ui.available_width() - f32::from(Spacing::PANEL_MARGIN) * 2.0 - 2.0).max(0.0);
+pub fn panel(ui: &mut egui::Ui, palette: &ThemePalette, add_contents: impl FnOnce(&mut egui::Ui)) {
+    let inner_width =
+        (ui.available_width() - f32::from(Spacing::PANEL_MARGIN) * 2.0 - 2.0).max(0.0);
     let frame = Frame::new()
         .fill(palette.card)
         .stroke(Stroke::new(1.0, palette.border))
@@ -180,7 +178,8 @@ pub fn panel_title(ui: &mut egui::Ui, palette: &ThemePalette, title: &str, descr
             Stroke::new(1.0, palette.accent),
             egui::StrokeKind::Inside,
         );
-        ui.painter().circle_filled(accent.center(), 2.2, palette.accent);
+        ui.painter()
+            .circle_filled(accent.center(), 2.2, palette.accent);
         ui.add_space(2.0);
         ui.vertical(|ui| {
             ui.label(RichText::new(title).size(14.5).strong().color(palette.text));
@@ -206,10 +205,11 @@ pub fn page_heading(
     eyebrow: &str,
     title: &str,
     description: &str,
-    connected: bool,
-    riot_client_open: bool,
-    phase_label: &str,
+    snapshot: &CoreSnapshot,
 ) {
+    let connected = snapshot.connected;
+    let riot_client_open = snapshot.riot_client_open;
+    let phase_label = snapshot.phase.display_label();
     let (link_label, link_color) = if connected {
         ("LIVE LINK", palette.green)
     } else if riot_client_open {
@@ -330,9 +330,19 @@ pub fn kda_display(
 ) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 3.0;
-        ui.label(RichText::new(kills.to_string()).size(11.0).strong().color(palette.green));
+        ui.label(
+            RichText::new(kills.to_string())
+                .size(11.0)
+                .strong()
+                .color(palette.green),
+        );
         ui.label(RichText::new("/").size(10.5).color(palette.muted));
-        ui.label(RichText::new(deaths.to_string()).size(11.0).strong().color(palette.red));
+        ui.label(
+            RichText::new(deaths.to_string())
+                .size(11.0)
+                .strong()
+                .color(palette.red),
+        );
         ui.label(RichText::new("/").size(10.5).color(palette.muted));
         ui.label(
             RichText::new(assists.to_string())
@@ -358,7 +368,13 @@ pub fn kda_display(
 }
 
 /// Smooth progress bar used across Draft Coach, Ranked LP, and Trends.
-pub fn progress_bar(ui: &mut egui::Ui, palette: &ThemePalette, fraction: f32, color: Color32, height: f32) {
+pub fn progress_bar(
+    ui: &mut egui::Ui,
+    palette: &ThemePalette,
+    fraction: f32,
+    color: Color32,
+    height: f32,
+) {
     let width = ui.available_width().max(40.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
     let radius = (height * 0.5).round() as u8;
@@ -384,7 +400,11 @@ pub fn stat_bar(
     ui.horizontal(|ui| {
         ui.label(RichText::new(label).size(10.5).color(palette.text));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.label(RichText::new(value_label).size(10.0).color(palette.secondary));
+            ui.label(
+                RichText::new(value_label)
+                    .size(10.0)
+                    .color(palette.secondary),
+            );
         });
     });
     progress_bar(ui, palette, fraction, color, 5.0);
@@ -556,19 +576,21 @@ pub fn toggle_row(
     let mut changed = false;
     ui.horizontal(|ui| {
         let text_w = (ui.available_width() - 48.0).max(120.0);
-        ui.allocate_ui_with_layout(Vec2::new(text_w, 0.0), Layout::top_down(Align::LEFT), |ui| {
-            ui.label(RichText::new(title).size(12.0).strong().color(palette.text));
-            if !subtitle.is_empty() {
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(subtitle)
-                            .size(10.0)
-                            .color(palette.secondary),
-                    )
-                    .wrap(),
-                );
-            }
-        });
+        ui.allocate_ui_with_layout(
+            Vec2::new(text_w, 0.0),
+            Layout::top_down(Align::LEFT),
+            |ui| {
+                ui.label(RichText::new(title).size(12.0).strong().color(palette.text));
+                if !subtitle.is_empty() {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(subtitle).size(10.0).color(palette.secondary),
+                        )
+                        .wrap(),
+                    );
+                }
+            },
+        );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if toggle_switch(ui, palette, value).changed() {
                 changed = true;
@@ -619,9 +641,7 @@ pub fn item_slot(
     show_label: bool,
 ) {
     let meta = items::item_by_id(item_id);
-    let item_name = meta
-        .map(|m| m.name.as_str())
-        .unwrap_or("Empty Slot");
+    let item_name = meta.map(|m| m.name.as_str()).unwrap_or("Empty Slot");
     let tint = match meta {
         Some(m) if m.is_trinket() => palette.gold,
         Some(m) if m.has_tag("Boots") => palette.green,
@@ -629,7 +649,9 @@ pub fn item_slot(
         Some(m) if m.has_tag("Armor") || m.has_tag("Health") || m.has_tag("SpellBlock") => {
             palette.accent
         }
-        Some(m) if m.has_tag("Damage") || m.has_tag("CriticalStrike") || m.has_tag("AttackSpeed") => {
+        Some(m)
+            if m.has_tag("Damage") || m.has_tag("CriticalStrike") || m.has_tag("AttackSpeed") =>
+        {
             palette.red
         }
         Some(_) => palette.accent,
@@ -670,7 +692,12 @@ pub fn item_slot(
             );
             if show_label && item_id > 0 {
                 ui.vertical(|ui| {
-                    ui.label(RichText::new(item_name).size(10.5).strong().color(palette.text));
+                    ui.label(
+                        RichText::new(item_name)
+                            .size(10.5)
+                            .strong()
+                            .color(palette.text),
+                    );
                     if let Some(item) = meta {
                         if item.gold.total > 0 {
                             ui.label(
@@ -868,11 +895,7 @@ pub fn match_summary_row(
                 );
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
-                        badge(
-                            ui,
-                            if summary.win { "WIN" } else { "LOSS" },
-                            outcome_color,
-                        );
+                        badge(ui, if summary.win { "WIN" } else { "LOSS" }, outcome_color);
                         ui.label(
                             RichText::new(&summary.champion_name)
                                 .size(11.5)

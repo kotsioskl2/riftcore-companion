@@ -145,58 +145,58 @@ pub fn compute_overlay_rect_px(
     let game_h = (t_bottom - t_top).max(1);
     let scale = dpi_scale(target.monitor_dpi);
 
-    let (off_x, off_y, width_px, height_px) = if mayhem_open && mode != HudPresentationMode::Integrated
-    {
-        let w = (430.0 * scale).round() as i32;
-        let h = (560.0 * scale).round() as i32;
-        (
-            (game_w - w).max(0),
-            (52.0 * scale).round() as i32,
-            w.min(game_w),
-            h.min(game_h),
-        )
-    } else {
-        match mode {
-            HudPresentationMode::Bar => {
-                let w = (620.0 * scale).round() as i32;
-                let h = (54.0 * scale).round() as i32;
-                let clamped_w = w.min(game_w);
-                (
-                    ((game_w - clamped_w) / 2).max(0),
-                    (12.0 * scale).round() as i32,
-                    clamped_w,
-                    h.min(game_h),
-                )
+    let (off_x, off_y, width_px, height_px) =
+        if mayhem_open && mode != HudPresentationMode::Integrated {
+            let w = (430.0 * scale).round() as i32;
+            let h = (560.0 * scale).round() as i32;
+            (
+                (game_w - w).max(0),
+                (52.0 * scale).round() as i32,
+                w.min(game_w),
+                h.min(game_h),
+            )
+        } else {
+            match mode {
+                HudPresentationMode::Bar => {
+                    let w = (620.0 * scale).round() as i32;
+                    let h = (54.0 * scale).round() as i32;
+                    let clamped_w = w.min(game_w);
+                    (
+                        ((game_w - clamped_w) / 2).max(0),
+                        (12.0 * scale).round() as i32,
+                        clamped_w,
+                        h.min(game_h),
+                    )
+                }
+                HudPresentationMode::Pill => {
+                    let w = (360.0 * scale).round() as i32;
+                    let h = (48.0 * scale).round() as i32;
+                    let clamped_w = w.min(game_w);
+                    (
+                        (game_w - clamped_w - (14.0 * scale).round() as i32).max(0),
+                        (58.0 * scale).round() as i32,
+                        clamped_w,
+                        h.min(game_h),
+                    )
+                }
+                HudPresentationMode::Card => {
+                    let w = (360.0 * scale).round() as i32;
+                    let h = (330.0 * scale).round() as i32;
+                    let clamped_w = w.min(game_w);
+                    (
+                        (game_w - clamped_w - (14.0 * scale).round() as i32).max(0),
+                        (58.0 * scale).round() as i32,
+                        clamped_w,
+                        h.min(game_h),
+                    )
+                }
+                HudPresentationMode::Integrated => {
+                    // Keep 1 physical pixel inside a full-screen client rect so Windows DWM does not
+                    // treat the topmost DirectComposition window as exclusive full-screen occlusion.
+                    (0, 0, (game_w - 1).max(1), (game_h - 1).max(1))
+                }
             }
-            HudPresentationMode::Pill => {
-                let w = (360.0 * scale).round() as i32;
-                let h = (48.0 * scale).round() as i32;
-                let clamped_w = w.min(game_w);
-                (
-                    (game_w - clamped_w - (14.0 * scale).round() as i32).max(0),
-                    (58.0 * scale).round() as i32,
-                    clamped_w,
-                    h.min(game_h),
-                )
-            }
-            HudPresentationMode::Card => {
-                let w = (360.0 * scale).round() as i32;
-                let h = (330.0 * scale).round() as i32;
-                let clamped_w = w.min(game_w);
-                (
-                    (game_w - clamped_w - (14.0 * scale).round() as i32).max(0),
-                    (58.0 * scale).round() as i32,
-                    clamped_w,
-                    h.min(game_h),
-                )
-            }
-            HudPresentationMode::Integrated => {
-                // Keep 1 physical pixel inside a full-screen client rect so Windows DWM does not
-                // treat the topmost DirectComposition window as exclusive full-screen occlusion.
-                (0, 0, (game_w - 1).max(1), (game_h - 1).max(1))
-            }
-        }
-    };
+        };
 
     let mut left = t_left + off_x;
     let mut top = t_top + off_y;

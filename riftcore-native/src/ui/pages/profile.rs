@@ -10,8 +10,8 @@ use crate::domain::protocol::{CoreCommand, CoreNotice};
 use crate::ui::pages::PageContext;
 use crate::ui::theme::{tier_color, ThemePalette};
 use crate::ui::widgets::{
-    action_button, avatar, badge, inset_card, match_summary_row, metric_card, page_heading,
-    panel, panel_title, progress_bar, search_box,
+    action_button, avatar, badge, inset_card, match_summary_row, page_heading, panel, panel_title,
+    progress_bar, search_box,
 };
 use eframe::egui::{self, Align, Layout, RichText};
 use serde_json::Value;
@@ -26,9 +26,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         "SUMMONER INSIGHTS",
         "Profile & Analysis",
         "Ranked standing, multi-game performance trends, local match history, and Riot ID scouting.",
-        ctx.snapshot.connected,
-        ctx.snapshot.riot_client_open,
-        ctx.snapshot.phase.display_label(),
+        ctx.snapshot,
     );
 
     render_profile_summary(ctx, ui);
@@ -168,9 +166,7 @@ pub fn render_profile_summary(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                                             .color(color),
                                     );
                                     ui.label(
-                                        RichText::new("/ 100 LP")
-                                            .size(10.0)
-                                            .color(palette.muted),
+                                        RichText::new("/ 100 LP").size(10.0).color(palette.muted),
                                     );
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                         if total > 0 {
@@ -433,7 +429,11 @@ pub fn render_riot_search(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
             if action_button(
                 ui,
                 &palette,
-                if loading { "SEARCHING…" } else { "SCOUT ACCOUNT" },
+                if loading {
+                    "SEARCHING…"
+                } else {
+                    "SCOUT ACCOUNT"
+                },
                 loading,
                 palette.accent,
             )
@@ -538,7 +538,10 @@ pub fn render_riot_lookup(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     .get("tier")
                     .and_then(Value::as_str)
                     .unwrap_or("UNRANKED");
-                let division = entry.get("rank").and_then(Value::as_str).unwrap_or_default();
+                let division = entry
+                    .get("rank")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
                 let wins = entry.get("wins").and_then(Value::as_u64).unwrap_or(0);
                 let losses = entry.get("losses").and_then(Value::as_u64).unwrap_or(0);
                 let rate = if wins + losses == 0 {
@@ -583,10 +586,7 @@ pub fn render_riot_lookup(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                             avatar(ui, &palette, name, 26.0, palette.accent, portrait);
                             ui.vertical(|ui| {
                                 ui.label(
-                                    RichText::new(name)
-                                        .size(10.5)
-                                        .strong()
-                                        .color(palette.text),
+                                    RichText::new(name).size(10.5).strong().color(palette.text),
                                 );
                                 ui.label(
                                     RichText::new(format!(

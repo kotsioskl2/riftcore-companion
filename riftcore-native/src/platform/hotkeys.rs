@@ -103,12 +103,7 @@ pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
                         msg_filter_max: u32,
                         remove_msg: u32,
                     ) -> i32;
-                    fn RegisterHotKey(
-                        hwnd: *mut c_void,
-                        id: i32,
-                        modifiers: u32,
-                        vk: u32,
-                    ) -> i32;
+                    fn RegisterHotKey(hwnd: *mut c_void, id: i32, modifiers: u32, vk: u32) -> i32;
                     fn UnregisterHotKey(hwnd: *mut c_void, id: i32) -> i32;
                     fn GetMessageW(
                         msg: *mut Message,
@@ -210,7 +205,9 @@ pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
             .ok();
 
         let (thread_id, registration) = if join_handle.is_some() {
-            init_rx.recv().unwrap_or((0, HotkeyRegistrationStatus::default()))
+            init_rx
+                .recv()
+                .unwrap_or((0, HotkeyRegistrationStatus::default()))
         } else {
             (0, HotkeyRegistrationStatus::default())
         };

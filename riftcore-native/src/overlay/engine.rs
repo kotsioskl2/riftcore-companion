@@ -328,9 +328,11 @@ impl OverlayEngine {
 
         self.last_diagnostics = Some(host.diagnostics());
         let interacting_or_hovering = !desired_passthrough || force_interactive_redraw;
-        let next =
-            self.scheduler
-                .next_repaint_after(state, interacting_or_hovering, render_state.clock_secs);
+        let next = self.scheduler.next_repaint_after(
+            state,
+            interacting_or_hovering,
+            render_state.clock_secs,
+        );
         (state, next)
     }
 }

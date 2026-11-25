@@ -112,7 +112,9 @@ pub fn build_minimap_guide_model(
     if !live.is_summoners_rift() {
         return None;
     }
-    if !settings.hud_map_objective_pins && !settings.hud_map_route_pins && !settings.hud_map_ward_pins
+    if !settings.hud_map_objective_pins
+        && !settings.hud_map_route_pins
+        && !settings.hud_map_ward_pins
     {
         return None;
     }
@@ -137,56 +139,56 @@ pub fn build_minimap_guide_model(
 
     let mut route_pins = Vec::new();
     if settings.hud_map_route_pins && settings.hud_jungle_pathing {
-        let route: [(&str, &str, f32, f32, u64, u64); 7] =
-            match (is_red_side, settings.jungle_start_buff.eq_ignore_ascii_case("blue")) {
-                (true, false) => [
-                    ("R", "Red Buff", 48.0, 73.0, 90, 110),
-                    ("K", "Krugs", 43.5, 82.0, 110, 135),
-                    ("R", "Raptors", 53.0, 64.0, 135, 160),
-                    ("W", "Wolves", 74.0, 56.5, 160, 180),
-                    ("B", "Blue Buff", 74.5, 47.5, 180, 195),
-                    ("G", "Gromp", 86.0, 44.0, 195, 210),
-                    ("S", "Scuttle Crab", 29.5, 64.0, 210, 240),
-                ],
-                (true, true) => [
-                    ("B", "Blue Buff", 74.5, 47.5, 90, 110),
-                    ("G", "Gromp", 86.0, 44.0, 110, 135),
-                    ("W", "Wolves", 74.0, 56.5, 135, 160),
-                    ("R", "Raptors", 53.0, 64.0, 160, 180),
-                    ("R", "Red Buff", 48.0, 73.0, 180, 195),
-                    ("K", "Krugs", 43.5, 82.0, 195, 210),
-                    ("S", "Scuttle Crab", 29.5, 64.0, 210, 240),
-                ],
-                (false, false) => [
-                    ("R", "Red Buff", 52.0, 27.0, 90, 110),
-                    ("K", "Krugs", 56.5, 18.0, 110, 135),
-                    ("R", "Raptors", 47.0, 36.0, 135, 160),
-                    ("W", "Wolves", 26.0, 43.5, 160, 180),
-                    ("B", "Blue Buff", 25.5, 52.5, 180, 195),
-                    ("G", "Gromp", 14.0, 56.0, 195, 210),
-                    ("S", "Scuttle Crab", 70.0, 35.0, 210, 240),
-                ],
-                (false, true) => [
-                    ("B", "Blue Buff", 25.5, 52.5, 90, 110),
-                    ("G", "Gromp", 14.0, 56.0, 110, 135),
-                    ("W", "Wolves", 26.0, 43.5, 135, 160),
-                    ("R", "Raptors", 47.0, 36.0, 160, 180),
-                    ("R", "Red Buff", 52.0, 27.0, 180, 195),
-                    ("K", "Krugs", 56.5, 18.0, 195, 210),
-                    ("S", "Scuttle Crab", 70.0, 35.0, 210, 240),
-                ],
-            };
-        let active_step = jungle_route_status(game_time, &settings.jungle_start_buff)
-            .map(|(step, _, _, _)| step);
+        let route: [(&str, &str, f32, f32, u64, u64); 7] = match (
+            is_red_side,
+            settings.jungle_start_buff.eq_ignore_ascii_case("blue"),
+        ) {
+            (true, false) => [
+                ("R", "Red Buff", 48.0, 73.0, 90, 110),
+                ("K", "Krugs", 43.5, 82.0, 110, 135),
+                ("R", "Raptors", 53.0, 64.0, 135, 160),
+                ("W", "Wolves", 74.0, 56.5, 160, 180),
+                ("B", "Blue Buff", 74.5, 47.5, 180, 195),
+                ("G", "Gromp", 86.0, 44.0, 195, 210),
+                ("S", "Scuttle Crab", 29.5, 64.0, 210, 240),
+            ],
+            (true, true) => [
+                ("B", "Blue Buff", 74.5, 47.5, 90, 110),
+                ("G", "Gromp", 86.0, 44.0, 110, 135),
+                ("W", "Wolves", 74.0, 56.5, 135, 160),
+                ("R", "Raptors", 53.0, 64.0, 160, 180),
+                ("R", "Red Buff", 48.0, 73.0, 180, 195),
+                ("K", "Krugs", 43.5, 82.0, 195, 210),
+                ("S", "Scuttle Crab", 29.5, 64.0, 210, 240),
+            ],
+            (false, false) => [
+                ("R", "Red Buff", 52.0, 27.0, 90, 110),
+                ("K", "Krugs", 56.5, 18.0, 110, 135),
+                ("R", "Raptors", 47.0, 36.0, 135, 160),
+                ("W", "Wolves", 26.0, 43.5, 160, 180),
+                ("B", "Blue Buff", 25.5, 52.5, 180, 195),
+                ("G", "Gromp", 14.0, 56.0, 195, 210),
+                ("S", "Scuttle Crab", 70.0, 35.0, 210, 240),
+            ],
+            (false, true) => [
+                ("B", "Blue Buff", 25.5, 52.5, 90, 110),
+                ("G", "Gromp", 14.0, 56.0, 110, 135),
+                ("W", "Wolves", 26.0, 43.5, 135, 160),
+                ("R", "Raptors", 47.0, 36.0, 160, 180),
+                ("R", "Red Buff", 52.0, 27.0, 180, 195),
+                ("K", "Krugs", 56.5, 18.0, 195, 210),
+                ("S", "Scuttle Crab", 70.0, 35.0, 210, 240),
+            ],
+        };
+        let active_step =
+            jungle_route_status(game_time, &settings.jungle_start_buff).map(|(step, _, _, _)| step);
         for (idx, &(short_label, camp_name, x_pct, y_pct, start, end)) in route.iter().enumerate() {
             let step = idx + 1;
             let active = active_step == Some(step);
             let remaining_secs = if game_time < start {
                 start - game_time
-            } else if game_time < end {
-                end - game_time
             } else {
-                0
+                end.saturating_sub(game_time)
             };
             route_pins.push(RouteStepPin {
                 step,
@@ -202,12 +204,36 @@ pub fn build_minimap_guide_model(
 
     let ward_pins = if settings.hud_map_ward_pins {
         vec![
-            WardMapPin { short_label: "W", x_pct: 62.0, y_pct: 40.0 },
-            WardMapPin { short_label: "W", x_pct: 38.0, y_pct: 60.0 },
-            WardMapPin { short_label: "W", x_pct: 80.0, y_pct: 75.0 },
-            WardMapPin { short_label: "W", x_pct: 20.0, y_pct: 25.0 },
-            WardMapPin { short_label: "W", x_pct: 64.0, y_pct: 84.0 },
-            WardMapPin { short_label: "W", x_pct: 36.0, y_pct: 16.0 },
+            WardMapPin {
+                short_label: "W",
+                x_pct: 62.0,
+                y_pct: 40.0,
+            },
+            WardMapPin {
+                short_label: "W",
+                x_pct: 38.0,
+                y_pct: 60.0,
+            },
+            WardMapPin {
+                short_label: "W",
+                x_pct: 80.0,
+                y_pct: 75.0,
+            },
+            WardMapPin {
+                short_label: "W",
+                x_pct: 20.0,
+                y_pct: 25.0,
+            },
+            WardMapPin {
+                short_label: "W",
+                x_pct: 64.0,
+                y_pct: 84.0,
+            },
+            WardMapPin {
+                short_label: "W",
+                x_pct: 36.0,
+                y_pct: 16.0,
+            },
         ]
     } else {
         Vec::new()

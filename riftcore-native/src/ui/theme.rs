@@ -128,7 +128,7 @@ impl ThemePalette {
         Self::for_mode(ThemeMode::from_str_lossy(raw))
     }
 
-    pub const fn for_mode(mode: ThemeMode) -> Self {
+    pub fn for_mode(mode: ThemeMode) -> Self {
         match mode {
             ThemeMode::Hextech => Self {
                 mode,

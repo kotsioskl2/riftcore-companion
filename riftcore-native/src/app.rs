@@ -3760,8 +3760,9 @@ impl RiftCoreApp {
                                     CYAN,
                                 )
                                 .clicked()
+                                    && self.tft_selected_cell.is_some()
                                 {
-                                    if self.tft_selected_cell.is_some() {
+                                    {
                                         self.tft_unit_input = entry.name.clone();
                                         if let Some(index) = self.tft_selected_cell {
                                             if let Some(cell) =
@@ -9078,8 +9079,8 @@ fn normalize_rune_setup(
     if secondary_rows[0] == secondary_rows[1] {
         secondary_rows[1] = (1..=3).find(|row| *row != secondary_rows[0]).unwrap_or(2);
     }
-    for choice in 0..2 {
-        let options = rune_options(secondary_tree, secondary_rows[choice]);
+    for (choice, &row) in secondary_rows.iter().enumerate() {
+        let options = rune_options(secondary_tree, row);
         let slot = 4 + choice;
         if !options.iter().any(|(id, _)| *id == perks[slot]) {
             perks[slot] = options.first().map(|(id, _)| *id).unwrap_or(9111);

@@ -154,9 +154,7 @@ pub fn account_cluster(region: &str) -> Option<AccountCluster> {
     match valid_platform(region)? {
         "na1" | "br1" | "la1" | "la2" => Some(AccountCluster::Americas),
         "euw1" | "eun1" | "tr1" | "ru" => Some(AccountCluster::Europe),
-        "kr" | "jp1" | "oc1" | "sg2" | "vn2" | "tw2" | "me1" | "ph2" => {
-            Some(AccountCluster::Asia)
-        }
+        "kr" | "jp1" | "oc1" | "sg2" | "vn2" | "tw2" | "me1" | "ph2" => Some(AccountCluster::Asia),
         _ => None,
     }
 }
@@ -463,7 +461,11 @@ impl RiotApiClient {
         Ok(fresh)
     }
 
-    pub async fn validate_api_key(&self, region: &str, api_key: &str) -> Result<String, RiotApiError> {
+    pub async fn validate_api_key(
+        &self,
+        region: &str,
+        api_key: &str,
+    ) -> Result<String, RiotApiError> {
         let Some(gateway) = platform_gateway(region) else {
             return Err(RiotApiError::UnsupportedRegion(region.to_string()));
         };
@@ -545,7 +547,10 @@ impl RiotApiClient {
                 &["lol", "summoner", "v4", "summoners", "by-puuid", puuid],
             )?;
             let sum_cache_key = format!("sum:{candidate}:{puuid}");
-            match self.get_cached_summoner(&sum_cache_key, &sum_url, api_key).await {
+            match self
+                .get_cached_summoner(&sum_cache_key, &sum_url, api_key)
+                .await
+            {
                 Ok(data) => {
                     effective_gateway = candidate.to_string();
                     summoner = Some(data);
@@ -568,12 +573,10 @@ impl RiotApiClient {
             }
         }
 
-        let summoner = summoner.ok_or_else(|| {
-            last_error.unwrap_or(RiotApiError::NotFound)
-        })?;
+        let summoner = summoner.ok_or_else(|| last_error.unwrap_or(RiotApiError::NotFound))?;
 
-        let effective_match_cluster = match_cluster(&effective_gateway)
-            .unwrap_or(MatchCluster::Europe);
+        let effective_match_cluster =
+            match_cluster(&effective_gateway).unwrap_or(MatchCluster::Europe);
         let platform_base = format!("https://{effective_gateway}.api.riotgames.com");
         let match_base = effective_match_cluster.base_url();
 
@@ -593,9 +596,8 @@ impl RiotApiClient {
                 "top",
             ],
         )?;
-        let match_ids_url = format!(
-            "{match_base}/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count=5"
-        );
+        let match_ids_url =
+            format!("{match_base}/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count=5");
 
         let ranked_key = format!("ranked:{effective_gateway}:{puuid}");
         let mastery_key = format!("mastery:{effective_gateway}:{puuid}");
@@ -608,9 +610,11 @@ impl RiotApiClient {
         );
 
         for res in [&ranked_res, &mastery_res, &ids_res] {
-            if let Err(err @ (RiotApiError::RateLimited { .. }
-            | RiotApiError::Unauthorized
-            | RiotApiError::Forbidden)) = res
+            if let Err(
+                err @ (RiotApiError::RateLimited { .. }
+                | RiotApiError::Unauthorized
+                | RiotApiError::Forbidden),
+            ) = res
             {
                 return Err(err.clone());
             }
@@ -627,10 +631,7 @@ impl RiotApiClient {
         // respecting the match cache and 429 backoff.
         let mut matches = Vec::with_capacity(match_ids.len());
         for match_id in match_ids.iter().filter_map(Value::as_str) {
-            let match_url = riot_url(
-                &match_base,
-                &["lol", "match", "v5", "matches", match_id],
-            )?;
+            let match_url = riot_url(&match_base, &["lol", "match", "v5", "matches", match_id])?;
             let match_key = format!("match:{}:{match_id}", effective_match_cluster.as_str());
             match self.get_cached_match(&match_key, &match_url, api_key).await {
                 Ok(m) => matches.push(m),
@@ -653,8 +654,8 @@ impl RiotApiClient {
 }
 
 pub fn riot_url(base: &str, segments: &[&str]) -> Result<String, RiotApiError> {
-    let mut url = reqwest::Url::parse(base)
-        .map_err(|error| RiotApiError::InvalidInput(error.to_string()))?;
+    let mut url =
+        reqwest::Url::parse(base).map_err(|error| RiotApiError::InvalidInput(error.to_string()))?;
     url.path_segments_mut()
         .map_err(|_| RiotApiError::InvalidInput("Invalid Riot API base URL".to_string()))?
         .extend(segments.iter().copied());
@@ -672,7 +673,11 @@ mod tests {
     fn routing_account_cluster_all_regions() {
         // Americas
         for r in ["na1", "br1", "la1", "la2", "NA1"] {
-            assert_eq!(account_cluster(r), Some(AccountCluster::Americas), "region {r}");
+            assert_eq!(
+                account_cluster(r),
+                Some(AccountCluster::Americas),
+                "region {r}"
+            );
             assert_eq!(
                 account_cluster(r).unwrap().host(),
                 "americas.api.riotgames.com"
@@ -680,7 +685,11 @@ mod tests {
         }
         // Europe
         for r in ["euw1", "eun1", "tr1", "ru", "EUW1"] {
-            assert_eq!(account_cluster(r), Some(AccountCluster::Europe), "region {r}");
+            assert_eq!(
+                account_cluster(r),
+                Some(AccountCluster::Europe),
+                "region {r}"
+            );
             assert_eq!(
                 account_cluster(r).unwrap().host(),
                 "europe.api.riotgames.com"
@@ -689,10 +698,7 @@ mod tests {
         // Asia + OCE + SEA + ME/PH -> MUST route to asia.api.riotgames.com for account-v1
         for r in ["kr", "jp1", "oc1", "sg2", "vn2", "tw2", "me1", "ph2"] {
             assert_eq!(account_cluster(r), Some(AccountCluster::Asia), "region {r}");
-            assert_eq!(
-                account_cluster(r).unwrap().host(),
-                "asia.api.riotgames.com"
-            );
+            assert_eq!(account_cluster(r).unwrap().host(), "asia.api.riotgames.com");
         }
         assert_eq!(account_cluster("invalid"), None);
     }
@@ -708,10 +714,7 @@ mod tests {
         }
         for r in ["euw1", "eun1", "tr1", "ru"] {
             assert_eq!(match_cluster(r), Some(MatchCluster::Europe), "region {r}");
-            assert_eq!(
-                match_cluster(r).unwrap().host(),
-                "europe.api.riotgames.com"
-            );
+            assert_eq!(match_cluster(r).unwrap().host(), "europe.api.riotgames.com");
         }
         for r in ["kr", "jp1"] {
             assert_eq!(match_cluster(r), Some(MatchCluster::Asia), "region {r}");
@@ -739,7 +742,10 @@ mod tests {
         let header = build_api_key_header("  RGAPI-test-secret-1234  ").expect("valid header");
         assert!(header.is_sensitive());
         assert_eq!(header.to_str().unwrap(), "RGAPI-test-secret-1234");
-        assert!(matches!(build_api_key_header("   "), Err(RiotApiError::MissingApiKey)));
+        assert!(matches!(
+            build_api_key_header("   "),
+            Err(RiotApiError::MissingApiKey)
+        ));
     }
 
     #[test]
@@ -750,10 +756,16 @@ mod tests {
         cache.insert_at("k1".to_string(), 10u32, Duration::from_secs(30), start);
         cache.insert_at("k2".to_string(), 20u32, Duration::from_secs(60), start);
 
-        assert_eq!(cache.get_at("k1", start + Duration::from_secs(29)), Some(10));
+        assert_eq!(
+            cache.get_at("k1", start + Duration::from_secs(29)),
+            Some(10)
+        );
         // Exactly at expires_at -> expired
         assert_eq!(cache.get_at("k1", start + Duration::from_secs(30)), None);
-        assert_eq!(cache.get_at("k2", start + Duration::from_secs(30)), Some(20));
+        assert_eq!(
+            cache.get_at("k2", start + Duration::from_secs(30)),
+            Some(20)
+        );
 
         // Capacity eviction removes earliest-expiring entry
         cache.clear();
@@ -827,7 +839,9 @@ mod tests {
             },
         );
         let url = format!("http://{addr}/lol/status/v4/platform-data");
-        let result = rt.block_on(client.get_json(&url, "RGAPI-test-key")).unwrap();
+        let result = rt
+            .block_on(client.get_json(&url, "RGAPI-test-key"))
+            .unwrap();
         assert_eq!(result["ok"], Value::Bool(true));
         assert_eq!(hits.load(Ordering::SeqCst), 2);
         handle.join().unwrap();

@@ -14,9 +14,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         "LOBBY INTELLIGENCE",
         "Lobby Scout",
         "Inspect live team picks and look up public rank, mastery, and recent match performance by Riot ID.",
-        ctx.snapshot.connected,
-        ctx.snapshot.riot_client_open,
-        ctx.snapshot.phase.display_label(),
+        ctx.snapshot,
     );
 
     render_team_panel(ctx, ui);

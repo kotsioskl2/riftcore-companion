@@ -131,7 +131,9 @@ impl OverlayWindowHandle {
             let current = GetWindowLongPtrW(hwnd_ptr, GWL_EXSTYLE);
             let err = GetLastError();
             if current == 0 && err != 0 {
-                return Err(format!("GetWindowLongPtrW failed with Win32 error {err:#x}"));
+                return Err(format!(
+                    "GetWindowLongPtrW failed with Win32 error {err:#x}"
+                ));
             }
             let mut next = (current as usize) | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
             next &= !WS_EX_APPWINDOW;

@@ -196,12 +196,17 @@ impl UpdaterService {
         result
     }
 
-    async fn download_and_verify_inner(&self, release: &Value) -> Result<StagedUpdate, UpdaterError> {
+    async fn download_and_verify_inner(
+        &self,
+        release: &Value,
+    ) -> Result<StagedUpdate, UpdaterError> {
         let latest = release
             .get("tag_name")
             .and_then(Value::as_str)
             .ok_or_else(|| {
-                UpdaterError::InvalidManifest("GitHub release is missing its version tag".to_string())
+                UpdaterError::InvalidManifest(
+                    "GitHub release is missing its version tag".to_string(),
+                )
             })?;
         if !is_newer_version(latest, env!("CARGO_PKG_VERSION")) {
             return Err(UpdaterError::NotNewerVersion);
@@ -248,15 +253,24 @@ impl UpdaterService {
                 .ok_or(UpdaterError::MissingChecksumManifest)?;
 
             let staging_dir = updates_staging_dir()?;
-            std::fs::create_dir_all(&staging_dir)
-                .map_err(|e| UpdaterError::Io(format!("Could not create staging directory: {e}")))?;
+            std::fs::create_dir_all(&staging_dir).map_err(|e| {
+                UpdaterError::Io(format!("Could not create staging directory: {e}"))
+            })?;
 
             let safe_tag: String = latest
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' })
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
-            let part_path = staging_dir.join(format!("RiftCore-{safe_tag}-{}.part", std::process::id()));
-            let final_path = staging_dir.join(format!("RiftCore-{safe_tag}-{}.exe", std::process::id()));
+            let part_path =
+                staging_dir.join(format!("RiftCore-{safe_tag}-{}.part", std::process::id()));
+            let final_path =
+                staging_dir.join(format!("RiftCore-{safe_tag}-{}.exe", std::process::id()));
 
             let mut response = self
                 .http
@@ -309,7 +323,9 @@ impl UpdaterService {
             if let Err(e) = file.flush() {
                 drop(file);
                 let _ = std::fs::remove_file(&part_path);
-                return Err(UpdaterError::Io(format!("Failed flushing staged file: {e}")));
+                return Err(UpdaterError::Io(format!(
+                    "Failed flushing staged file: {e}"
+                )));
             }
             drop(file);
 
@@ -328,7 +344,9 @@ impl UpdaterService {
             }
             if let Err(e) = std::fs::rename(&part_path, &final_path) {
                 let _ = std::fs::remove_file(&part_path);
-                return Err(UpdaterError::Io(format!("Could not finalize staged EXE: {e}")));
+                return Err(UpdaterError::Io(format!(
+                    "Could not finalize staged EXE: {e}"
+                )));
             }
 
             if let Err(auth_err) = verify_authenticode(&final_path) {
@@ -688,7 +706,8 @@ mod tests {
 
     #[test]
     fn authenticode_fails_closed_on_unsigned_staged_exe() {
-        let tmp = std::env::temp_dir().join(format!("riftcore-updater-test-{}.exe", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("riftcore-updater-test-{}.exe", std::process::id()));
         std::fs::write(&tmp, b"MZfake-unsigned-binary").unwrap();
         let res = verify_authenticode(&tmp);
         let _ = std::fs::remove_file(&tmp);

@@ -1,6 +1,6 @@
 use crate::platform::process::{
-    discover_lcu_lockfile, is_riot_client_open as platform_is_riot_client_open,
-    parse_lockfile_str, LcuLockfile,
+    discover_lcu_lockfile, is_riot_client_open as platform_is_riot_client_open, parse_lockfile_str,
+    LcuLockfile,
 };
 use reqwest::{Client, Method, StatusCode};
 use serde_json::Value;
@@ -40,7 +40,9 @@ impl fmt::Display for LcuError {
                 }
             }
             Self::RequestFailed(msg) => write!(f, "League Client request failed: {msg}"),
-            Self::InvalidResponse(msg) => write!(f, "League Client returned unreadable data: {msg}"),
+            Self::InvalidResponse(msg) => {
+                write!(f, "League Client returned unreadable data: {msg}")
+            }
             Self::Io(msg) => write!(f, "League Client I/O error: {msg}"),
         }
     }
@@ -105,7 +107,10 @@ impl LcuCredentials {
         })
     }
 
-    pub fn from_lockfile(lockfile: LcuLockfile, lockfile_path: Option<PathBuf>) -> Result<Self, LcuError> {
+    pub fn from_lockfile(
+        lockfile: LcuLockfile,
+        lockfile_path: Option<PathBuf>,
+    ) -> Result<Self, LcuError> {
         Self::new(
             lockfile.pid,
             lockfile.port,
@@ -504,7 +509,10 @@ pub fn resolve_lockfile_candidates(
 
 pub fn discover_credentials() -> Option<LcuCredentials> {
     let lockfile = discover_lcu_lockfile()?;
-    let lockfile_path = lockfile.install_dir.as_ref().map(|dir| dir.join("lockfile"));
+    let lockfile_path = lockfile
+        .install_dir
+        .as_ref()
+        .map(|dir| dir.join("lockfile"));
     LcuCredentials::from_lockfile(lockfile, lockfile_path).ok()
 }
 
@@ -615,9 +623,8 @@ pub fn set_league_window_mode(mode: u8, install_dir: Option<&Path>) -> Result<St
     backup.push(".riftcore-backup");
     let backup = PathBuf::from(backup);
     if !backup.exists() {
-        std::fs::copy(&path, &backup).map_err(|error| {
-            LcuError::Io(format!("Could not back up League game.cfg: {error}"))
-        })?;
+        std::fs::copy(&path, &backup)
+            .map_err(|error| LcuError::Io(format!("Could not back up League game.cfg: {error}")))?;
     }
     std::fs::write(&path, content)
         .map_err(|error| LcuError::Io(format!("Could not update League game.cfg: {error}")))?;
@@ -745,7 +752,8 @@ mod tests {
         let creds = LcuCredentials::new(100, addr.port(), "my-token", "http", None, None).unwrap();
         let client = LcuClient::new(creds).unwrap();
         let summoner = serde_json::json!({ "summonerId": 999 });
-        let item_set = serde_json::json!({ "title": "RiftCore: Ahri MID", "associatedChampions": [103] });
+        let item_set =
+            serde_json::json!({ "title": "RiftCore: Ahri MID", "associatedChampions": [103] });
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -771,7 +779,10 @@ mod tests {
                 let body = match step {
                     0 => r#"[{"id":7,"name":"RiftCore Old","isEditable":true}]"#,
                     1 => {
-                        assert!(req.contains("RiftCore Ahri MID"), "expected custom name preserved: {req}");
+                        assert!(
+                            req.contains("RiftCore Ahri MID"),
+                            "expected custom name preserved: {req}"
+                        );
                         r#"{"id":7}"#
                     }
                     _ => "{}",

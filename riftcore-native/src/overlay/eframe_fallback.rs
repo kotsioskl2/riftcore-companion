@@ -1,7 +1,9 @@
 //! Path A fallback surface host when Path B DirectComposition host initialization fails
 //! or on non-Windows hosts.
 
-use crate::overlay::host::{OverlayDiagnostics, OverlayHostBackend, OverlayRenderState, OverlaySurfaceHost};
+use crate::overlay::host::{
+    OverlayDiagnostics, OverlayHostBackend, OverlayRenderState, OverlaySurfaceHost,
+};
 use eframe::egui::{self, Pos2, Rect, Vec2};
 use std::time::Instant;
 

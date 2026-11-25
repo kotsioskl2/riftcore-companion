@@ -6,7 +6,8 @@ use crate::domain::champions::{self, Champion, Role};
 use crate::domain::protocol::{CoreCommand, CoreNotice};
 use crate::domain::runes;
 use crate::ui::pages::{preferred_spell_order, spell_name, PageContext, SUMMONER_SPELLS};
-use crate::ui::theme::{lerp_color, Spacing, ThemePalette};
+use crate::ui::textures::TextureManager;
+use crate::ui::theme::{lerp_color, ThemePalette};
 use crate::ui::widgets::{
     action_button, avatar, badge, filter_chip, inset_card, item_slot, page_heading, panel,
     panel_title, role_tag, rune_icon_card, search_box, spell_choice_chip, tree_accent,
@@ -24,12 +25,15 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         "PRE-GAME SYSTEM",
         "Champion Select",
         "Choose your champion, inspect role builds and skill paths, or tune every rune and spell.",
-        ctx.snapshot.connected,
-        ctx.snapshot.riot_client_open,
-        ctx.snapshot.phase.display_label(),
+        ctx.snapshot,
     );
 
-    let search_needle = ctx.state.champ_select.champion_search.trim().to_ascii_lowercase();
+    let search_needle = ctx
+        .state
+        .champ_select
+        .champion_search
+        .trim()
+        .to_ascii_lowercase();
     let role_filter = ctx.state.champ_select.role_filter;
     let all_champs = champions::all_champions();
     let matches: Vec<&'static Champion> = all_champs
@@ -190,8 +194,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                                         if let Some(texture) =
                                             ctx.textures.champion(&egui_ctx, &champ.key)
                                         {
-                                            let portrait_size =
-                                                64.0 + 4.0 * hover_t + selected_t;
+                                            let portrait_size = 64.0 + 4.0 * hover_t + selected_t;
                                             let image_rect = egui::Rect::from_center_size(
                                                 egui::pos2(rect.center().x, rect.top() + 38.0),
                                                 Vec2::splat(portrait_size),
@@ -296,11 +299,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
     }
 }
 
-fn render_champion_details(
-    ctx: &mut PageContext<'_>,
-    ui: &mut egui::Ui,
-    champ: &'static Champion,
-) {
+fn render_champion_details(ctx: &mut PageContext<'_>, ui: &mut egui::Ui, champ: &'static Champion) {
     let palette = *ctx.palette;
     let role = ctx.state.champ_select.build_role;
     let recommendation = builds::build_for_champion(champ.id, role)
@@ -322,11 +321,7 @@ fn render_champion_details(
                             .strong()
                             .color(palette.text),
                     );
-                    badge(
-                        ui,
-                        &recommendation.archetype.display_name(),
-                        palette.accent,
-                    );
+                    badge(ui, &recommendation.archetype.display_name(), palette.accent);
                 });
                 ui.label(
                     RichText::new(&champ.title)
@@ -492,7 +487,11 @@ fn render_build_tab(
                     .inner_margin(egui::Margin::symmetric(5, 3))
                     .show(ui, |ui| {
                         ui.vertical_centered(|ui| {
-                            ui.label(RichText::new(lvl.to_string()).size(7.5).color(palette.muted));
+                            ui.label(
+                                RichText::new(lvl.to_string())
+                                    .size(7.5)
+                                    .color(palette.muted),
+                            );
                             ui.label(RichText::new(skill).size(9.5).strong().color(color));
                         });
                     });
@@ -541,12 +540,7 @@ fn render_build_tab(
 
         ui.add_space(6.0);
         ui.add(
-            egui::Label::new(
-                RichText::new(&rec.tip)
-                    .size(10.5)
-                    .color(palette.secondary),
-            )
-            .wrap(),
+            egui::Label::new(RichText::new(&rec.tip).size(10.5).color(palette.secondary)).wrap(),
         );
 
         ui.add_space(8.0);
@@ -600,9 +594,9 @@ fn render_build_tab(
             }
 
             if action_button(ui, &palette, "EXPORT ITEM SET", false, palette.gold).clicked() {
-                ctx.send_command(CoreCommand::ExportItemSet(
-                    builds::champion_item_set_json(champ, &rec),
-                ));
+                ctx.send_command(CoreCommand::ExportItemSet(builds::champion_item_set_json(
+                    champ, &rec,
+                )));
                 ctx.set_notice(CoreNotice::Info(
                     "Adding champion build to the in-game shop…".to_string(),
                 ));
@@ -660,7 +654,11 @@ fn render_rune_editor(
             runes::rune_id_preferred(runes::TREE_RESOLVE, 2, &["Bone Plating"]),
             runes::rune_id_preferred(runes::TREE_RESOLVE, 3, &["Overgrowth"]),
             runes::rune_id_preferred(runes::TREE_PRECISION, 1, &["Triumph"]),
-            runes::rune_id_preferred(runes::TREE_PRECISION, 2, &["Legend: Haste", "Legend: Alacrity"]),
+            runes::rune_id_preferred(
+                runes::TREE_PRECISION,
+                2,
+                &["Legend: Haste", "Legend: Alacrity"],
+            ),
             runes::SHARD_ADAPTIVE_FORCE,
             runes::SHARD_ADAPTIVE_FORCE,
             runes::SHARD_SCALING_HEALTH,
@@ -677,7 +675,14 @@ fn render_rune_editor(
             for (name, detail, primary, secondary, perks, accent) in [
                 (
                     "META",
-                    format!("{} build", ctx.state.champ_select.build_role.as_str().to_ascii_lowercase()),
+                    format!(
+                        "{} build",
+                        ctx.state
+                            .champ_select
+                            .build_role
+                            .as_str()
+                            .to_ascii_lowercase()
+                    ),
                     recommendation.primary_tree,
                     recommendation.secondary_tree,
                     meta_perks,
@@ -713,8 +718,7 @@ fn render_rune_editor(
             cs.primary_tree = primary;
             cs.secondary_tree = secondary;
             cs.selected_perks = perks;
-            cs.secondary_rune_rows =
-                runes::secondary_rows_for_perks(secondary, perks[4], perks[5]);
+            cs.secondary_rune_rows = runes::secondary_rows_for_perks(secondary, perks[4], perks[5]);
             edited = true;
         }
 
@@ -852,9 +856,16 @@ fn render_rune_editor(
                         for row in 1..=3 {
                             let enabled =
                                 row != ctx.state.champ_select.secondary_rune_rows[1 - choice];
-                            let selected = ctx.state.champ_select.secondary_rune_rows[choice] == row;
+                            let selected =
+                                ctx.state.champ_select.secondary_rune_rows[choice] == row;
                             let response = ui.add_enabled_ui(enabled, |ui| {
-                                filter_chip(ui, &palette, &format!("R{row}"), selected, palette.gold)
+                                filter_chip(
+                                    ui,
+                                    &palette,
+                                    &format!("R{row}"),
+                                    selected,
+                                    palette.gold,
+                                )
                             });
                             if response.inner.clicked() {
                                 ctx.state.champ_select.secondary_rune_rows[choice] = row;
@@ -902,12 +913,7 @@ fn render_rune_editor(
                         .collect();
                     let slot = 6 + row;
                     ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(label)
-                                .size(8.0)
-                                .strong()
-                                .color(palette.muted),
-                        );
+                        ui.label(RichText::new(label).size(8.0).strong().color(palette.muted));
                         ui.label(
                             RichText::new(selected_rune_name(
                                 &options,
@@ -1016,14 +1022,8 @@ fn render_rune_editor(
                     .color(palette.muted),
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if action_button(
-                    ui,
-                    &palette,
-                    "APPLY RUNES + SPELLS",
-                    true,
-                    palette.accent,
-                )
-                .clicked()
+                if action_button(ui, &palette, "APPLY RUNES + SPELLS", true, palette.accent)
+                    .clicked()
                 {
                     let cs = &ctx.state.champ_select;
                     let page = runes::build_rune_page(
@@ -1032,11 +1032,9 @@ fn render_rune_editor(
                         cs.secondary_tree,
                         &cs.selected_perks,
                     );
+                    let (spell1, spell2) = (cs.spell_one, cs.spell_two);
                     ctx.send_command(CoreCommand::ImportRunes(page.to_json()));
-                    ctx.send_command(CoreCommand::ImportSpells {
-                        spell1: cs.spell_one,
-                        spell2: cs.spell_two,
-                    });
+                    ctx.send_command(CoreCommand::ImportSpells { spell1, spell2 });
                     ctx.persist_active_champion_setup();
                     ctx.set_notice(CoreNotice::Info(
                         "Sending rune page and summoner spells to League Client…".to_string(),
@@ -1105,23 +1103,18 @@ pub fn render_team_panel(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                             let role = Role::from_str_lossy(role_raw);
 
                             cols[column].horizontal(|ui| {
-                                let portrait = champ
-                                    .and_then(|c| ctx.textures.champion(&egui_ctx, &c.key));
+                                let portrait =
+                                    champ.and_then(|c| ctx.textures.champion(&egui_ctx, &c.key));
                                 avatar(ui, &palette, &name, 28.0, accent, portrait);
                                 ui.label(
-                                    RichText::new(name)
-                                        .size(11.5)
-                                        .strong()
-                                        .color(palette.text),
+                                    RichText::new(name).size(11.5).strong().color(palette.text),
                                 );
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     if let Some(r) = role {
                                         role_tag(ui, r, &palette);
                                     } else {
                                         ui.label(
-                                            RichText::new("FLEX")
-                                                .size(9.0)
-                                                .color(palette.muted),
+                                            RichText::new("FLEX").size(9.0).color(palette.muted),
                                         );
                                     }
                                 });
@@ -1190,15 +1183,8 @@ fn rune_tree_picker(
             }
             let accent = tree_accent(id, palette);
             let tex = textures.rune(egui_ctx, id as i64);
-            let response = rune_icon_card(
-                ui,
-                palette,
-                id as i64,
-                selected == id,
-                accent,
-                34.0,
-                tex,
-            );
+            let response =
+                rune_icon_card(ui, palette, id as i64, selected == id, accent, 34.0, tex);
             if response.clicked() {
                 clicked = Some(id);
             }

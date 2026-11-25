@@ -206,10 +206,11 @@ impl TextureManager {
     }
 
     fn champion_bytes(&self, key: &str) -> Option<&'static [u8]> {
-        self.champion_sources
-            .get(key)
-            .copied()
-            .or_else(|| self.champion_sources.get(&key.to_ascii_lowercase()).copied())
+        self.champion_sources.get(key).copied().or_else(|| {
+            self.champion_sources
+                .get(&key.to_ascii_lowercase())
+                .copied()
+        })
     }
 }
 

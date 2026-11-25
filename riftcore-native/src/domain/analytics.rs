@@ -185,23 +185,172 @@ impl DraftChampionInput {
     ) -> Self {
         let archetype = archetype.into();
         let arch = archetype.to_ascii_uppercase();
-        let (damage, frontline, hard_cc, engage, peel, waveclear, utility, healing_threat, shielding) =
-            match arch.as_str() {
-                "BURST_MAGE" => (DamageProfile::Magic, false, true, false, false, true, false, false, false),
-                "BATTLE_MAGE" => (DamageProfile::Magic, false, true, false, false, true, false, true, false),
-                "AP_ASSASSIN" => (DamageProfile::Magic, false, false, false, false, true, false, false, false),
-                "AD_ASSASSIN" => (DamageProfile::Physical, false, false, false, false, true, false, false, false),
-                "CRIT_MARKSMAN" => (DamageProfile::Physical, false, false, false, false, true, false, false, false),
-                "ONHIT_MARKSMAN" => (DamageProfile::Mixed, false, false, false, false, false, false, true, false),
-                "JUGGERNAUT" => (DamageProfile::Physical, true, false, false, false, true, false, true, true),
-                "DIVER_FIGHTER" => (DamageProfile::Physical, true, true, true, false, false, false, true, false),
-                "SKIRMISHER" => (DamageProfile::Physical, false, false, false, false, true, false, true, false),
-                "TANK" => (DamageProfile::Magic, true, true, true, true, false, true, false, true),
-                "ENCHANTER" => (DamageProfile::Utility, false, true, false, true, false, true, true, true),
-                "ENGAGE_SUPPORT" => (DamageProfile::Utility, true, true, true, true, false, true, false, false),
-                "AP_SUPPORT" => (DamageProfile::Magic, false, true, false, false, true, true, false, false),
-                _ => (DamageProfile::Physical, true, false, true, false, false, false, false, false),
-            };
+        let (
+            damage,
+            frontline,
+            hard_cc,
+            engage,
+            peel,
+            waveclear,
+            utility,
+            healing_threat,
+            shielding,
+        ) = match arch.as_str() {
+            "BURST_MAGE" => (
+                DamageProfile::Magic,
+                false,
+                true,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+            ),
+            "BATTLE_MAGE" => (
+                DamageProfile::Magic,
+                false,
+                true,
+                false,
+                false,
+                true,
+                false,
+                true,
+                false,
+            ),
+            "AP_ASSASSIN" => (
+                DamageProfile::Magic,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+            ),
+            "AD_ASSASSIN" => (
+                DamageProfile::Physical,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+            ),
+            "CRIT_MARKSMAN" => (
+                DamageProfile::Physical,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+            ),
+            "ONHIT_MARKSMAN" => (
+                DamageProfile::Mixed,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+            ),
+            "JUGGERNAUT" => (
+                DamageProfile::Physical,
+                true,
+                false,
+                false,
+                false,
+                true,
+                false,
+                true,
+                true,
+            ),
+            "DIVER_FIGHTER" => (
+                DamageProfile::Physical,
+                true,
+                true,
+                true,
+                false,
+                false,
+                false,
+                true,
+                false,
+            ),
+            "SKIRMISHER" => (
+                DamageProfile::Physical,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                true,
+                false,
+            ),
+            "TANK" => (
+                DamageProfile::Magic,
+                true,
+                true,
+                true,
+                true,
+                false,
+                true,
+                false,
+                true,
+            ),
+            "ENCHANTER" => (
+                DamageProfile::Utility,
+                false,
+                true,
+                false,
+                true,
+                false,
+                true,
+                true,
+                true,
+            ),
+            "ENGAGE_SUPPORT" => (
+                DamageProfile::Utility,
+                true,
+                true,
+                true,
+                true,
+                false,
+                true,
+                false,
+                false,
+            ),
+            "AP_SUPPORT" => (
+                DamageProfile::Magic,
+                false,
+                true,
+                false,
+                false,
+                true,
+                true,
+                false,
+                false,
+            ),
+            _ => (
+                DamageProfile::Physical,
+                true,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+            ),
+        };
 
         Self {
             champion_id,
@@ -303,7 +452,10 @@ pub fn normalize_local_match(
             .unwrap_or(0);
     }
 
-    let raw_duration = game.get("gameDuration").and_then(Value::as_u64).unwrap_or(0);
+    let raw_duration = game
+        .get("gameDuration")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
     let duration_secs = if raw_duration > 86_400 {
         raw_duration / 1000
     } else {
@@ -370,9 +522,18 @@ pub fn normalize_local_match(
             .get("totalDamageDealtToChampions")
             .and_then(Value::as_u64)
             .unwrap_or(0),
-        vision: stats.get("visionScore").and_then(Value::as_u64).unwrap_or(0) as u32,
-        wards_placed: stats.get("wardsPlaced").and_then(Value::as_u64).unwrap_or(0) as u32,
-        wards_killed: stats.get("wardsKilled").and_then(Value::as_u64).unwrap_or(0) as u32,
+        vision: stats
+            .get("visionScore")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as u32,
+        wards_placed: stats
+            .get("wardsPlaced")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as u32,
+        wards_killed: stats
+            .get("wardsKilled")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as u32,
         control_wards: stats
             .get("visionWardsBoughtInGame")
             .and_then(Value::as_u64)
@@ -432,13 +593,15 @@ pub fn normalize_riot_match(game: &Value, puuid: &str) -> Option<NormalizedMatch
         team_gold += p.get("goldEarned").and_then(Value::as_u64).unwrap_or(0);
     }
 
-    let raw_duration = info.get("gameDuration").and_then(Value::as_u64).unwrap_or(0);
-    let duration_secs =
-        if info.get("gameEndTimestamp").is_none() && raw_duration > 86_400 {
-            raw_duration / 1000
-        } else {
-            raw_duration
-        };
+    let raw_duration = info
+        .get("gameDuration")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let duration_secs = if info.get("gameEndTimestamp").is_none() && raw_duration > 86_400 {
+        raw_duration / 1000
+    } else {
+        raw_duration
+    };
 
     let cs = participant
         .get("totalMinionsKilled")
@@ -506,7 +669,10 @@ pub fn normalize_riot_match(game: &Value, puuid: &str) -> Option<NormalizedMatch
             .get("win")
             .and_then(Value::as_bool)
             .unwrap_or(false),
-        kills: participant.get("kills").and_then(Value::as_u64).unwrap_or(0) as u32,
+        kills: participant
+            .get("kills")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as u32,
         deaths: participant
             .get("deaths")
             .and_then(Value::as_u64)
@@ -605,9 +771,8 @@ pub fn compute_player_trend_report(
     let wins = slice.iter().filter(|m| m.win).count() as u32;
     let losses = sample_count as u32 - wins;
 
-    let avg = |f: fn(&NormalizedMatchSummary) -> f64| -> f64 {
-        slice.iter().map(f).sum::<f64>() / n
-    };
+    let avg =
+        |f: fn(&NormalizedMatchSummary) -> f64| -> f64 { slice.iter().map(f).sum::<f64>() / n };
 
     let build_trend = |f: fn(&NormalizedMatchSummary) -> f64, flat_eps: f64| -> MetricTrend {
         if sample_count < 2 {
@@ -770,7 +935,10 @@ pub fn compare_drafts(
             recommended_counter_tags.push("Armor".to_string());
         }
         if enemy.magic_pct >= 70.0 {
-            enemy_threats.push(format!("Heavy magic damage ({:.0}% magic)", enemy.magic_pct));
+            enemy_threats.push(format!(
+                "Heavy magic damage ({:.0}% magic)",
+                enemy.magic_pct
+            ));
             recommended_counter_tags.push("SpellBlock".to_string());
         }
         if enemy.healing_threat_count >= 2 {
@@ -823,11 +991,20 @@ pub fn compare_drafts(
     let damage_balance_summary = if ally.picks_count == 0 {
         "No ally champions selected.".to_string()
     } else if ally.physical_pct >= 75.0 {
-        format!("Ally damage skewed physical ({:.0}% AD / {:.0}% AP).", ally.physical_pct, ally.magic_pct)
+        format!(
+            "Ally damage skewed physical ({:.0}% AD / {:.0}% AP).",
+            ally.physical_pct, ally.magic_pct
+        )
     } else if ally.magic_pct >= 75.0 {
-        format!("Ally damage skewed magic ({:.0}% AP / {:.0}% AD).", ally.magic_pct, ally.physical_pct)
+        format!(
+            "Ally damage skewed magic ({:.0}% AP / {:.0}% AD).",
+            ally.magic_pct, ally.physical_pct
+        )
     } else {
-        format!("Mixed ally damage profile ({:.0}% physical / {:.0}% magic).", ally.physical_pct, ally.magic_pct)
+        format!(
+            "Mixed ally damage profile ({:.0}% physical / {:.0}% magic).",
+            ally.physical_pct, ally.magic_pct
+        )
     };
 
     DraftComparison {
@@ -1106,6 +1283,8 @@ mod tests {
             .any(|g| g.contains("Magic damage")));
         assert!(cmp.enemy.physical_pct >= 70.0);
         assert!(cmp.recommended_counter_tags.contains(&"Armor".to_string()));
-        assert!(cmp.recommended_counter_tags.contains(&"AntiHeal".to_string()));
+        assert!(cmp
+            .recommended_counter_tags
+            .contains(&"AntiHeal".to_string()));
     }
 }
