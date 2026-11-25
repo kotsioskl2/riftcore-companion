@@ -69,9 +69,9 @@ Presence of agent files in Git does not prove runtime discovery or invocation. V
 - AI setup branch: `ai/riftcore-opencode-team-2026-11-24`, created from `main`.
 - This branch contains the project instructions, six Markdown agent definitions, initial audit note, state file, and OpenCode config.
 - Do not merge this branch into `main` automatically; review changes and use a PR.
-- User reported a local Windows commit `60c779b` on branch `phase3/integration` for 22 files. The local commit succeeded. Its push to GitHub has not yet been confirmed by the remote branch list.
-- Line-ending notices saying LF will be converted to CRLF are Git normalization warnings, not commit failures.
-- Once `phase3/integration` is pushed, inspect its diff and compare with this AI setup branch before merging or cherry-picking.
+- User committed Windows integration work as `60c779b` on `phase3/integration`; the remote branch now exists on GitHub at `60c779b9ae875f8c4ab18c261515ebe818ad9726`.
+- Git's LF-to-CRLF notices were line-ending normalization warnings, not commit failures.
+- Compared with `main`, `phase3/integration` is 4 commits ahead and 0 behind. The diff includes the modular Rust domain/services/platform/overlay/UI structure and build-script updates. This is metadata-level change inventory, not a compilation or runtime verification.
 
 ## Engineering workflow
 1. State the current task and owner briefly.
@@ -94,7 +94,7 @@ Keep updates short:
 - NEXT ACTION
 
 ## Current work queue
-- [ ] Fetch and review user's `phase3/integration` commit after the push is confirmed.
+- [x] Confirm user's `phase3/integration` branch is pushed to GitHub; review the changed-file inventory before integrating project setup.
 - [ ] Verify OpenCode discovers all six project agents.
 - [ ] Run a real read-only delegation smoke test.
 - [ ] Trace overlay host/render/input/focus/DPI/lifecycle implementation.
@@ -107,3 +107,4 @@ Keep updates short:
 
 ## Work log
 - 2026-11-25: Project-level OpenCode provider/agent/compaction configuration and persistent handoff docs added on the AI setup branch. No application source code changed on this branch.
+- 2026-11-25: User's local Windows commit `60c779b` is confirmed pushed to `phase3/integration`. Opened draft PR #1 to bring the OpenCode setup branch into `phase3/integration`; it is not merged. 
