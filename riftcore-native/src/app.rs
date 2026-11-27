@@ -114,6 +114,7 @@ pub struct RiftCoreApp {
     champion_textures: HashMap<String, egui::TextureHandle>,
     tft_textures: HashMap<String, egui::TextureHandle>,
     rune_textures: HashMap<i64, egui::TextureHandle>,
+    spell_textures: HashMap<i64, egui::TextureHandle>,
     manual_spell_timers: HashMap<String, Instant>,
     logo_texture: egui::TextureHandle,
     selected_champion: u32,
@@ -297,6 +298,13 @@ impl RiftCoreApp {
                     .map(|texture| (*id, texture))
             })
             .collect();
+        let spell_textures = crate::assets::SPELL_ICONS
+            .iter()
+            .filter_map(|(id, bytes)| {
+                load_png_texture(&creation.egui_ctx, format!("spell-{id}"), bytes, Some(48))
+                    .map(|texture| (*id, texture))
+            })
+            .collect();
         let logo_texture = load_png_texture(
             &creation.egui_ctx,
             "riftcore-logo".to_string(),
@@ -316,6 +324,7 @@ impl RiftCoreApp {
             champion_textures,
             tft_textures,
             rune_textures,
+            spell_textures,
             manual_spell_timers: HashMap::new(),
             logo_texture,
             selected_champion: 103,
@@ -1950,19 +1959,22 @@ impl RiftCoreApp {
                 &mut self.selected_perks,
             );
 
-            ui.add_space(8.0);
+            ui.add_space(10.0);
             ui.columns(3, |columns| {
-                Frame::new()
-                    .fill(INSET)
-                    .stroke(Stroke::new(1.0, rune_tree_color(self.primary_tree)))
-                    .corner_radius(egui::CornerRadius::same(10))
-                    .inner_margin(egui::Margin::same(10))
-                    .show(&mut columns[0], |ui| {
+                let primary_accent = rune_tree_color(self.primary_tree);
+                let secondary_accent = rune_tree_color(self.secondary_tree);
+
+                // ── Primary card: tree picker + keystone and three rows on a rune path ──
+                rune_card(
+                    &mut columns[0],
+                    primary_accent,
+                    self.rune_textures.get(&(self.primary_tree as i64)),
+                    |ui| {
                         rune_section_heading(
                             ui,
                             "PRIMARY STYLE",
                             tree_name(self.primary_tree),
-                            rune_tree_color(self.primary_tree),
+                            primary_accent,
                         );
                         if let Some(tree) =
                             rune_tree_picker(ui, self.primary_tree, None, &self.rune_textures)
@@ -1975,63 +1987,76 @@ impl RiftCoreApp {
                                     .map(|(id, _)| *id)
                                     .unwrap_or(8400);
                             }
+                            normalize_rune_setup(
+                                self.primary_tree,
+                                self.secondary_tree,
+                                &mut self.secondary_rune_rows,
+                                &mut self.selected_perks,
+                            );
                         }
-                        ui.add_space(6.0);
-                        rune_section_heading(
-                            ui,
-                            "KEYSTONE",
-                            &selected_rune_name(self.primary_tree, 0, self.selected_perks[0]),
-                            rune_tree_color(self.primary_tree),
-                        );
-                        let options = rune_options(self.primary_tree, 0);
-                        if let Some(id) = rune_icon_choice_line(
-                            ui,
-                            &options,
-                            self.selected_perks[0],
-                            &self.rune_textures,
-                            rune_tree_color(self.primary_tree),
-                            42.0,
-                        ) {
-                            self.selected_perks[0] = id;
-                        }
-                        for row in 1..=3 {
+                        ui.add_space(8.0);
+                        let rail_slot = ui.painter().add(egui::Shape::Noop);
+                        let rail_x = ui.max_rect().left() + 4.0;
+                        let mut rail_top = None;
+                        let mut nodes = Vec::new();
+                        for row in 0..=3 {
                             let slot = row;
-                            ui.add_space(5.0);
+                            if row > 0 {
+                                ui.add_space(4.0);
+                            }
+                            rail_top.get_or_insert(ui.cursor().top() + 6.0);
+                            let title = if row == 0 {
+                                "KEYSTONE".to_string()
+                            } else {
+                                format!("ROW {row}")
+                            };
                             rune_section_heading(
                                 ui,
-                                &format!("PRIMARY ROW {row}"),
+                                &title,
                                 &selected_rune_name(
                                     self.primary_tree,
                                     row,
                                     self.selected_perks[slot],
                                 ),
-                                rune_tree_color(self.primary_tree),
+                                primary_accent,
                             );
                             let options = rune_options(self.primary_tree, row);
-                            if let Some(id) = rune_icon_choice_line(
+                            let result = rune_icon_row(
                                 ui,
                                 &options,
                                 self.selected_perks[slot],
                                 &self.rune_textures,
-                                rune_tree_color(self.primary_tree),
-                                36.0,
-                            ) {
+                                primary_accent,
+                                if row == 0 { 42.0 } else { 34.0 },
+                                10.0,
+                            );
+                            if let Some(id) = result.clicked {
                                 self.selected_perks[slot] = id;
                             }
+                            nodes.extend(result.selected_center);
                         }
-                    });
+                        paint_rune_rail(
+                            ui,
+                            rail_slot,
+                            rail_x,
+                            rail_top.unwrap_or_default(),
+                            &nodes,
+                            primary_accent,
+                        );
+                    },
+                );
 
-                Frame::new()
-                    .fill(INSET)
-                    .stroke(Stroke::new(1.0, rune_tree_color(self.secondary_tree)))
-                    .corner_radius(egui::CornerRadius::same(10))
-                    .inner_margin(egui::Margin::same(10))
-                    .show(&mut columns[1], |ui| {
+                // ── Secondary card: every row visible, click any rune (two rows max) ──
+                rune_card(
+                    &mut columns[1],
+                    secondary_accent,
+                    self.rune_textures.get(&(self.secondary_tree as i64)),
+                    |ui| {
                         rune_section_heading(
                             ui,
                             "SECONDARY STYLE",
                             tree_name(self.secondary_tree),
-                            GOLD,
+                            secondary_accent,
                         );
                         if let Some(tree) = rune_tree_picker(
                             ui,
@@ -2047,173 +2072,204 @@ impl RiftCoreApp {
                             &mut self.secondary_rune_rows,
                             &mut self.selected_perks,
                         );
+                        ui.add_space(2.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(14.0);
+                            ui.label(
+                                RichText::new("Pick 2 runes from different rows")
+                                    .size(8.5)
+                                    .color(MUTED),
+                            );
+                        });
                         ui.add_space(6.0);
-                        rune_section_heading(
-                            ui,
-                            "SECONDARY RUNES",
-                            tree_name(self.secondary_tree),
-                            rune_tree_color(self.secondary_tree),
-                        );
-                        for choice in 0..2 {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new(format!("PICK {}", choice + 1))
-                                        .size(8.0)
-                                        .strong()
-                                        .color(MUTED),
-                                );
-                                for row in 1..=3 {
-                                    let enabled = row != self.secondary_rune_rows[1 - choice];
-                                    let selected = self.secondary_rune_rows[choice] == row;
-                                    let response = ui.add_enabled_ui(enabled, |ui| {
-                                        filter_chip(ui, &format!("R{row}"), selected, GOLD)
-                                    });
-                                    if response.inner.clicked() {
-                                        self.secondary_rune_rows[choice] = row;
-                                        normalize_rune_setup(
-                                            self.primary_tree,
-                                            self.secondary_tree,
-                                            &mut self.secondary_rune_rows,
-                                            &mut self.selected_perks,
-                                        );
-                                    }
-                                }
-                            });
-                            let row = self.secondary_rune_rows[choice];
-                            let options = rune_options(self.secondary_tree, row);
-                            let slot = 4 + choice;
+                        let rail_slot = ui.painter().add(egui::Shape::Noop);
+                        let rail_x = ui.max_rect().left() + 4.0;
+                        let mut rail_top = None;
+                        let mut nodes = Vec::new();
+                        for row in 1..=3 {
+                            if row > 1 {
+                                ui.add_space(4.0);
+                            }
+                            rail_top.get_or_insert(ui.cursor().top() + 6.0);
+                            let chosen_slot = self
+                                .secondary_rune_rows
+                                .iter()
+                                .position(|chosen| *chosen == row)
+                                .map(|choice| 4 + choice);
+                            let selected = chosen_slot
+                                .map(|slot| self.selected_perks[slot])
+                                .unwrap_or(-1);
+                            let detail = chosen_slot
+                                .map(|slot| {
+                                    selected_rune_name(
+                                        self.secondary_tree,
+                                        row,
+                                        self.selected_perks[slot],
+                                    )
+                                })
+                                .unwrap_or_else(|| "—".to_string());
                             rune_section_heading(
                                 ui,
                                 &format!("ROW {row}"),
-                                &selected_rune_name(
-                                    self.secondary_tree,
-                                    row,
-                                    self.selected_perks[slot],
-                                ),
-                                rune_tree_color(self.secondary_tree),
+                                &detail,
+                                if chosen_slot.is_some() {
+                                    secondary_accent
+                                } else {
+                                    MUTED
+                                },
                             );
-                            if let Some(id) = rune_icon_choice_line(
+                            let options = rune_options(self.secondary_tree, row);
+                            let result = rune_icon_row(
                                 ui,
                                 &options,
-                                self.selected_perks[slot],
+                                selected,
                                 &self.rune_textures,
-                                rune_tree_color(self.secondary_tree),
-                                36.0,
-                            ) {
-                                self.selected_perks[slot] = id;
-                            }
-                        }
-                    });
-                Frame::new()
-                    .fill(INSET)
-                    .stroke(Stroke::new(1.0, BORDER))
-                    .corner_radius(egui::CornerRadius::same(10))
-                    .inner_margin(egui::Margin::same(10))
-                    .show(&mut columns[2], |ui| {
-                        rune_section_heading(ui, "STAT SHARDS", "Offense · flex · defense", CYAN);
-                        for (row, label) in [(0usize, "OFFENSE"), (1, "FLEX"), (2, "DEFENSE")] {
-                            let options = stat_shard_options(row)
-                                .iter()
-                                .map(|(id, name)| (*id, (*name).to_string()))
-                                .collect::<Vec<_>>();
-                            let slot = 6 + row;
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(label).size(8.0).strong().color(MUTED));
-                                ui.label(
-                                    RichText::new(selected_rune_name_from_options(
-                                        &options,
-                                        self.selected_perks[slot],
-                                    ))
-                                    .size(8.5)
-                                    .color(SECONDARY),
+                                secondary_accent,
+                                34.0,
+                                10.0,
+                            );
+                            if let Some(id) = result.clicked {
+                                match chosen_slot {
+                                    Some(slot) => self.selected_perks[slot] = id,
+                                    None => {
+                                        // New row replaces the older of the two picks.
+                                        self.secondary_rune_rows =
+                                            [self.secondary_rune_rows[1], row];
+                                        self.selected_perks[4] = self.selected_perks[5];
+                                        self.selected_perks[5] = id;
+                                    }
+                                }
+                                normalize_rune_setup(
+                                    self.primary_tree,
+                                    self.secondary_tree,
+                                    &mut self.secondary_rune_rows,
+                                    &mut self.selected_perks,
                                 );
-                            });
-                            if let Some(id) = rune_icon_choice_line(
+                            }
+                            nodes.extend(result.selected_center);
+                        }
+                        paint_rune_rail(
+                            ui,
+                            rail_slot,
+                            rail_x,
+                            rail_top.unwrap_or_default(),
+                            &nodes,
+                            secondary_accent,
+                        );
+                    },
+                );
+
+                // ── Shards + summoner spells ──
+                rune_card(&mut columns[2], CYAN, None, |ui| {
+                    rune_section_heading(ui, "STAT SHARDS", "Offense · Flex · Defense", CYAN);
+                    for (row, label) in [(0usize, "OFFENSE"), (1, "FLEX"), (2, "DEFENSE")] {
+                        let options = stat_shard_options(row)
+                            .iter()
+                            .map(|(id, name)| (*id, (*name).to_string()))
+                            .collect::<Vec<_>>();
+                        let slot = 6 + row;
+                        ui.add_space(3.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(14.0);
+                            ui.label(RichText::new(label).size(8.0).strong().color(MUTED));
+                            ui.label(
+                                RichText::new(selected_rune_name_from_options(
+                                    &options,
+                                    self.selected_perks[slot],
+                                ))
+                                .size(9.5)
+                                .color(lerp_color(CYAN, TEXT, 0.45)),
+                            );
+                        });
+                        let result = rune_icon_row(
+                            ui,
+                            &options,
+                            self.selected_perks[slot],
+                            &self.rune_textures,
+                            CYAN,
+                            30.0,
+                            10.0,
+                        );
+                        if let Some(id) = result.clicked {
+                            self.selected_perks[slot] = id;
+                        }
+                    }
+                    ui.add_space(10.0);
+                    rune_section_heading(
+                        ui,
+                        "SUMMONER SPELLS",
+                        &format!(
+                            "{} + {}",
+                            spell_name(self.spell_one),
+                            spell_name(self.spell_two)
+                        ),
+                        GOLD,
+                    );
+                    ui.add_space(2.0);
+                    let slot_width = ((ui.available_width() - 6.0) * 0.5).clamp(84.0, 122.0);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        for (slot, key, id) in [
+                            (0usize, "D", self.spell_one),
+                            (1usize, "F", self.spell_two),
+                        ] {
+                            if spell_slot_button(
                                 ui,
-                                &options,
-                                self.selected_perks[slot],
-                                &self.rune_textures,
-                                CYAN,
-                                31.0,
-                            ) {
-                                self.selected_perks[slot] = id;
+                                key,
+                                spell_name(id),
+                                self.spell_textures.get(&id),
+                                self.active_spell_slot == slot,
+                                if slot == 0 { CYAN } else { GOLD },
+                                slot_width,
+                            )
+                            .clicked()
+                            {
+                                self.active_spell_slot = slot;
                             }
                         }
-                        ui.add_space(8.0);
-                        rune_section_heading(
-                            ui,
-                            "SUMMONER SPELLS",
-                            "Pick a slot, then a spell",
-                            GOLD,
-                        );
-                        Frame::new()
-                            .inner_margin(egui::Margin::same(0))
-                            .show(ui, |ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(5.0, 5.0);
-                                ui.horizontal_wrapped(|ui| {
-                                    for (slot, label, id) in [
-                                        (0usize, "D", self.spell_one),
-                                        (1usize, "F", self.spell_two),
-                                    ] {
-                                        if filter_chip(
-                                            ui,
-                                            &format!("{label} · {}", spell_name(id)),
-                                            self.active_spell_slot == slot,
-                                            if slot == 0 { CYAN } else { GOLD },
-                                        )
-                                        .clicked()
-                                        {
-                                            self.active_spell_slot = slot;
-                                        }
-                                    }
-                                });
-                                ui.add_space(4.0);
-                                ui.horizontal_wrapped(|ui| {
-                                    for (id, name) in SUMMONER_SPELLS {
-                                        let selected_here = if self.active_spell_slot == 0 {
-                                            self.spell_one == *id
-                                        } else {
-                                            self.spell_two == *id
-                                        };
-                                        let selected_other = if self.active_spell_slot == 0 {
-                                            self.spell_two == *id
-                                        } else {
-                                            self.spell_one == *id
-                                        };
-                                        let response = spell_choice_chip(
-                                            ui,
-                                            name,
-                                            selected_here,
-                                            selected_other,
-                                            if self.active_spell_slot == 0 {
-                                                CYAN
-                                            } else {
-                                                GOLD
-                                            },
-                                        );
-                                        if response.clicked() {
-                                            if self.active_spell_slot == 0 {
-                                                if self.spell_two == *id {
-                                                    std::mem::swap(
-                                                        &mut self.spell_one,
-                                                        &mut self.spell_two,
-                                                    );
-                                                } else {
-                                                    self.spell_one = *id;
-                                                }
-                                            } else if self.spell_one == *id {
-                                                std::mem::swap(
-                                                    &mut self.spell_one,
-                                                    &mut self.spell_two,
-                                                );
-                                            } else {
-                                                self.spell_two = *id;
-                                            }
-                                        }
-                                    }
-                                });
-                            });
                     });
+                    ui.add_space(6.0);
+                    ui.spacing_mut().item_spacing = Vec2::new(5.0, 5.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for (id, name) in SUMMONER_SPELLS {
+                            let selected_here = if self.active_spell_slot == 0 {
+                                self.spell_one == *id
+                            } else {
+                                self.spell_two == *id
+                            };
+                            let selected_other = if self.active_spell_slot == 0 {
+                                self.spell_two == *id
+                            } else {
+                                self.spell_one == *id
+                            };
+                            let response = spell_choice_chip(
+                                ui,
+                                name,
+                                self.spell_textures.get(id),
+                                selected_here,
+                                selected_other,
+                                if self.active_spell_slot == 0 {
+                                    CYAN
+                                } else {
+                                    GOLD
+                                },
+                            );
+                            if response.clicked() {
+                                if self.active_spell_slot == 0 {
+                                    if self.spell_two == *id {
+                                        std::mem::swap(&mut self.spell_one, &mut self.spell_two);
+                                    } else {
+                                        self.spell_one = *id;
+                                    }
+                                } else if self.spell_one == *id {
+                                    std::mem::swap(&mut self.spell_one, &mut self.spell_two);
+                                } else {
+                                    self.spell_two = *id;
+                                }
+                            }
+                        }
+                    });
+                });
             });
         });
     }
@@ -9447,6 +9503,14 @@ fn rune_tree_color(tree: u32) -> Color32 {
     }
 }
 
+const RUNE_ORB_DARK: Color32 = Color32::from_rgb(11, 13, 18);
+
+/// Result of drawing one row of rune orbs.
+struct RuneRowResult {
+    clicked: Option<i64>,
+    selected_center: Option<egui::Pos2>,
+}
+
 fn rune_tree_picker(
     ui: &mut egui::Ui,
     selected: u32,
@@ -9454,7 +9518,15 @@ fn rune_tree_picker(
     textures: &HashMap<i64, egui::TextureHandle>,
 ) -> Option<u32> {
     let mut clicked = None;
+    let count = RUNE_TREES
+        .iter()
+        .filter(|(id, _)| Some(*id) != excluded)
+        .count()
+        .max(1) as f32;
+    // Fit all trees in the card: each orb takes side + 10 (glow padding) + 2 spacing.
+    let side = ((ui.available_width() + 2.0) / count - 12.0).clamp(20.0, 32.0);
     ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
         for (id, name) in RUNE_TREES
             .iter()
             .copied()
@@ -9465,7 +9537,7 @@ fn rune_tree_picker(
                 id as i64,
                 selected == id,
                 rune_tree_color(id),
-                36.0,
+                side,
                 textures,
             );
             if response.clicked() {
@@ -9476,34 +9548,66 @@ fn rune_tree_picker(
     });
     clicked
 }
+
+/// Small uppercase label on the rail line, with the chosen value underneath in the accent colour.
 fn rune_section_heading(ui: &mut egui::Ui, title: &str, detail: &str, accent: Color32) {
-    ui.add_space(1.0);
-    ui.horizontal(|ui| {
-        let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
-        ui.painter().circle_filled(rect.center(), 3.5, accent);
-        ui.label(RichText::new(title).size(10.0).strong().color(TEXT));
-        ui.label(RichText::new(detail).size(9.0).color(MUTED));
-    });
-    ui.add_space(2.0);
+    // Painted at a fixed height so the app's large default item spacing can't pull the two lines apart.
+    let has_detail = !detail.is_empty();
+    let height = if has_detail { 31.0 } else { 14.0 };
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+    let painter = ui.painter();
+    let dot = egui::pos2(rect.left() + 4.0, rect.top() + 6.0);
+    painter.circle_filled(dot, 5.5, accent.gamma_multiply(0.2));
+    painter.circle_filled(dot, 3.0, accent);
+    painter.text(
+        egui::pos2(rect.left() + 14.0, dot.y),
+        egui::Align2::LEFT_CENTER,
+        title,
+        FontId::proportional(8.5),
+        MUTED,
+    );
+    if has_detail {
+        painter.text(
+            egui::pos2(rect.left() + 14.0, rect.top() + 22.0),
+            egui::Align2::LEFT_CENTER,
+            detail,
+            FontId::proportional(12.5),
+            lerp_color(accent, TEXT, 0.4),
+        );
+    }
 }
 
-fn rune_icon_choice_line(
+/// A row of round rune orbs. Unselected orbs are dimmed so the chosen path stands out.
+fn rune_icon_row(
     ui: &mut egui::Ui,
     options: &[(i64, String)],
     selected: i64,
     textures: &HashMap<i64, egui::TextureHandle>,
     accent: Color32,
     side: f32,
-) -> Option<i64> {
+    lead: f32,
+) -> RuneRowResult {
+    let mut result = RuneRowResult {
+        clicked: None,
+        selected_center: None,
+    };
     if options.is_empty() {
-        return None;
+        return result;
     }
-    let mut clicked = None;
     ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        if lead > 0.0 {
+            ui.add_space(lead);
+        }
         for (id, name) in options {
-            let response = rune_icon_card(ui, *id, selected == *id, accent, side, textures);
+            let is_selected = selected == *id;
+            let response = rune_icon_card(ui, *id, is_selected, accent, side, textures);
+            if is_selected {
+                result.selected_center = Some(response.rect.center());
+            }
             if response.clicked() {
-                clicked = Some(*id);
+                result.clicked = Some(*id);
             }
             let description = rune_description(*id);
             response.on_hover_text(if description.is_empty() {
@@ -9513,9 +9617,10 @@ fn rune_icon_choice_line(
             });
         }
     });
-    clicked
+    result
 }
 
+/// Round rune orb: soft halo + double ring when selected, dimmed when not, lifts on hover.
 fn rune_icon_card(
     ui: &mut egui::Ui,
     id: i64,
@@ -9524,43 +9629,246 @@ fn rune_icon_card(
     side: f32,
     textures: &HashMap<i64, egui::TextureHandle>,
 ) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click());
+    let pad = 5.0;
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::splat(side + pad * 2.0), Sense::click());
+    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
     let hover =
         ui.ctx()
             .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
     let active = ui
         .ctx()
-        .animate_bool_with_time(response.id.with("selected"), selected, 0.16);
-    let emphasis = active.max(hover * 0.55);
-    ui.painter().rect_filled(
-        rect,
-        egui::CornerRadius::same(8),
-        lerp_color(CARD, accent.gamma_multiply(0.18), emphasis),
-    );
-    ui.painter().rect_stroke(
-        rect,
-        egui::CornerRadius::same(8),
-        Stroke::new(0.8 + active * 0.8, lerp_color(BORDER, accent, emphasis)),
-        egui::StrokeKind::Inside,
+        .animate_bool_with_time(response.id.with("selected"), selected, 0.18);
+    let emphasis = active.max(hover * 0.75);
+    let center = rect.center();
+    let radius = side * 0.5 * (1.0 + 0.07 * hover);
+    let painter = ui.painter();
+
+    if active > 0.01 {
+        for step in 0..5 {
+            let fade = 1.0 - step as f32 / 5.0;
+            painter.circle_filled(
+                center,
+                radius + 1.0 + step as f32 * 1.2,
+                accent.gamma_multiply(0.11 * active * fade),
+            );
+        }
+    }
+    painter.circle_filled(
+        center,
+        radius,
+        lerp_color(RUNE_ORB_DARK, accent, 0.06 + 0.16 * emphasis),
     );
     if let Some(texture) = textures.get(&id) {
-        let image_rect = rect.shrink(4.0);
+        let image_radius = radius - 3.0;
+        let image_rect = egui::Rect::from_center_size(center, Vec2::splat(image_radius * 2.0));
+        let alpha = 0.36 + 0.64 * emphasis;
         egui::Image::new((texture.id(), image_rect.size()))
-            .corner_radius(egui::CornerRadius::same(6))
+            .corner_radius(egui::CornerRadius::same(image_radius.round() as u8))
+            .tint(Color32::from_white_alpha((alpha * 255.0) as u8))
             .paint_at(ui, image_rect);
     }
+    let painter = ui.painter();
+    painter.circle_stroke(
+        center,
+        radius,
+        Stroke::new(
+            0.8 + active * 1.0,
+            lerp_color(BORDER, accent, emphasis * (0.55 + 0.45 * active)),
+        ),
+    );
+    if side >= 38.0 && active > 0.01 {
+        painter.circle_stroke(
+            center,
+            radius + 3.5,
+            Stroke::new(1.0, accent.gamma_multiply(0.5 * active)),
+        );
+    }
+    response
+}
+
+/// Card with a tree-tinted vertical gradient and a faint tree emblem in the corner.
+fn rune_card<R>(
+    ui: &mut egui::Ui,
+    accent: Color32,
+    emblem: Option<&egui::TextureHandle>,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let background = ui.painter().add(egui::Shape::Noop);
+    let inner = Frame::new()
+        .stroke(Stroke::new(1.0, lerp_color(BORDER, accent, 0.5)))
+        .corner_radius(egui::CornerRadius::same(12))
+        .inner_margin(egui::Margin::same(12))
+        .show(ui, add_contents);
+    let rect = inner.response.rect;
+    let mut shapes = vec![rounded_gradient_mesh(
+        rect,
+        12.0,
+        lerp_color(INSET, accent, 0.14),
+        INSET,
+    )];
+    if let Some(texture) = emblem {
+        let size = 78.0;
+        let emblem_rect = egui::Rect::from_min_size(
+            egui::pos2(rect.right() - size - 4.0, rect.top() + 4.0),
+            Vec2::splat(size),
+        );
+        shapes.push(egui::Shape::image(
+            texture.id(),
+            emblem_rect,
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            Color32::from_white_alpha(20),
+        ));
+    }
+    ui.painter().set(background, egui::Shape::Vec(shapes));
+    inner.inner
+}
+
+/// Rounded rect filled with a top-to-bottom gradient (fan mesh; colour is linear in y so it's exact).
+fn rounded_gradient_mesh(
+    rect: egui::Rect,
+    radius: f32,
+    top: Color32,
+    bottom: Color32,
+) -> egui::Shape {
+    let radius = radius.min(rect.width() * 0.5).min(rect.height() * 0.5);
+    let corners = [
+        (egui::pos2(rect.right() - radius, rect.top() + radius), -90.0_f32),
+        (egui::pos2(rect.right() - radius, rect.bottom() - radius), 0.0),
+        (egui::pos2(rect.left() + radius, rect.bottom() - radius), 90.0),
+        (egui::pos2(rect.left() + radius, rect.top() + radius), 180.0),
+    ];
+    let color_at = |point: egui::Pos2| {
+        lerp_color(
+            top,
+            bottom,
+            ((point.y - rect.top()) / rect.height().max(1.0)).clamp(0.0, 1.0),
+        )
+    };
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(rect.center(), color_at(rect.center()));
+    for (corner, start) in corners {
+        for step in 0..=6 {
+            let angle = (start + 90.0 * step as f32 / 6.0).to_radians();
+            let point = corner + Vec2::new(angle.cos(), angle.sin()) * radius;
+            mesh.colored_vertex(point, color_at(point));
+        }
+    }
+    let count = mesh.vertices.len() as u32 - 1;
+    for index in 0..count {
+        mesh.add_triangle(0, 1 + index, 1 + (index + 1) % count);
+    }
+    egui::Shape::mesh(mesh)
+}
+
+/// The "rune path": a vertical rail through the heading dots with a branch to each chosen rune.
+fn paint_rune_rail(
+    ui: &egui::Ui,
+    slot: egui::layers::ShapeIdx,
+    rail_x: f32,
+    top_y: f32,
+    nodes: &[egui::Pos2],
+    accent: Color32,
+) {
+    let Some(last) = nodes.last() else {
+        return;
+    };
+    let mut shapes = vec![egui::Shape::line_segment(
+        [egui::pos2(rail_x, top_y), egui::pos2(rail_x, last.y)],
+        Stroke::new(2.0, accent.gamma_multiply(0.35)),
+    )];
+    for node in nodes {
+        shapes.push(egui::Shape::line_segment(
+            [egui::pos2(rail_x, node.y), *node],
+            Stroke::new(1.5, accent.gamma_multiply(0.28)),
+        ));
+        shapes.push(egui::Shape::circle_filled(
+            egui::pos2(rail_x, node.y),
+            3.5,
+            accent,
+        ));
+    }
+    ui.painter().set(slot, egui::Shape::Vec(shapes));
+}
+
+/// Big D / F slot button showing the assigned spell's icon.
+fn spell_slot_button(
+    ui: &mut egui::Ui,
+    key: &str,
+    name: &str,
+    icon: Option<&egui::TextureHandle>,
+    active: bool,
+    accent: Color32,
+    width: f32,
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 42.0), Sense::click());
+    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let hover =
+        ui.ctx()
+            .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
+    let on = ui
+        .ctx()
+        .animate_bool_with_time(response.id.with("active"), active, 0.16);
+    let emphasis = on.max(hover * 0.5);
+    let painter = ui.painter();
+    painter.rect_filled(
+        rect,
+        egui::CornerRadius::same(9),
+        lerp_color(CARD, accent, 0.04 + 0.12 * emphasis),
+    );
+    painter.rect_stroke(
+        rect,
+        egui::CornerRadius::same(9),
+        Stroke::new(1.0 + on * 0.6, lerp_color(BORDER, accent, emphasis)),
+        egui::StrokeKind::Inside,
+    );
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + 22.0, rect.center().y),
+        Vec2::splat(30.0),
+    );
+    if let Some(texture) = icon {
+        egui::Image::new((texture.id(), icon_rect.size()))
+            .corner_radius(egui::CornerRadius::same(6))
+            .paint_at(ui, icon_rect);
+    } else {
+        ui.painter()
+            .rect_filled(icon_rect, egui::CornerRadius::same(6), INSET);
+    }
+    let painter = ui.painter();
+    painter.rect_stroke(
+        icon_rect,
+        egui::CornerRadius::same(6),
+        Stroke::new(1.0, lerp_color(BORDER, accent, 0.4 + 0.6 * on)),
+        egui::StrokeKind::Outside,
+    );
+    painter.text(
+        egui::pos2(icon_rect.right() + 8.0, rect.center().y - 7.0),
+        egui::Align2::LEFT_CENTER,
+        key,
+        FontId::proportional(8.5),
+        accent,
+    );
+    painter.text(
+        egui::pos2(icon_rect.right() + 8.0, rect.center().y + 6.0),
+        egui::Align2::LEFT_CENTER,
+        name,
+        FontId::proportional(11.5),
+        if active { TEXT } else { SECONDARY },
+    );
     response
 }
 
 fn spell_choice_chip(
     ui: &mut egui::Ui,
     label: &str,
+    icon: Option<&egui::TextureHandle>,
     selected_here: bool,
     selected_other: bool,
     accent: Color32,
 ) -> egui::Response {
-    let width = (label.chars().count() as f32 * 5.7 + 27.0).clamp(58.0, 104.0);
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 27.0), Sense::click());
+    let width = (label.chars().count() as f32 * 5.7 + 38.0).clamp(66.0, 116.0);
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 28.0), Sense::click());
+    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
     let hover =
         ui.ctx()
             .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
@@ -9581,7 +9889,7 @@ fn spell_choice_chip(
     ui.painter().rect_filled(
         rect,
         egui::CornerRadius::same(7),
-        lerp_color(CARD, color.gamma_multiply(0.18), emphasis),
+        lerp_color(CARD, color, 0.14 * emphasis),
     );
     ui.painter().rect_stroke(
         rect,
@@ -9592,10 +9900,25 @@ fn spell_choice_chip(
         ),
         egui::StrokeKind::Inside,
     );
-    ui.painter()
-        .circle_filled(egui::pos2(rect.left() + 9.0, rect.center().y), 2.5, color);
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + 14.0, rect.center().y),
+        Vec2::splat(20.0),
+    );
+    if let Some(texture) = icon {
+        let alpha = if selected_here || selected_other {
+            1.0
+        } else {
+            0.55 + 0.45 * hover
+        };
+        egui::Image::new((texture.id(), icon_rect.size()))
+            .corner_radius(egui::CornerRadius::same(4))
+            .tint(Color32::from_white_alpha((alpha * 255.0) as u8))
+            .paint_at(ui, icon_rect);
+    } else {
+        ui.painter().circle_filled(icon_rect.center(), 2.5, color);
+    }
     ui.painter().text(
-        egui::pos2(rect.left() + 16.0, rect.center().y),
+        egui::pos2(icon_rect.right() + 6.0, rect.center().y),
         egui::Align2::LEFT_CENTER,
         label,
         FontId::proportional(8.5),
