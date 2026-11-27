@@ -7,7 +7,7 @@
 
 use crate::config::settings::SettingsStore;
 use crate::domain::champions;
-use crate::domain::live_game::LiveGameState;
+use crate::domain::live_game::{LiveGameLatch, LiveGameState};
 use crate::domain::protocol::{CoreCommand, CoreEvent, CoreNotice, CoreSnapshot, GameflowPhase};
 use crate::overlay::engine::{OverlayCommand, OverlayConfig, OverlayEngine, TickInput};
 use crate::overlay::host::{
@@ -65,6 +65,7 @@ pub struct RiftCoreShell {
     window: WindowTrackerState,
     monitors: Vec<MonitorMetrics>,
     monitors_at: Option<Instant>,
+    live_game_latch: LiveGameLatch,
 }
 
 impl RiftCoreShell {
@@ -133,6 +134,7 @@ impl RiftCoreShell {
             window: WindowTrackerState::default(),
             monitors: Vec::new(),
             monitors_at: None,
+            live_game_latch: LiveGameLatch::default(),
         };
         shell.sync_overlay_config();
         Ok(shell)
@@ -320,7 +322,10 @@ impl RiftCoreShell {
             &mut self.overlay_config,
         );
 
-        let live = self.state.parsed_live_game.is_some();
+        // One failed live-client poll doesn't end the match (see `LiveGameLatch`).
+        let live = self
+            .live_game_latch
+            .update(self.state.parsed_live_game.is_some(), Instant::now());
         self.overlay_engine
             .on_live_game_state(live, &mut self.overlay_config);
         self.state.overlay_mode = self.overlay_engine.is_enabled();

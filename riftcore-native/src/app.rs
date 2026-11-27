@@ -158,6 +158,7 @@ pub struct RiftCoreApp {
     overlay_auto_entered: bool,
     overlay_waiting_for_window: bool,
     overlay_dismissed_by_user: bool,
+    live_game_latch: riftcore_native::domain::live_game::LiveGameLatch,
     overlay_mouse_passthrough: bool,
     overlay_input_passthrough: bool,
     overlay_interactive_regions: Vec<egui::Rect>,
@@ -374,6 +375,7 @@ impl RiftCoreApp {
             overlay_auto_entered: false,
             overlay_waiting_for_window: false,
             overlay_dismissed_by_user: false,
+            live_game_latch: Default::default(),
             overlay_mouse_passthrough: false,
             overlay_input_passthrough: true,
             overlay_interactive_regions: Vec::new(),
@@ -7624,12 +7626,13 @@ impl eframe::App for RiftCoreApp {
         }
         self.ready_check_alerted = ready;
 
-        let live = self
+        // One failed live-client poll doesn't end the match (see `LiveGameLatch`).
+        let has_live_data = self
             .snapshot
             .live_game
             .as_ref()
-            .map(|data| data.get("gameData").is_some())
-            .unwrap_or(false);
+            .is_some_and(|data| data.get("gameData").is_some());
+        let live = self.live_game_latch.update(has_live_data, Instant::now());
         if live && !self.overlay_mode && !self.overlay_dismissed_by_user {
             self.set_overlay_mode(&ctx, true, true);
         } else if !live && self.overlay_mode && self.overlay_auto_entered {
@@ -8555,85 +8558,30 @@ fn draft_team_analysis(ids: &[u32; 5], champions: &[Champion]) -> DraftReadout {
     result
 }
 
+/// The classic HUD's three objective rows (dragon pit, top pit, Baron), using the same
+/// patch-accurate rules as the Path B HUD. Off Summoner's Rift every row reads "—".
 fn objective_timers(live: &Value) -> [(String, String); 3] {
-    let game_time = live
-        .get("gameData")
-        .and_then(|data| data.get("gameTime"))
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0) as u64;
-    let events = live
-        .get("events")
-        .and_then(|data| data.get("Events"))
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
+    use riftcore_native::domain::live_game::{LiveGameState, ObjectiveKind, ObjectiveTimer};
+    let timers = LiveGameState::from_allgamedata(live)
+        .map(|state| state.objective_timers())
         .unwrap_or_default();
-    let events_for = |name: &str| {
-        events
-            .iter()
-            .filter(|event| event.get("EventName").and_then(Value::as_str) == Some(name))
-            .collect::<Vec<_>>()
+    let find = |wanted: &[ObjectiveKind]| timers.iter().find(|t| wanted.contains(&t.kind));
+    let row = |timer: Option<&ObjectiveTimer>, fallback: &str| {
+        timer.map_or_else(
+            || (fallback.to_string(), "\u{2014}".to_string()),
+            |t| (t.label.clone(), t.formatted_remaining()),
+        )
     };
-    let event_time = |event: &Value| {
-        event
-            .get("EventTime")
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0) as u64
-    };
-    let last_event_time = |name: &str| events_for(name).into_iter().map(event_time).max();
-    let remaining = |last: Option<u64>, spawn: u64, respawn: u64| {
-        last.map(|event_time| event_time.saturating_add(respawn))
-            .unwrap_or(spawn)
-            .saturating_sub(game_time)
-    };
-    let format = |seconds: u64| {
-        if seconds == 0 {
-            "READY".to_string()
-        } else {
-            format!("{:02}:{:02}", seconds / 60, seconds % 60)
-        }
-    };
-    let dragon_event = events_for("DragonKill")
-        .into_iter()
-        .max_by_key(|event| event_time(event));
-    let dragon_respawn = dragon_event
-        .and_then(|event| event.get("DragonType"))
-        .and_then(Value::as_str)
-        .filter(|kind| kind.eq_ignore_ascii_case("Elder"))
-        .map(|_| 360)
-        .unwrap_or(300);
-    let dragon_timer = remaining(dragon_event.map(event_time), 300, dragon_respawn);
-
-    let horde_kills = events_for("HordeKill");
-    let latest_horde = horde_kills.iter().map(|event| event_time(event)).max();
-    let (pit_name, pit_remaining) = if game_time < 300 {
-        ("GRUBS", 300 - game_time)
-    } else if game_time < 840 {
-        if horde_kills.len() >= 6 {
-            ("HERALD", 840 - game_time)
-        } else if horde_kills.len() >= 3 {
-            let next_wave = latest_horde.unwrap_or(game_time).saturating_add(240);
-            if next_wave <= 840 && game_time < next_wave {
-                ("GRUBS", next_wave - game_time)
-            } else {
-                ("GRUBS", 0)
-            }
-        } else {
-            ("GRUBS", 0)
-        }
-    } else if game_time < 1185 {
-        if last_event_time("HeraldKill").is_some() {
-            ("BARON", 1200 - game_time)
-        } else {
-            ("HERALD", 0)
-        }
-    } else {
-        ("BARON", remaining(last_event_time("BaronKill"), 1200, 360))
-    };
-    let baron_timer = remaining(last_event_time("BaronKill"), 1200, 360);
+    let baron = find(&[ObjectiveKind::Baron]);
+    // After the grubs and the Herald, the top pit's next objective is Baron.
+    let pit = find(&[ObjectiveKind::Voidgrubs, ObjectiveKind::RiftHerald]).or(baron);
     [
-        ("DRAGON".to_string(), format(dragon_timer)),
-        (pit_name.to_string(), format(pit_remaining)),
-        ("BARON".to_string(), format(baron_timer)),
+        row(
+            find(&[ObjectiveKind::Dragon, ObjectiveKind::ElderDragon]),
+            "DRAGON",
+        ),
+        row(pit, "GRUBS"),
+        row(baron, "BARON"),
     ]
 }
 

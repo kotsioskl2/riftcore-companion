@@ -93,9 +93,10 @@ impl ClockSample {
 
 impl GameClock {
     /// How far past the last snapshot the clock may run before it waits for new data.
-    /// Snapshots arrive about every 0.9-1.0 s; a paused game keeps sending the same time, so a
-    /// short lead keeps the paused clock at most about a second ahead.
-    pub const MAX_LEAD_SECS: f64 = 1.25;
+    /// Snapshots arrive about every 1.1 s (a 0.9 s poll on a 220 ms loop), so the lead covers
+    /// that gap with margin; a paused game keeps sending the same time, and the clock then reads
+    /// at most one second ahead.
+    pub const MAX_LEAD_SECS: f64 = 1.5;
     /// Differences larger than this are a different game state, not jitter: snap to it.
     pub const SNAP_SECS: f64 = 3.0;
     /// Fastest catch-up rate (game seconds per real second).
@@ -555,8 +556,8 @@ mod tests {
             }
             shown = Some(secs);
         }
-        // Without new data the clock stops 1.25 s past the last snapshot instead of running away.
-        assert!((clock.secs_at(at(30.0)).expect("running") - 604.25).abs() < 1e-6);
+        // Without new data the clock stops 1.5 s past the last snapshot instead of running away.
+        assert!((clock.secs_at(at(30.0)).expect("running") - 604.5).abs() < 1e-6);
         assert!(clock.until_next_second(at(30.0)).expect("running") <= Duration::from_secs(1));
         // A new game (time far back) snaps and asks for per-game state to be reset.
         assert!(clock.observe(30.0, at(31.0)));

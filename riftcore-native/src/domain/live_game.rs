@@ -350,18 +350,25 @@ impl LiveGameState {
             }
         };
 
-        let last_dragon = self
+        // Summoner's Rift timings (patch 26.x, League wiki): drakes from 5:00 and 5 min after
+        // each kill; once a team has four drakes (Dragon Soul) every later spawn is the Elder
+        // Dragon, 6 min after the previous kill. Voidgrubs: one group of three at 8:00, gone at
+        // 14:45. Rift Herald: once at 15:00, gone at 19:45. Baron: 20:00, then 6 min after a kill.
+        let dragon_kills: Vec<&LiveGameEvent> = self
             .events
             .iter()
             .filter(|ev| ev.event_name == "DragonKill")
+            .collect();
+        let last_dragon = dragon_kills
+            .iter()
+            .copied()
             .max_by(|a, b| event_time(a).total_cmp(&event_time(b)));
-        let is_elder = last_dragon
-            .and_then(|ev| ev.dragon_type.as_deref())
-            .is_some_and(|kind| kind.eq_ignore_ascii_case("Elder"));
-        let dragon_respawn = if is_elder { 360 } else { 300 };
+        let elder_next =
+            last_dragon.is_some_and(is_elder_kill) || self.dragon_soul_taken(&dragon_kills);
+        let dragon_respawn = if elder_next { 360 } else { 300 };
         let dragon_ready_at =
             last_dragon.map_or(300.0, |ev| event_time(ev) + dragon_respawn as f64);
-        let (dragon_kind, dragon_label) = if is_elder {
+        let (dragon_kind, dragon_label) = if elder_next {
             (ObjectiveKind::ElderDragon, "ELDER")
         } else {
             (ObjectiveKind::Dragon, "DRAGON")
@@ -373,29 +380,16 @@ impl LiveGameState {
             dragon_respawn,
         )];
 
-        let horde_kills = event_times("HordeKill").count();
-        let latest_horde = event_times("HordeKill").reduce(f64::max);
+        // Top pit: Voidgrubs (no respawn), then the Rift Herald (no respawn), then Baron.
+        let grubs_cleared = event_times("HordeKill").count() >= 3;
         let herald_killed = event_times("HeraldKill").next().is_some();
-
-        if now < 300.0 {
-            timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", 300.0, 240));
-        } else if now < 840.0 {
-            let next_wave = latest_horde.map_or(now, |t| t + 240.0);
-            match horde_kills {
-                // A wave is up: none of it, or only part of it, has been killed.
-                0..=2 | 4..=5 => {
-                    timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", now, 240));
-                }
-                // First wave cleared: the second one spawns 4 minutes later.
-                3 if next_wave <= 840.0 => {
-                    timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", next_wave, 240));
-                }
-                // Both waves are done, or the second wave could only respawn after the Herald
-                // replaces the grubs at 14:00: the pit's next objective is the Herald.
-                _ => timers.push(timer(ObjectiveKind::RiftHerald, "HERALD", 840.0, 0)),
-            }
+        if now < 480.0 {
+            timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", 480.0, 0));
+        } else if now < 885.0 && !grubs_cleared {
+            // Up (READY) until all three die or the camp leaves at 14:45.
+            timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", now, 0));
         } else if now < 1185.0 && !herald_killed {
-            timers.push(timer(ObjectiveKind::RiftHerald, "HERALD", 840.0, 0));
+            timers.push(timer(ObjectiveKind::RiftHerald, "HERALD", 900.0, 0));
         }
 
         // Single canonical Baron timer (never duplicated when top pit transitions to Baron).
@@ -410,6 +404,74 @@ impl LiveGameState {
         timers.sort_by_key(|t| (t.remaining_secs, t.kind.pit_order()));
         timers
     }
+
+    /// True once either team has taken four elemental drakes (Dragon Soul); every later dragon
+    /// spawn is then the Elder Dragon. Kills whose killer can't be matched to a team still count
+    /// toward the total: seven elemental drakes always mean one team has four.
+    fn dragon_soul_taken(&self, dragon_kills: &[&LiveGameEvent]) -> bool {
+        let (mut order, mut chaos, mut total) = (0, 0, 0);
+        for kill in dragon_kills.iter().filter(|ev| !is_elder_kill(ev)) {
+            total += 1;
+            match kill
+                .killer_name
+                .as_deref()
+                .and_then(|name| self.team_of(name))
+            {
+                Some(team) if team.eq_ignore_ascii_case("ORDER") => order += 1,
+                Some(team) if team.eq_ignore_ascii_case("CHAOS") => chaos += 1,
+                _ => {}
+            }
+        }
+        order >= 4 || chaos >= 4 || total >= 7
+    }
+
+    /// Team ("ORDER" or "CHAOS") of the player whose summoner name or Riot ID is `name`.
+    fn team_of(&self, name: &str) -> Option<&str> {
+        let name = name.trim();
+        if name.is_empty() {
+            return None;
+        }
+        self.all_players
+            .iter()
+            .find(|player| {
+                [
+                    &player.summoner_name,
+                    &player.riot_id,
+                    &player.riot_id_game_name,
+                ]
+                .iter()
+                .any(|candidate| !candidate.is_empty() && candidate.eq_ignore_ascii_case(name))
+            })
+            .map(|player| player.team.as_str())
+    }
+}
+
+/// Decides whether a match is still live from the stream of client snapshots. A single
+/// live-client poll can time out under load; that must not close the HUD (and reopen it a
+/// second later) or forget that the user dismissed it, so the match only counts as over after
+/// [`Self::GRACE`] without live data.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LiveGameLatch {
+    seen_at: Option<std::time::Instant>,
+}
+
+impl LiveGameLatch {
+    pub const GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+    /// Feeds whether the latest snapshot had live match data; returns whether the match is live.
+    pub fn update(&mut self, has_live_data: bool, now: std::time::Instant) -> bool {
+        if has_live_data {
+            self.seen_at = Some(now);
+        }
+        self.seen_at
+            .is_some_and(|seen| now.saturating_duration_since(seen) < Self::GRACE)
+    }
+}
+
+fn is_elder_kill(ev: &LiveGameEvent) -> bool {
+    ev.dragon_type
+        .as_deref()
+        .is_some_and(|kind| kind.eq_ignore_ascii_case("Elder"))
 }
 
 impl ObjectiveKind {
@@ -1147,8 +1209,8 @@ mod tests {
 
     #[test]
     fn objective_timers_count_down_whole_seconds_soonest_first_and_never_negative() {
-        // Dragon killed at 10:00.4 respawns at 15:00.4; the grubs' first wave died at 10:30, so
-        // their second wave (14:30) would only come after the Herald replaces them at 14:00.
+        // Dragon killed at 10:00.4 respawns at 15:00.4; all three grubs died by 10:30 and don't
+        // respawn, so the top pit's next objective is the Herald at 15:00.
         let state = sr_state(
             700.0,
             json!([
@@ -1167,15 +1229,15 @@ mod tests {
         assert_eq!(
             labels(&state.objective_timers_at(700.0)),
             [
-                ("HERALD".to_string(), 140),
+                ("HERALD".to_string(), 200),
                 ("DRAGON".to_string(), 201),
                 ("BARON".to_string(), 500)
             ]
         );
         // Between snapshots the smoothed clock drives the countdown, one whole second at a time.
         let at = |t: f64| state.objective_timers_at(t);
-        assert_eq!(at(700.9)[0].remaining_secs, 140);
-        assert_eq!(at(701.0)[0].remaining_secs, 139);
+        assert_eq!(at(700.9)[0].remaining_secs, 200);
+        assert_eq!(at(701.0)[0].remaining_secs, 199);
         // Last second reads 00:01, then READY (never negative) and ready timers sort first.
         let dragon = |t: f64| {
             at(t)
@@ -1194,30 +1256,109 @@ mod tests {
     }
 
     #[test]
-    fn partly_killed_second_grub_wave_stays_ready() {
-        let grubs = |kill_times: &[f64], now: f64| {
-            let events: Vec<_> = kill_times
-                .iter()
-                .map(|t| json!({ "EventName": "HordeKill", "EventTime": t }))
-                .collect();
-            sr_state(now, json!(events))
+    fn top_pit_follows_patch_26_grub_and_herald_timings() {
+        let pit = |events: Value, now: f64| {
+            sr_state(now, events)
                 .objective_timers_at(now)
                 .into_iter()
                 .find(|t| matches!(t.kind, ObjectiveKind::Voidgrubs | ObjectiveKind::RiftHerald))
                 .map(|t| (t.label, t.remaining_secs))
         };
-        let ready = Some(("GRUBS".to_string(), 0));
-        // First wave dies at 5:30, second spawns at 9:30, one of it dies at 9:50.
-        let first_wave = [328.0, 329.0, 330.0];
-        assert_eq!(grubs(&first_wave, 400.0), Some(("GRUBS".to_string(), 170)));
-        assert_eq!(grubs(&[328.0, 329.0, 330.0, 590.0], 650.0), ready);
-        // Same, but the last kill is late enough that "+4 min" would land after 14:00.
-        assert_eq!(grubs(&[328.0, 329.0, 330.0, 590.0, 620.0], 700.0), ready);
-        // Part of the first wave killed: still up.
-        assert_eq!(grubs(&[328.0], 400.0), ready);
-        // Both waves cleared: the Herald comes next at 14:00.
-        let both = [328.0, 329.0, 330.0, 590.0, 620.0, 621.0];
-        assert_eq!(grubs(&both, 700.0), Some(("HERALD".to_string(), 140)));
+        let grub = |t: f64| json!({ "EventName": "HordeKill", "EventTime": t });
+        let grubs = |left: u64| Some(("GRUBS".to_string(), left));
+        let herald = |left: u64| Some(("HERALD".to_string(), left));
+        // One group of three at 8:00; it doesn't respawn.
+        assert_eq!(pit(json!([]), 0.0), grubs(480));
+        assert_eq!(pit(json!([]), 400.0), grubs(80));
+        assert_eq!(pit(json!([]), 480.0), grubs(0));
+        // Two of three killed: still up.
+        assert_eq!(pit(json!([grub(500.0), grub(501.0)]), 560.0), grubs(0));
+        // All three dead at 8:22: the Herald at 15:00 is next.
+        let cleared = json!([grub(500.0), grub(501.0), grub(502.0)]);
+        assert_eq!(pit(cleared.clone(), 600.0), herald(300));
+        // Untouched grubs leave at 14:45.
+        assert_eq!(pit(json!([]), 884.0), grubs(0));
+        assert_eq!(pit(json!([]), 885.0), herald(15));
+        // Herald is up from 15:00 until she is killed or leaves at 19:45.
+        assert_eq!(pit(cleared.clone(), 1000.0), herald(0));
+        let herald_dead = json!([{ "EventName": "HeraldKill", "EventTime": 960.0 }]);
+        assert_eq!(pit(herald_dead, 1000.0), None);
+        assert_eq!(pit(cleared, 1185.0), None);
+    }
+
+    #[test]
+    fn live_game_latch_rides_out_a_failed_poll_but_ends_with_the_match() {
+        let t0 = std::time::Instant::now();
+        let at = |secs: f64| t0 + std::time::Duration::from_secs_f64(secs);
+        let mut latch = LiveGameLatch::default();
+        assert!(!latch.update(false, at(0.0)), "no match yet");
+        assert!(latch.update(true, at(1.0)));
+        // One failed poll (about a second without data) keeps the match live.
+        assert!(latch.update(false, at(2.0)));
+        assert!(latch.update(true, at(2.9)));
+        // The match ended: live until the grace runs out, then over.
+        assert!(latch.update(false, at(7.8)));
+        assert!(!latch.update(false, at(7.9)));
+        assert!(!latch.update(false, at(60.0)));
+        // The next match is picked up at once.
+        assert!(latch.update(true, at(61.0)));
+    }
+
+    #[test]
+    fn elder_dragon_follows_dragon_soul() {
+        let state = |kills: &[(&str, &str, f64)], now: f64| {
+            let events: Vec<_> = kills
+                .iter()
+                .map(|(killer, kind, t)| {
+                    json!({ "EventName": "DragonKill", "EventTime": t, "DragonType": kind, "KillerName": killer })
+                })
+                .collect();
+            LiveGameState::from_allgamedata(&json!({
+                "gameData": { "gameTime": now, "gameMode": "CLASSIC", "mapNumber": 11 },
+                "activePlayer": { "summonerName": "Blue1" },
+                "allPlayers": [
+                    { "summonerName": "Blue1", "team": "ORDER", "championName": "Ahri" },
+                    { "summonerName": "Red1", "team": "CHAOS", "championName": "Zed" }
+                ],
+                "events": { "Events": events }
+            }))
+            .expect("valid SR payload")
+        };
+        let dragon = |kills: &[(&str, &str, f64)], now: f64| {
+            state(kills, now)
+                .objective_timers_at(now)
+                .into_iter()
+                .find(|t| matches!(t.kind, ObjectiveKind::Dragon | ObjectiveKind::ElderDragon))
+                .map(|t| (t.label, t.remaining_secs))
+        };
+        let three = [
+            ("Blue1", "Fire", 300.0),
+            ("Red1", "Water", 700.0),
+            ("Blue1", "Earth", 1100.0),
+            ("Blue1", "Air", 1500.0),
+        ];
+        // Blue has three drakes: the next spawn is still an elemental drake, 5 min later.
+        assert_eq!(dragon(&three, 1600.0), Some(("DRAGON".to_string(), 200)));
+        // Blue's fourth drake is Dragon Soul: the Elder Dragon spawns 6 min later...
+        let mut soul = three.to_vec();
+        soul.push(("Blue1", "Air", 1900.0));
+        assert_eq!(dragon(&soul[..], 2000.0), Some(("ELDER".to_string(), 260)));
+        // ...and respawns 6 min after each Elder kill.
+        let mut elder = soul.clone();
+        elder.push(("Red1", "Elder", 2260.0));
+        assert_eq!(dragon(&elder[..], 2300.0), Some(("ELDER".to_string(), 320)));
+        // Killers that can't be matched to a team: seven drakes always mean a soul.
+        let unknown: Vec<_> = (0..7)
+            .map(|i| ("?", "Fire", 300.0 + 400.0 * f64::from(i)))
+            .collect();
+        assert_eq!(
+            dragon(&unknown[..6], 2400.0),
+            Some(("DRAGON".to_string(), 200))
+        );
+        assert_eq!(
+            dragon(&unknown[..], 2800.0),
+            Some(("ELDER".to_string(), 260))
+        );
     }
 
     fn order(p: &str) -> Vec<String> {

@@ -163,6 +163,10 @@ mod imp {
         /// A display mode or DPI change arrived (e.g. a Fullscreen game switched resolution),
         /// so cached monitor metrics are stale.
         display_changed: bool,
+        /// Game window the HUD must stay above while it is on screen (0 = none); re-checked on
+        /// every hit-test timer tick, so the HUD is back on top within ~30 ms of the game rising.
+        game_hwnd: isize,
+        topmost_reasserts: u64,
     }
 
     /// Toggles only `WS_EX_TRANSPARENT`; `WS_EX_LAYERED` stays on (with `LWA_ALPHA` 255) so the
@@ -177,6 +181,25 @@ mod imp {
         if next != ex {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next as isize);
         }
+    }
+
+    /// Re-asserts topmost only when `game_hwnd` is above the HUD (a Fullscreen game is itself
+    /// topmost and rises whenever it is activated). No move, no resize and `SWP_NOACTIVATE`, so
+    /// the game keeps focus and its Fullscreen mode. Callers must not hold a `RefCell` borrow of
+    /// the shared state: `SetWindowPos` sends messages back to the window procedure.
+    unsafe fn raise_above_game(hwnd: *mut c_void, game_hwnd: isize) -> bool {
+        if hwnd.is_null() || game_hwnd == 0 || !is_window_above(game_hwnd, hwnd as isize) {
+            return false;
+        }
+        SetWindowPos(
+            hwnd,
+            HWND_TOPMOST as *mut c_void,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+        ) != 0
     }
 
     /// Hit-tests the live cursor against the last frame's panel rects and flips click-through
@@ -248,6 +271,17 @@ mod imp {
             }
             WM_TIMER if wparam == HIT_TIMER_ID => {
                 let _ = refresh_hit_test(hwnd, ptr);
+                if !ptr.is_null() {
+                    // SAFETY: non-null `GWLP_USERDATA` points to the live shared state; each
+                    // borrow ends before `raise_above_game` sends messages back to this proc.
+                    let shared = &*ptr;
+                    let game = shared.try_borrow().map_or(0, |st| st.game_hwnd);
+                    if raise_above_game(hwnd, game) {
+                        if let Ok(mut st) = shared.try_borrow_mut() {
+                            st.topmost_reasserts += 1;
+                        }
+                    }
+                }
                 return 0;
             }
             WM_NCHITTEST if !refresh_hit_test(hwnd, ptr) => return HTTRANSPARENT,
@@ -386,7 +420,6 @@ mod imp {
         /// Shown but not yet on screen: the first frame at the new size/DPI is presented
         /// before `ShowWindow`, so a stale or empty buffer never flashes up.
         show_pending: bool,
-        topmost_reasserts: u64,
         rect_px: [i32; 4],
         configured_size: [u32; 2],
         reconfigure_pending: bool,
@@ -501,7 +534,6 @@ mod imp {
                 shared_input_raw,
                 visible: false,
                 show_pending: false,
-                topmost_reasserts: 0,
                 rect_px: [0, 0, 640, 320],
                 configured_size: [640, 320],
                 reconfigure_pending: false,
@@ -762,7 +794,11 @@ mod imp {
                     self.show_pending = true;
                 } else {
                     self.show_pending = false;
-                    self.shared_input.borrow_mut().pointer_down = false;
+                    {
+                        let mut st = self.shared_input.borrow_mut();
+                        st.pointer_down = false;
+                        st.game_hwnd = 0;
+                    }
                     // SAFETY: `self.hwnd` is verified non-null; clear mouse capture before
                     // hiding. `SW_HIDE` never activates another window of ours.
                     unsafe {
@@ -780,28 +816,17 @@ mod imp {
         }
 
         fn keep_above(&mut self, game_hwnd: isize) -> bool {
-            if self.hwnd.is_null() || !self.visible || self.show_pending {
+            let on_screen = !self.hwnd.is_null() && self.visible && !self.show_pending;
+            // The HUD's 30 ms hit-test timer keeps re-checking this window between app ticks.
+            self.shared_input.borrow_mut().game_hwnd = if on_screen { game_hwnd } else { 0 };
+            if !on_screen {
                 return false;
             }
-            // Cheap z-order walk every tick; `SetWindowPos` only when the game is above us.
-            if !is_window_above(game_hwnd, self.hwnd as isize) {
-                return false;
-            }
-            // SAFETY: `self.hwnd` is verified non-null and owned by this thread. No move, no
-            // resize and `SWP_NOACTIVATE`: the game keeps focus and its Fullscreen mode.
-            let raised = unsafe {
-                SetWindowPos(
-                    self.hwnd,
-                    HWND_TOPMOST as *mut c_void,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
-                ) != 0
-            };
+            // SAFETY: `self.hwnd` is verified non-null and owned by this thread, and no borrow
+            // of the shared state is held across the call.
+            let raised = unsafe { raise_above_game(self.hwnd, game_hwnd) };
             if raised {
-                self.topmost_reasserts += 1;
+                self.shared_input.borrow_mut().topmost_reasserts += 1;
             }
             raised
         }
@@ -1033,7 +1058,7 @@ mod imp {
                 passthrough_active: self.shared_input.borrow().passthrough,
                 rect_px: self.rect_px,
                 last_surface_status: self.last_surface_status.clone(),
-                topmost_reasserts: self.topmost_reasserts,
+                topmost_reasserts: self.shared_input.borrow().topmost_reasserts,
             }
         }
 
