@@ -5,19 +5,21 @@ use crate::overlay::hud_modes::{
     clamp_logical_panel_pos, compute_overlay_rect_px, physical_cursor_to_logical,
     DisplayPresentationMode, HudPresentationMode, TargetWindowState,
 };
-use crate::platform::window::{dpi_scale, MonitorMetrics};
+use crate::platform::window::MonitorMetrics;
 use eframe::egui::{self, Pos2, Rect, Vec2};
 use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// High-level overlay lifecycle state driven by user toggles and target window status.
+///
+/// League's Fullscreen mode is shown like Borderless: Windows 10/11 compose Fullscreen games,
+/// so the topmost no-activate HUD window stays visible over them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum OverlayLifecycleState {
     #[default]
     Disabled,
     WaitingForGameWindow,
     WaitingForForeground,
-    BlockedByExclusiveFullscreen,
     ActiveVisible,
 }
 
@@ -128,8 +130,7 @@ impl RepaintScheduler {
         match state {
             OverlayLifecycleState::Disabled
             | OverlayLifecycleState::WaitingForGameWindow
-            | OverlayLifecycleState::WaitingForForeground
-            | OverlayLifecycleState::BlockedByExclusiveFullscreen => None,
+            | OverlayLifecycleState::WaitingForForeground => None,
             OverlayLifecycleState::ActiveVisible => {
                 self.last_clock_sec = Some(clock_sec);
                 if interacting_or_hovering {
@@ -196,9 +197,7 @@ impl OverlayEngine {
         let Some(target) = self.target.as_ref() else {
             return OverlayLifecycleState::WaitingForGameWindow;
         };
-        if target.presentation == DisplayPresentationMode::ExclusiveFullscreen {
-            return OverlayLifecycleState::BlockedByExclusiveFullscreen;
-        }
+        // Alt-tab out of Fullscreen minimises League (or leaves it in the background): hide.
         if !target.is_foreground || target.presentation == DisplayPresentationMode::Minimized {
             return OverlayLifecycleState::WaitingForForeground;
         }
@@ -286,22 +285,32 @@ impl OverlayEngine {
         } = input;
 
         render_state.clear_pending_actions();
+        let now = Instant::now();
+        render_state.refresh_clock(now);
         let state = self.lifecycle_state();
-        if state != OverlayLifecycleState::ActiveVisible {
-            host.sync_window(false, [0, 0, 1, 1], 96, true);
+        let Some(target) = self
+            .target
+            .as_ref()
+            .filter(|_| state == OverlayLifecycleState::ActiveVisible)
+        else {
+            host.sync_window(false, [0, 0, 1, 1], 1.0, true);
             let _ = self.passthrough.should_apply(true);
             render_state.passthrough_active = true;
+            // Whatever was on screen is stale: the first visible frame is always re-rendered
+            // at the size and scale current at that moment (alt-tab back, resolution change).
+            self.last_render_signature = None;
+            self.last_render_rect = None;
+            self.passthrough.set_interactive_rects(Vec::new());
             self.last_diagnostics = Some(host.diagnostics());
             return (
                 state,
                 self.scheduler
                     .next_repaint_after(state, false, render_state.clock_secs),
             );
-        }
+        };
 
-        let target = self.target.as_ref().expect("ActiveVisible requires target");
         let rect_px = compute_overlay_rect_px(target, monitor, config.mode, config.mayhem_open);
-        let ppp = dpi_scale(target.monitor_dpi);
+        let ppp = target.hud_pixels_per_point();
         let cursor_logical = cursor_px.map(|c| physical_cursor_to_logical(c, rect_px, ppp));
         let desired_passthrough =
             self.passthrough
@@ -310,7 +319,9 @@ impl OverlayEngine {
 
         render_state.force_passthrough = config.force_passthrough;
         render_state.passthrough_active = desired_passthrough;
-        host.sync_window(true, rect_px, target.monitor_dpi, desired_passthrough);
+        host.sync_window(true, rect_px, ppp, desired_passthrough);
+        // A Fullscreen League window is topmost too and rises above the HUD when activated.
+        host.keep_above(target.hwnd);
 
         let signature = render_state.render_signature();
         let dirty = force_interactive_redraw
@@ -328,11 +339,16 @@ impl OverlayEngine {
 
         self.last_diagnostics = Some(host.diagnostics());
         let interacting_or_hovering = !desired_passthrough || force_interactive_redraw;
-        let next = self.scheduler.next_repaint_after(
-            state,
-            interacting_or_hovering,
-            render_state.clock_secs,
-        );
+        let next = self
+            .scheduler
+            .next_repaint_after(state, interacting_or_hovering, render_state.clock_secs)
+            .map(|delay| {
+                // Wake for the next game-clock second so timers tick on time, not up to 1 s late.
+                render_state
+                    .game_clock
+                    .until_next_second(now)
+                    .map_or(delay, |tick| delay.min(tick))
+            });
         (state, next)
     }
 }

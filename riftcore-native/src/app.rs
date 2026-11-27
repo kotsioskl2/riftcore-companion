@@ -2237,10 +2237,9 @@ impl RiftCoreApp {
                     let slot_width = ((ui.available_width() - 6.0) * 0.5).clamp(84.0, 122.0);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 6.0;
-                        for (slot, key, id) in [
-                            (0usize, "D", self.spell_one),
-                            (1usize, "F", self.spell_two),
-                        ] {
+                        for (slot, key, id) in
+                            [(0usize, "D", self.spell_one), (1usize, "F", self.spell_two)]
+                        {
                             if spell_slot_button(
                                 ui,
                                 key,
@@ -2672,7 +2671,7 @@ impl RiftCoreApp {
                         });
                     });
                     ui.add_space(5.0);
-                    ui.label(RichText::new("Use Borderless (or Windowed) mode in League. The HUD cannot draw over exclusive Fullscreen.").size(10.5).color(SECONDARY));
+                    ui.label(RichText::new("Works over League's Fullscreen, Borderless and Windowed modes. If it ever stays hidden over Fullscreen on your PC, Borderless is the fallback.").size(10.5).color(SECONDARY));
                     ui.add_space(8.0);
                     let overlay_btn = if self.overlay_mode { "DISABLE IN-GAME HUD" } else { "ENABLE IN-GAME HUD" };
                     if action_button(ui, overlay_btn, self.overlay_mode, CYAN).clicked() {
@@ -2689,7 +2688,8 @@ impl RiftCoreApp {
         self.render_hud_settings(ui);
     }
 
-    /// Says why the HUD is hidden (e.g. exclusive Fullscreen) and offers the Borderless fix.
+    /// Says why the HUD is hidden (e.g. League minimised) and, in Fullscreen, offers Borderless
+    /// as an optional fallback; the HUD itself draws over Fullscreen.
     fn render_hud_display_card(&mut self, ui: &mut egui::Ui) {
         let status = self.path_b.as_ref().filter(|_| self.overlay_mode);
         let status = status.and_then(|path_b| path_b.status().message());
@@ -2701,9 +2701,11 @@ impl RiftCoreApp {
             }
             if fullscreen {
                 ui.label(
-                    RichText::new("League is set to Fullscreen, which hides the HUD.")
-                        .size(10.5)
-                        .color(SECONDARY),
+                    RichText::new(
+                        "League is set to Fullscreen; the HUD draws over it. If it stays hidden on your PC, Borderless always works.",
+                    )
+                    .size(10.5)
+                    .color(SECONDARY),
                 );
                 if action_button(ui, "SWITCH LEAGUE TO BORDERLESS", false, CYAN).clicked() {
                     let _ = self.commands.send(CoreCommand::SetLeagueWindowMode(2));
@@ -2712,9 +2714,9 @@ impl RiftCoreApp {
             }
             if settings_row(
                 ui,
-                "Make HUD work automatically",
+                "Always use Borderless",
                 &mut self.settings.hud_auto_borderless,
-                "Always keep League in Borderless for the HUD (set while the game is closed)",
+                "Optional: switch League from Fullscreen to Borderless (set while the game is closed)",
             ) {
                 let enabled = self.settings.hud_auto_borderless;
                 let _ = self.commands.send(CoreCommand::SetAutoBorderless(enabled));
@@ -6063,7 +6065,7 @@ impl RiftCoreApp {
                         ("Ally timers", "Manually mark allied ultimate casts and reset their countdowns from the live HUD."),
                         ("In-game builds", "Open your active champion's core build and sync the item set to the League shop."),
                         ("Modes", "Browse the restored ARAM Mayhem and Arena card catalog by mode and tier."),
-                        ("Desktop controls", "Launch League in Borderless mode (the HUD cannot draw over exclusive Fullscreen) and keep RiftCore in the system tray."),
+                        ("Desktop controls", "Switch League between Fullscreen and Borderless (the HUD works in both) and keep RiftCore in the system tray."),
                     ] {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("◆").size(12.0).color(CYAN));
@@ -8873,28 +8875,17 @@ fn render_minimap_guide_pins(
         return;
     }
 
-    let scale = if settings.hud_minimap_scale > 1.5 {
-        settings.hud_minimap_scale / 2.0
-    } else {
-        settings.hud_minimap_scale
-    }
-    .clamp(0.55, 1.5);
-    let size = (area.height() * 0.25 * scale * settings.hud_minimap_zoom.clamp(0.75, 1.35))
-        .clamp(150.0, area.height() * 0.48);
+    // Same map scale as the Path B HUD; "Dock size" (zoom) sizes only the dock, not the map.
+    let scale = riftcore_native::overlay::minimap::minimap_scale_factor(settings.hud_minimap_scale);
+    let size = (area.height() * 0.25 * scale).clamp(150.0, area.height() * 0.48);
     let left = if settings.hud_minimap_flip {
         area.left() + 8.0 + settings.hud_minimap_nudge_x
     } else {
         area.right() - size - 8.0 + settings.hud_minimap_nudge_x
     };
     let bottom = area.bottom() - 8.0 + settings.hud_minimap_nudge_y;
-    let map_point = |x: f32, y: f32| {
-        let x = if settings.hud_minimap_flip {
-            100.0 - x
-        } else {
-            x
-        };
-        egui::pos2(left + size * x / 100.0, bottom - size * y / 100.0)
-    };
+    // Moving League's minimap to the left doesn't mirror the map, so the pins aren't mirrored.
+    let map_point = |x: f32, y: f32| egui::pos2(left + size * x / 100.0, bottom - size * y / 100.0);
     let painter = ctx.layer_painter(egui::LayerId::new(
         egui::Order::Foreground,
         egui::Id::unique("riftcore-minimap-guide-pins"),
@@ -9436,8 +9427,7 @@ fn rune_section_heading(ui: &mut egui::Ui, title: &str, detail: &str, accent: Co
     // Painted at a fixed height so the app's large default item spacing can't pull the two lines apart.
     let has_detail = !detail.is_empty();
     let height = if has_detail { 31.0 } else { 14.0 };
-    let (rect, _) =
-        ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
     let painter = ui.painter();
     let dot = egui::pos2(rect.left() + 4.0, rect.top() + 6.0);
     painter.circle_filled(dot, 5.5, accent.gamma_multiply(0.2));
@@ -9512,8 +9502,7 @@ fn rune_icon_card(
     textures: &HashMap<i64, egui::TextureHandle>,
 ) -> egui::Response {
     let pad = 5.0;
-    let (rect, response) =
-        ui.allocate_exact_size(Vec2::splat(side + pad * 2.0), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(side + pad * 2.0), Sense::click());
     let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
     let hover =
         ui.ctx()
@@ -9615,9 +9604,18 @@ fn rounded_gradient_mesh(
 ) -> egui::Shape {
     let radius = radius.min(rect.width() * 0.5).min(rect.height() * 0.5);
     let corners = [
-        (egui::pos2(rect.right() - radius, rect.top() + radius), -90.0_f32),
-        (egui::pos2(rect.right() - radius, rect.bottom() - radius), 0.0),
-        (egui::pos2(rect.left() + radius, rect.bottom() - radius), 90.0),
+        (
+            egui::pos2(rect.right() - radius, rect.top() + radius),
+            -90.0_f32,
+        ),
+        (
+            egui::pos2(rect.right() - radius, rect.bottom() - radius),
+            0.0,
+        ),
+        (
+            egui::pos2(rect.left() + radius, rect.bottom() - radius),
+            90.0,
+        ),
         (egui::pos2(rect.left() + radius, rect.top() + radius), 180.0),
     ];
     let color_at = |point: egui::Pos2| {

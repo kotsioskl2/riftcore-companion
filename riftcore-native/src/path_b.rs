@@ -34,6 +34,9 @@ const TARGET_REFRESH: Duration = Duration::from_millis(250);
 const POLL_WITHOUT_WAKE: Duration = Duration::from_millis(100);
 
 /// Why the HUD is or is not on screen; [`PathBStatus::message`] is user-facing text.
+///
+/// League's Fullscreen, Borderless and Windowed modes all show the HUD; alt-tabbing out of
+/// Fullscreen minimises the game, which hides the HUD until you return.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PathBStatus {
     #[default]
@@ -41,7 +44,6 @@ pub enum PathBStatus {
     WaitingForGame,
     Minimised,
     Background,
-    ExclusiveFullscreen,
     Visible,
 }
 
@@ -50,11 +52,12 @@ impl PathBStatus {
         match self {
             Self::Disabled | Self::Visible => None,
             Self::WaitingForGame => Some("Waiting for a League of Legends game window"),
-            Self::Minimised => Some("League is minimised \u{2014} click back into the game to show the HUD"),
-            Self::Background => Some("League is in the background \u{2014} click into the game to show the HUD"),
-            Self::ExclusiveFullscreen => Some(
-                "League is in Fullscreen \u{2014} switch to Borderless (Esc > Video > Window Mode) to see the HUD",
-            ),
+            Self::Minimised => {
+                Some("League is minimised \u{2014} click back into the game to show the HUD")
+            }
+            Self::Background => {
+                Some("League is in the background \u{2014} click into the game to show the HUD")
+            }
         }
     }
 }
@@ -140,18 +143,32 @@ impl PathBOverlay {
     }
 
     pub fn tick(&mut self, frame: PathBFrame<'_>) -> PathBOutput {
-        if self
-            .monitors_at
-            .is_none_or(|at| at.elapsed() >= MONITOR_REFRESH)
+        // A Fullscreen game can switch the display resolution (and DPI) on alt-tab, so the
+        // monitor metrics are re-read right away when that happens, not on the 2 s cadence.
+        let display_changed = self.host.take_display_changed();
+        let mut monitors_fresh = false;
+        if display_changed
+            || self
+                .monitors_at
+                .is_none_or(|at| at.elapsed() >= MONITOR_REFRESH)
         {
             self.monitors = query_monitors();
             self.monitors_at = Some(Instant::now());
+            monitors_fresh = true;
         }
-        if self
-            .target_at
-            .is_none_or(|at| at.elapsed() >= TARGET_REFRESH)
+        if display_changed
+            || self
+                .target_at
+                .is_none_or(|at| at.elapsed() >= TARGET_REFRESH)
         {
             let window = find_league_game_window();
+            let previous = self.league_window.map(|(info, _)| info);
+            if window != previous && !monitors_fresh {
+                // Game window appeared again or moved/resized: place the HUD with fresh
+                // monitor metrics on this very tick.
+                self.monitors = query_monitors();
+                self.monitors_at = Some(Instant::now());
+            }
             self.league_window = window.map(|info| (info, is_league_window_foreground(info)));
             // A skipped-but-present game window is minimised (fullscreen alt-tab gives 1x1).
             let pid = window
@@ -224,15 +241,8 @@ impl PathBOverlay {
         self.status = match state {
             OverlayLifecycleState::Disabled => PathBStatus::Disabled,
             OverlayLifecycleState::ActiveVisible => PathBStatus::Visible,
-            OverlayLifecycleState::BlockedByExclusiveFullscreen => PathBStatus::ExclusiveFullscreen,
             OverlayLifecycleState::WaitingForForeground => PathBStatus::Background,
-            OverlayLifecycleState::WaitingForGameWindow if self.minimised => {
-                if self.window_mode == Some(0) {
-                    PathBStatus::ExclusiveFullscreen
-                } else {
-                    PathBStatus::Minimised
-                }
-            }
+            OverlayLifecycleState::WaitingForGameWindow if self.minimised => PathBStatus::Minimised,
             OverlayLifecycleState::WaitingForGameWindow => PathBStatus::WaitingForGame,
         };
         // Idle ~1 s, 16 ms while hovering/dragging; keep polling for the game while waiting.

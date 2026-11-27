@@ -84,7 +84,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 ui.add_space(6.0);
                 ui.add(
                     egui::Label::new(
-                        RichText::new("Use Borderless or Windowed mode in League. Exclusive Fullscreen can prevent transparent overlays from compositing.")
+                        RichText::new("Works over League's Fullscreen, Borderless and Windowed modes. If the HUD stays hidden over Fullscreen on your PC, Borderless is a reliable fallback.")
                             .size(10.5)
                             .color(palette.secondary),
                     )

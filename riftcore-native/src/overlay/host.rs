@@ -10,7 +10,7 @@ use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup, WgpuSetupCr
 use eframe::wgpu;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Active rendering host implementation backing the transparent overlay surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,6 +37,8 @@ pub struct OverlayDiagnostics {
     pub passthrough_active: bool,
     pub rect_px: [i32; 4],
     pub last_surface_status: String,
+    /// Times the HUD re-asserted its topmost z-order after the game window rose above it.
+    pub topmost_reasserts: u64,
 }
 
 impl Default for OverlayDiagnostics {
@@ -55,7 +57,95 @@ impl Default for OverlayDiagnostics {
             passthrough_active: true,
             rect_px: [0, 0, 1, 1],
             last_surface_status: "uninitialized".to_string(),
+            topmost_reasserts: 0,
         }
+    }
+}
+
+/// Game clock that runs smoothly between live-data snapshots (about one per second).
+///
+/// It extrapolates from the latest snapshot, never runs backwards, catches up at most at double
+/// speed instead of jumping, and stops after [`Self::MAX_LEAD_SECS`] without new data (paused
+/// game or stalled feed). Only a jump beyond [`Self::SNAP_SECS`] (a new game, a reconnect)
+/// moves it in one step.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GameClock {
+    sample: Option<ClockSample>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ClockSample {
+    /// Game time the snapshot reported.
+    game_secs: f64,
+    /// When the snapshot arrived.
+    at: Instant,
+    /// Clock reading when the snapshot arrived; the clock moves on from here.
+    from_secs: f64,
+}
+
+impl ClockSample {
+    fn secs_at(&self, now: Instant) -> f64 {
+        let dt = now.saturating_duration_since(self.at).as_secs_f64();
+        let estimate = self.game_secs + dt.min(GameClock::MAX_LEAD_SECS);
+        estimate.clamp(self.from_secs, self.from_secs + GameClock::MAX_RATE * dt)
+    }
+}
+
+impl GameClock {
+    /// How far past the last snapshot the clock may run before it waits for new data.
+    /// Snapshots arrive about every 0.9-1.0 s; a paused game keeps sending the same time, so a
+    /// short lead keeps the paused clock at most about a second ahead.
+    pub const MAX_LEAD_SECS: f64 = 1.25;
+    /// Differences larger than this are a different game state, not jitter: snap to it.
+    pub const SNAP_SECS: f64 = 3.0;
+    /// Fastest catch-up rate (game seconds per real second).
+    const MAX_RATE: f64 = 2.0;
+
+    /// Feeds the game time of a snapshot that arrived at `now`; repeats of the same snapshot
+    /// are ignored. Returns `true` when the time moved back by more than [`Self::SNAP_SECS`]
+    /// (a new game), so per-game state such as manual timers should be cleared.
+    pub fn observe(&mut self, game_secs: f64, now: Instant) -> bool {
+        let game_secs = if game_secs.is_finite() {
+            game_secs.max(0.0)
+        } else {
+            0.0
+        };
+        let Some(sample) = self.sample else {
+            self.sample = Some(ClockSample {
+                game_secs,
+                at: now,
+                from_secs: game_secs,
+            });
+            return false;
+        };
+        if (game_secs - sample.game_secs).abs() < 1e-3 {
+            return false;
+        }
+        let shown = sample.secs_at(now);
+        let snap = (game_secs - shown).abs() > Self::SNAP_SECS;
+        self.sample = Some(ClockSample {
+            game_secs,
+            at: now,
+            from_secs: if snap { game_secs } else { shown },
+        });
+        snap && game_secs < shown
+    }
+
+    pub fn reset(&mut self) {
+        self.sample = None;
+    }
+
+    /// Smoothed game time at `now`; `None` before the first snapshot.
+    pub fn secs_at(&self, now: Instant) -> Option<f64> {
+        self.sample.map(|sample| sample.secs_at(now))
+    }
+
+    /// Time until the mm:ss reading changes (assuming normal speed), for repaint scheduling.
+    pub fn until_next_second(&self, now: Instant) -> Option<Duration> {
+        let secs = self.secs_at(now)?;
+        Some(Duration::from_secs_f64(
+            (1.0 - secs.fract()).clamp(0.05, 1.0),
+        ))
     }
 }
 
@@ -171,11 +261,18 @@ pub struct OverlayFrameActions {
     pub notice: Option<String>,
 }
 
+/// How long the HUD keeps the last live snapshot when a poll returns nothing (busy game).
+pub const LIVE_DATA_GRACE: Duration = Duration::from_secs(3);
+
 /// Complete typed state rendered inside the isolated overlay `egui::Context`.
 #[derive(Clone, Debug)]
 pub struct OverlayRenderState {
     pub live_game: Option<LiveGameState>,
+    /// Whole game seconds shown by the HUD (from [`Self::game_clock`], smooth between snapshots).
     pub clock_secs: u64,
+    pub game_clock: GameClock,
+    /// When the last live snapshot arrived.
+    pub live_seen_at: Option<Instant>,
     pub preview_mode: bool,
     pub settings: OverlayPanelSettings,
     pub force_passthrough: bool,
@@ -188,7 +285,9 @@ pub struct OverlayRenderState {
     pub mayhem_search: String,
     pub timer_tab: OverlayTimerTab,
     pub aram_relic_seconds: String,
-    pub manual_timers: HashMap<String, Instant>,
+    /// Manual countdowns (camps, ally ults, ARAM relics): key -> game second they end at, so
+    /// they follow the game clock (and pause with it).
+    pub manual_timers: HashMap<String, f64>,
     /// Creep score snapshot taken as game time crosses 10:00 (`CS@10`).
     pub cs_at_10: Option<u32>,
     /// Active-game coaching flag; locked behind `crate::domain::protocol::LIVE_COACH_ENABLED`.
@@ -202,6 +301,8 @@ impl Default for OverlayRenderState {
         Self {
             live_game: None,
             clock_secs: 0,
+            game_clock: GameClock::default(),
+            live_seen_at: None,
             preview_mode: false,
             settings: OverlayPanelSettings::default(),
             force_passthrough: false,
@@ -229,13 +330,48 @@ impl OverlayRenderState {
         LIVE_COACH_ENABLED && self.live_coach_enabled
     }
 
-    /// Refreshes `live_game` and `clock_secs` from the latest parsed Riot Live Client telemetry.
+    /// Refreshes `live_game` and the game clock from the latest parsed Riot Live Client telemetry.
     pub fn apply_live_game(&mut self, live: Option<LiveGameState>) {
-        self.clock_secs = live
-            .as_ref()
-            .map(|g| g.game_time_secs.max(0.0) as u64)
-            .unwrap_or(0);
-        self.live_game = live;
+        self.apply_live_game_at(live, Instant::now());
+    }
+
+    /// [`Self::apply_live_game`] for a snapshot that arrived at `now`. Repeating the same
+    /// snapshot is harmless; a missing one keeps the last state for [`LIVE_DATA_GRACE`].
+    pub fn apply_live_game_at(&mut self, live: Option<LiveGameState>, now: Instant) {
+        match live {
+            Some(live) => {
+                if self.game_clock.observe(live.game_time_secs, now) {
+                    self.reset_match_state();
+                }
+                self.live_seen_at = Some(now);
+                self.live_game = Some(live);
+                self.refresh_clock(now);
+            }
+            None if self.live_game.is_some()
+                && self
+                    .live_seen_at
+                    .is_some_and(|at| now.saturating_duration_since(at) < LIVE_DATA_GRACE) => {}
+            None => {
+                self.live_game = None;
+                self.live_seen_at = None;
+                self.game_clock.reset();
+                self.clock_secs = 0;
+                self.reset_match_state();
+            }
+        }
+    }
+
+    /// Advances `clock_secs` to the smoothed game time at `now` (no-op without live data).
+    pub fn refresh_clock(&mut self, now: Instant) {
+        if let Some(secs) = self.game_clock.secs_at(now) {
+            self.clock_secs = secs as u64;
+        }
+    }
+
+    /// Drops per-match state (manual timers, CS@10) when a game ends or a new one starts.
+    fn reset_match_state(&mut self) {
+        self.manual_timers.clear();
+        self.cs_at_10 = None;
     }
 
     /// Clears transient per-frame action outputs before rendering the next frame.
@@ -316,13 +452,22 @@ pub type OverlayRenderCallback =
 pub trait OverlaySurfaceHost {
     fn backend_kind(&self) -> OverlayHostBackend;
 
+    /// Shows/hides the HUD window at `rect_px` (physical virtual-screen pixels), rendering at
+    /// `pixels_per_point`, with click-through on or off. Never activates the window.
     fn sync_window(
         &mut self,
         visible: bool,
         rect_px: [i32; 4],
-        monitor_dpi: u32,
+        pixels_per_point: f32,
         passthrough: bool,
     );
+
+    /// Re-raises the visible HUD above `game_hwnd` without activating it when the game window
+    /// has moved above the HUD in z-order (a Fullscreen game is topmost and rises whenever it
+    /// is activated). Does nothing while the HUD is already above. Returns `true` if it raised.
+    fn keep_above(&mut self, _game_hwnd: isize) -> bool {
+        false
+    }
 
     fn render_if_needed(
         &mut self,
@@ -365,5 +510,93 @@ pub fn build_dx12_visual_wgpu_options() -> WgpuConfiguration {
         surface: SurfaceConfig::LOW_LATENCY,
         wgpu_setup: WgpuSetup::CreateNew(create_new),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn game_clock_runs_smoothly_between_snapshots_without_jumps() {
+        let t0 = Instant::now();
+        let at = |secs: f64| t0 + Duration::from_secs_f64(secs);
+        // Snapshots as the live client delivers them: ~1 s apart, repeated ~4x per second by
+        // the app, one slightly behind, one ahead, then a stall (paused game).
+        let feed = [
+            (0.0, 600.0),
+            (0.25, 600.0),
+            (0.75, 600.0),
+            (1.0, 600.9),
+            (2.0, 603.0),
+        ];
+        let mut clock = GameClock::default();
+        assert_eq!(clock.secs_at(t0), None);
+        let mut shown: Option<f64> = None;
+        let mut next_feed = 0;
+        for step in 0..900 {
+            let now = step as f64 * 0.01;
+            while next_feed < feed.len() && feed[next_feed].0 <= now {
+                assert!(!clock.observe(feed[next_feed].1, at(feed[next_feed].0)));
+                next_feed += 1;
+            }
+            let secs = clock.secs_at(at(now)).expect("clock running");
+            if let Some(prev) = shown {
+                let delta = secs - prev;
+                // Never backwards, never faster than 2x: no visible jump or skipped second.
+                assert!(
+                    (-1e-6..=0.02 + 1e-6).contains(&delta),
+                    "{now}: {prev} -> {secs}"
+                );
+            }
+            if step == 50 {
+                // Runs on between snapshots instead of stalling at the last one.
+                assert!((secs - 600.5).abs() < 1e-6, "{secs}");
+            }
+            shown = Some(secs);
+        }
+        // Without new data the clock stops 1.25 s past the last snapshot instead of running away.
+        assert!((clock.secs_at(at(30.0)).expect("running") - 604.25).abs() < 1e-6);
+        assert!(clock.until_next_second(at(30.0)).expect("running") <= Duration::from_secs(1));
+        // A new game (time far back) snaps and asks for per-game state to be reset.
+        assert!(clock.observe(30.0, at(31.0)));
+        assert_eq!(clock.secs_at(at(31.0)), Some(30.0));
+        // A reconnect far ahead snaps too, but is not a new game.
+        assert!(!clock.observe(100.0, at(32.0)));
+        assert_eq!(clock.secs_at(at(32.0)), Some(100.0));
+    }
+
+    #[test]
+    fn hud_keeps_live_state_through_a_dropped_poll_and_resets_per_game_timers() {
+        let t0 = Instant::now();
+        let at = |secs: u64| t0 + Duration::from_secs(secs);
+        let live = |game_time_secs: f64| LiveGameState {
+            game_time_secs,
+            ..LiveGameState::default()
+        };
+        let mut state = OverlayRenderState::default();
+        state.apply_live_game_at(Some(live(1200.0)), t0);
+        assert_eq!(state.clock_secs, 1200);
+        state
+            .manual_timers
+            .insert("jungle-camp-gromp".into(), 1300.0);
+        // One failed poll: no 00:00 flash, the clock keeps running on the last snapshot.
+        state.apply_live_game_at(None, at(1));
+        assert!(state.live_game.is_some());
+        state.refresh_clock(at(1) + Duration::from_millis(500));
+        assert_eq!(state.clock_secs, 1201);
+        // Live data gone for longer than the grace period: the match is over.
+        state.apply_live_game_at(None, at(5));
+        assert!(state.live_game.is_none());
+        assert_eq!(state.clock_secs, 0);
+        assert!(state.manual_timers.is_empty());
+        // A new game straight after another (time jumps back) drops the old timers too.
+        state.apply_live_game_at(Some(live(1500.0)), at(6));
+        state.manual_timers.insert("ally-ult-A1".into(), 1600.0);
+        state.cs_at_10 = Some(80);
+        state.apply_live_game_at(Some(live(20.0)), at(7));
+        assert!(state.manual_timers.is_empty());
+        assert_eq!(state.cs_at_10, None);
+        assert_eq!(state.clock_secs, 20);
     }
 }

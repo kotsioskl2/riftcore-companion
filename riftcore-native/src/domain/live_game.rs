@@ -309,129 +309,138 @@ impl LiveGameState {
             .collect()
     }
 
-    /// Computes SR-gated epic objective timers (Dragon/Elder, Voidgrubs/Herald, Baron).
-    /// Returns an empty vector on non-Summoner's Rift modes and guarantees at most one BARON entry.
+    /// Computes SR-gated epic objective timers (Dragon/Elder, Voidgrubs/Herald, Baron) at the
+    /// snapshot's own game time. See [`Self::objective_timers_at`].
     pub fn objective_timers(&self) -> Vec<ObjectiveTimer> {
+        self.objective_timers_at(self.game_time_secs)
+    }
+
+    /// Computes SR-gated epic objective timers at `game_time_secs` (e.g. the HUD's smoothed
+    /// clock, which runs ahead of the ~1 s snapshots). Returns an empty vector outside
+    /// Summoner's Rift, never duplicates BARON, and is sorted soonest-first (READY first).
+    ///
+    /// Countdowns use whole game seconds so they tick together with the mm:ss game clock.
+    pub fn objective_timers_at(&self, game_time_secs: f64) -> Vec<ObjectiveTimer> {
         if !self.is_summoners_rift() {
             return Vec::new();
         }
 
-        let game_time = self.game_time_secs.max(0.0) as u64;
-        let event_time = |ev: &LiveGameEvent| ev.event_time.max(0.0) as u64;
-        let last_event_time = |name: &str| {
+        let now = whole_game_secs(game_time_secs);
+        let event_time = |ev: &LiveGameEvent| {
+            if ev.event_time.is_finite() {
+                ev.event_time.max(0.0)
+            } else {
+                0.0
+            }
+        };
+        let event_times = |name: &'static str| {
             self.events
                 .iter()
-                .filter(|ev| ev.event_name == name)
+                .filter(move |ev| ev.event_name == name)
                 .map(event_time)
-                .max()
+        };
+        let timer = |kind, label: &str, ready_at: f64, respawn_secs: u64| {
+            let remaining_secs = countdown_secs(ready_at, now);
+            ObjectiveTimer {
+                kind,
+                label: label.to_string(),
+                remaining_secs,
+                ready: remaining_secs == 0,
+                respawn_secs,
+            }
         };
 
-        let dragon_kills: Vec<&LiveGameEvent> = self
+        let last_dragon = self
             .events
             .iter()
             .filter(|ev| ev.event_name == "DragonKill")
-            .collect();
-        let last_dragon = dragon_kills.iter().copied().max_by_key(|ev| event_time(ev));
+            .max_by(|a, b| event_time(a).total_cmp(&event_time(b)));
         let is_elder = last_dragon
             .and_then(|ev| ev.dragon_type.as_deref())
             .is_some_and(|kind| kind.eq_ignore_ascii_case("Elder"));
         let dragon_respawn = if is_elder { 360 } else { 300 };
-        let dragon_remaining = last_dragon
-            .map(|ev| event_time(ev).saturating_add(dragon_respawn))
-            .unwrap_or(300)
-            .saturating_sub(game_time);
-        let dragon_kind = if is_elder {
-            ObjectiveKind::ElderDragon
+        let dragon_ready_at =
+            last_dragon.map_or(300.0, |ev| event_time(ev) + dragon_respawn as f64);
+        let (dragon_kind, dragon_label) = if is_elder {
+            (ObjectiveKind::ElderDragon, "ELDER")
         } else {
-            ObjectiveKind::Dragon
+            (ObjectiveKind::Dragon, "DRAGON")
         };
-        let dragon_label = if is_elder { "ELDER" } else { "DRAGON" };
+        let mut timers = vec![timer(
+            dragon_kind,
+            dragon_label,
+            dragon_ready_at,
+            dragon_respawn,
+        )];
 
-        let mut timers = vec![ObjectiveTimer {
-            kind: dragon_kind,
-            label: dragon_label.to_string(),
-            remaining_secs: dragon_remaining,
-            ready: dragon_remaining == 0,
-            respawn_secs: dragon_respawn,
-        }];
+        let horde_kills = event_times("HordeKill").count();
+        let latest_horde = event_times("HordeKill").reduce(f64::max);
+        let herald_killed = event_times("HeraldKill").next().is_some();
 
-        let horde_kills: Vec<&LiveGameEvent> = self
-            .events
-            .iter()
-            .filter(|ev| ev.event_name == "HordeKill")
-            .collect();
-        let latest_horde = horde_kills.iter().copied().map(event_time).max();
-        let herald_killed = last_event_time("HeraldKill").is_some();
-
-        if game_time < 300 {
-            let grubs_rem = 300 - game_time;
-            timers.push(ObjectiveTimer {
-                kind: ObjectiveKind::Voidgrubs,
-                label: "GRUBS".to_string(),
-                remaining_secs: grubs_rem,
-                ready: false,
-                respawn_secs: 240,
-            });
-        } else if game_time < 840 {
-            if horde_kills.len() >= 6 {
-                let herald_rem = 840 - game_time;
-                timers.push(ObjectiveTimer {
-                    kind: ObjectiveKind::RiftHerald,
-                    label: "HERALD".to_string(),
-                    remaining_secs: herald_rem,
-                    ready: false,
-                    respawn_secs: 0,
-                });
-            } else if horde_kills.len() >= 3 {
-                let next_wave = latest_horde.unwrap_or(game_time).saturating_add(240);
-                let grubs_rem = if next_wave <= 840 && game_time < next_wave {
-                    next_wave - game_time
-                } else {
-                    0
-                };
-                timers.push(ObjectiveTimer {
-                    kind: ObjectiveKind::Voidgrubs,
-                    label: "GRUBS".to_string(),
-                    remaining_secs: grubs_rem,
-                    ready: grubs_rem == 0,
-                    respawn_secs: 240,
-                });
-            } else {
-                timers.push(ObjectiveTimer {
-                    kind: ObjectiveKind::Voidgrubs,
-                    label: "GRUBS".to_string(),
-                    remaining_secs: 0,
-                    ready: true,
-                    respawn_secs: 240,
-                });
+        if now < 300.0 {
+            timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", 300.0, 240));
+        } else if now < 840.0 {
+            let next_wave = latest_horde.map_or(now, |t| t + 240.0);
+            match horde_kills {
+                // A wave is up: none of it, or only part of it, has been killed.
+                0..=2 | 4..=5 => {
+                    timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", now, 240));
+                }
+                // First wave cleared: the second one spawns 4 minutes later.
+                3 if next_wave <= 840.0 => {
+                    timers.push(timer(ObjectiveKind::Voidgrubs, "GRUBS", next_wave, 240));
+                }
+                // Both waves are done, or the second wave could only respawn after the Herald
+                // replaces the grubs at 14:00: the pit's next objective is the Herald.
+                _ => timers.push(timer(ObjectiveKind::RiftHerald, "HERALD", 840.0, 0)),
             }
-        } else if game_time < 1185 && !herald_killed {
-            timers.push(ObjectiveTimer {
-                kind: ObjectiveKind::RiftHerald,
-                label: "HERALD".to_string(),
-                remaining_secs: 0,
-                ready: true,
-                respawn_secs: 0,
-            });
+        } else if now < 1185.0 && !herald_killed {
+            timers.push(timer(ObjectiveKind::RiftHerald, "HERALD", 840.0, 0));
         }
 
         // Single canonical Baron timer (never duplicated when top pit transitions to Baron).
-        let baron_remaining = last_event_time("BaronKill")
-            .map(|t| t.saturating_add(360))
-            .unwrap_or(1200)
-            .saturating_sub(game_time);
-        timers.push(ObjectiveTimer {
-            kind: ObjectiveKind::Baron,
-            label: "BARON".to_string(),
-            remaining_secs: baron_remaining,
-            ready: baron_remaining == 0,
-            respawn_secs: 360,
-        });
+        let baron_ready_at = event_times("BaronKill")
+            .reduce(f64::max)
+            .map_or(1200.0, |t| t + 360.0);
+        timers.push(timer(ObjectiveKind::Baron, "BARON", baron_ready_at, 360));
 
         // Structural deduplication guard by ObjectiveKind.
         let mut seen = HashSet::new();
         timers.retain(|entry| seen.insert(entry.kind));
+        timers.sort_by_key(|t| (t.remaining_secs, t.kind.pit_order()));
         timers
+    }
+}
+
+impl ObjectiveKind {
+    /// Stable tie-break order for equally soon timers: dragon pit, top pit, then Baron.
+    fn pit_order(self) -> u8 {
+        match self {
+            Self::Dragon | Self::ElderDragon => 0,
+            Self::Voidgrubs | Self::RiftHerald => 1,
+            Self::Baron => 2,
+        }
+    }
+}
+
+/// Whole game seconds shown by the mm:ss clock; negative or non-finite input reads as 0.
+pub fn whole_game_secs(game_time_secs: f64) -> f64 {
+    if game_time_secs.is_finite() {
+        game_time_secs.max(0.0).floor()
+    } else {
+        0.0
+    }
+}
+
+/// Whole seconds left until `ready_at` (game seconds) at game time `now`, rounded up so the
+/// countdown reads 00:01 during the last second and 0 (READY) from `ready_at` on. Never negative.
+pub fn countdown_secs(ready_at: f64, now: f64) -> u64 {
+    let left = ready_at - now;
+    if left.is_finite() && left > 0.0 {
+        // The epsilon keeps float noise (e.g. 100.000000001) from adding a whole second.
+        (left - 1e-6).ceil().max(0.0) as u64
+    } else {
+        0
     }
 }
 
@@ -1110,9 +1119,11 @@ mod tests {
                 .count(),
             1
         );
-        assert_eq!(timers_late[0].kind, ObjectiveKind::ElderDragon);
-        assert_eq!(timers_late[0].remaining_secs, 310);
-        assert_eq!(timers_late[1].remaining_secs, 260);
+        // Soonest first: Baron (260 s) before Elder (310 s).
+        assert_eq!(timers_late[0].kind, ObjectiveKind::Baron);
+        assert_eq!(timers_late[0].remaining_secs, 260);
+        assert_eq!(timers_late[1].kind, ObjectiveKind::ElderDragon);
+        assert_eq!(timers_late[1].remaining_secs, 310);
 
         // 3. Non-SR mode (ARAM) -> SR-gated to empty
         let aram = json!({
@@ -1122,6 +1133,91 @@ mod tests {
             "events": { "Events": [] }
         });
         assert!(objective_timers_from_json(&aram).is_empty());
+    }
+
+    fn sr_state(game_time: f64, events: Value) -> LiveGameState {
+        LiveGameState::from_allgamedata(&json!({
+            "gameData": { "gameTime": game_time, "gameMode": "CLASSIC", "mapNumber": 11 },
+            "activePlayer": { "summonerName": "P1" },
+            "allPlayers": [{ "summonerName": "P1", "team": "ORDER", "championName": "Ahri" }],
+            "events": { "Events": events }
+        }))
+        .expect("valid SR payload")
+    }
+
+    #[test]
+    fn objective_timers_count_down_whole_seconds_soonest_first_and_never_negative() {
+        // Dragon killed at 10:00.4 respawns at 15:00.4; the grubs' first wave died at 10:30, so
+        // their second wave (14:30) would only come after the Herald replaces them at 14:00.
+        let state = sr_state(
+            700.0,
+            json!([
+                { "EventName": "DragonKill", "EventTime": 600.4, "DragonType": "Fire" },
+                { "EventName": "HordeKill", "EventTime": 628.0 },
+                { "EventName": "HordeKill", "EventTime": 629.0 },
+                { "EventName": "HordeKill", "EventTime": 630.0 }
+            ]),
+        );
+        let labels = |timers: &[ObjectiveTimer]| {
+            timers
+                .iter()
+                .map(|t| (t.label.clone(), t.remaining_secs))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            labels(&state.objective_timers_at(700.0)),
+            [
+                ("HERALD".to_string(), 140),
+                ("DRAGON".to_string(), 201),
+                ("BARON".to_string(), 500)
+            ]
+        );
+        // Between snapshots the smoothed clock drives the countdown, one whole second at a time.
+        let at = |t: f64| state.objective_timers_at(t);
+        assert_eq!(at(700.9)[0].remaining_secs, 140);
+        assert_eq!(at(701.0)[0].remaining_secs, 139);
+        // Last second reads 00:01, then READY (never negative) and ready timers sort first.
+        let dragon = |t: f64| {
+            at(t)
+                .into_iter()
+                .find(|timer| timer.kind == ObjectiveKind::Dragon)
+                .expect("dragon timer")
+        };
+        assert_eq!(dragon(900.0).formatted_remaining(), "00:01");
+        assert_eq!(dragon(901.0).remaining_secs, 0);
+        assert!(dragon(5000.0).ready);
+        assert_eq!(at(901.0)[0].label, "DRAGON");
+        for garbage in [f64::NAN, f64::INFINITY, -50.0] {
+            let timers = state.objective_timers_at(garbage);
+            assert!(timers.iter().all(|t| t.remaining_secs <= 1200), "{garbage}");
+        }
+    }
+
+    #[test]
+    fn partly_killed_second_grub_wave_stays_ready() {
+        let grubs = |kill_times: &[f64], now: f64| {
+            let events: Vec<_> = kill_times
+                .iter()
+                .map(|t| json!({ "EventName": "HordeKill", "EventTime": t }))
+                .collect();
+            sr_state(now, json!(events))
+                .objective_timers_at(now)
+                .into_iter()
+                .find(|t| matches!(t.kind, ObjectiveKind::Voidgrubs | ObjectiveKind::RiftHerald))
+                .map(|t| (t.label, t.remaining_secs))
+        };
+        let ready = Some(("GRUBS".to_string(), 0));
+        // First wave dies at 5:30, second spawns at 9:30, one of it dies at 9:50.
+        let first_wave = [328.0, 329.0, 330.0];
+        assert_eq!(grubs(&first_wave, 400.0), Some(("GRUBS".to_string(), 170)));
+        assert_eq!(grubs(&[328.0, 329.0, 330.0, 590.0], 650.0), ready);
+        // Same, but the last kill is late enough that "+4 min" would land after 14:00.
+        assert_eq!(grubs(&[328.0, 329.0, 330.0, 590.0, 620.0], 700.0), ready);
+        // Part of the first wave killed: still up.
+        assert_eq!(grubs(&[328.0], 400.0), ready);
+        // Both waves cleared: the Herald comes next at 14:00.
+        let both = [328.0, 329.0, 330.0, 590.0, 620.0, 621.0];
+        assert_eq!(grubs(&both, 700.0), Some(("HERALD".to_string(), 140)));
     }
 
     fn order(p: &str) -> Vec<String> {

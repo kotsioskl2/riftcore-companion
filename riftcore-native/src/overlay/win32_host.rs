@@ -15,7 +15,7 @@ mod imp {
         WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
         WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
     };
-    use crate::platform::window::{cursor_screen_position, dpi_scale, window_ex_style};
+    use crate::platform::window::{cursor_screen_position, is_window_above, window_ex_style};
     use eframe::egui::{self, Pos2, Rect, Vec2};
     use eframe::egui_wgpu::{
         self, Renderer as EguiWgpuRenderer, RendererOptions, ScreenDescriptor,
@@ -39,9 +39,11 @@ mod imp {
     const SWP_NOSIZE: u32 = 0x0001;
     const SWP_NOMOVE: u32 = 0x0002;
     const SWP_NOACTIVATE: u32 = 0x0010;
+    const SWP_NOOWNERZORDER: u32 = 0x0200;
 
     const WM_DESTROY: u32 = 0x0002;
     const WM_SIZE: u32 = 0x0005;
+    const WM_DISPLAYCHANGE: u32 = 0x007E;
     const WM_SETCURSOR: u32 = 0x0020;
     const WM_NCHITTEST: u32 = 0x0084;
     const WM_TIMER: u32 = 0x0113;
@@ -158,6 +160,9 @@ mod imp {
         /// Whether `WS_EX_TRANSPARENT` (click-through) is currently applied.
         passthrough: bool,
         repaint: Option<egui::Context>,
+        /// A display mode or DPI change arrived (e.g. a Fullscreen game switched resolution),
+        /// so cached monitor metrics are stale.
+        display_changed: bool,
     }
 
     /// Toggles only `WS_EX_TRANSPARENT`; `WS_EX_LAYERED` stays on (with `LWA_ALPHA` 255) so the
@@ -345,11 +350,10 @@ mod imp {
                             st.pending_resize = Some([w, h]);
                         }
                     }
-                    WM_DPICHANGED => {
-                        let dpi = (wparam & 0xFFFF) as u32;
-                        if dpi >= 96 {
-                            st.pixels_per_point = dpi_scale(dpi);
-                        }
+                    // The HUD scale comes from the engine (monitor DPI capped to the game size)
+                    // on its next tick; only flag that monitor metrics must be re-read.
+                    WM_DPICHANGED | WM_DISPLAYCHANGE => {
+                        st.display_changed = true;
                     }
                     WM_DESTROY => {
                         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
@@ -377,7 +381,12 @@ mod imp {
         pending_textures_delta: egui::TexturesDelta,
         shared_input: Rc<RefCell<OverlayInputShared>>,
         shared_input_raw: *const RefCell<OverlayInputShared>,
+        /// Logically shown; the window itself appears once `show_pending` is cleared.
         visible: bool,
+        /// Shown but not yet on screen: the first frame at the new size/DPI is presented
+        /// before `ShowWindow`, so a stale or empty buffer never flashes up.
+        show_pending: bool,
+        topmost_reasserts: u64,
         rect_px: [i32; 4],
         configured_size: [u32; 2],
         reconfigure_pending: bool,
@@ -491,6 +500,8 @@ mod imp {
                 shared_input,
                 shared_input_raw,
                 visible: false,
+                show_pending: false,
+                topmost_reasserts: 0,
                 rect_px: [0, 0, 640, 320],
                 configured_size: [640, 320],
                 reconfigure_pending: false,
@@ -603,6 +614,31 @@ mod imp {
             self.shared_input.borrow().repaint.is_some()
         }
 
+        /// True once after the HUD window saw a display mode or DPI change (cached monitor
+        /// metrics are stale; re-query them before placing the HUD).
+        pub fn take_display_changed(&mut self) -> bool {
+            std::mem::take(&mut self.shared_input.borrow_mut().display_changed)
+        }
+
+        /// Puts the (already sized and rendered) window on screen without activating it,
+        /// starts hit-testing, and raises it to the top of the topmost band.
+        fn show_now(&mut self) {
+            self.show_pending = false;
+            if self.hwnd.is_null() {
+                return;
+            }
+            // SAFETY: `self.hwnd` is verified non-null and owned by this thread;
+            // `SW_SHOWNOACTIVATE` never activates the window or takes focus from the game.
+            unsafe {
+                ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
+                // The hit-test timer flips click-through as the cursor enters a panel,
+                // independent of how often the app ticks.
+                let _ = SetTimer(self.hwnd, HIT_TIMER_ID, HIT_TIMER_MS, std::ptr::null());
+            }
+            let passthrough = self.shared_input.borrow().passthrough;
+            self.apply_ex_style(passthrough);
+        }
+
         /// Records a non-success surface status and logs it at most every 10 s.
         fn note_surface_issue(&mut self, status: String) {
             if self
@@ -658,20 +694,27 @@ mod imp {
             &mut self,
             visible: bool,
             rect_px: [i32; 4],
-            monitor_dpi: u32,
+            pixels_per_point: f32,
             passthrough: bool,
         ) {
             if self.hwnd.is_null() {
                 self.visible = false;
                 return;
             }
+            // A show still pending from the last tick had no frame rendered in between;
+            // it is put up at the end of this call rather than kept hidden.
+            let stale_show = self.show_pending;
             let size_px = [
                 (rect_px[2] - rect_px[0]).max(1) as u32,
                 (rect_px[3] - rect_px[1]).max(1) as u32,
             ];
             {
                 let mut st = self.shared_input.borrow_mut();
-                st.pixels_per_point = dpi_scale(monitor_dpi);
+                st.pixels_per_point = if pixels_per_point.is_finite() {
+                    pixels_per_point.max(1.0)
+                } else {
+                    1.0
+                };
                 st.origin_px = [rect_px[0], rect_px[1]];
             }
 
@@ -714,31 +757,53 @@ mod imp {
 
             if self.visible != visible {
                 self.visible = visible;
-                if !visible {
+                if visible {
+                    // Shown by `render_if_needed` once the first frame at this size is presented.
+                    self.show_pending = true;
+                } else {
+                    self.show_pending = false;
                     self.shared_input.borrow_mut().pointer_down = false;
-                    // SAFETY: `self.hwnd` is verified non-null; clear mouse capture before hiding.
+                    // SAFETY: `self.hwnd` is verified non-null; clear mouse capture before
+                    // hiding. `SW_HIDE` never activates another window of ours.
                     unsafe {
                         if GetCapture() == self.hwnd {
                             let _ = ReleaseCapture();
                         }
-                    }
-                }
-                // SAFETY: `self.hwnd` is verified non-null; `SW_SHOWNOACTIVATE`/`SW_HIDE` never activates.
-                unsafe {
-                    ShowWindow(self.hwnd, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE });
-                    // The hit-test timer flips click-through as the cursor enters a panel,
-                    // independent of how often the app ticks.
-                    if visible {
-                        let _ = SetTimer(self.hwnd, HIT_TIMER_ID, HIT_TIMER_MS, std::ptr::null());
-                    } else {
+                        ShowWindow(self.hwnd, SW_HIDE);
                         let _ = KillTimer(self.hwnd, HIT_TIMER_ID);
                     }
                 }
-                if visible {
-                    let passthrough = self.shared_input.borrow().passthrough;
-                    self.apply_ex_style(passthrough);
-                }
             }
+            if stale_show && self.show_pending {
+                self.show_now();
+            }
+        }
+
+        fn keep_above(&mut self, game_hwnd: isize) -> bool {
+            if self.hwnd.is_null() || !self.visible || self.show_pending {
+                return false;
+            }
+            // Cheap z-order walk every tick; `SetWindowPos` only when the game is above us.
+            if !is_window_above(game_hwnd, self.hwnd as isize) {
+                return false;
+            }
+            // SAFETY: `self.hwnd` is verified non-null and owned by this thread. No move, no
+            // resize and `SWP_NOACTIVATE`: the game keeps focus and its Fullscreen mode.
+            let raised = unsafe {
+                SetWindowPos(
+                    self.hwnd,
+                    HWND_TOPMOST as *mut c_void,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+                ) != 0
+            };
+            if raised {
+                self.topmost_reasserts += 1;
+            }
+            raised
         }
 
         fn render_if_needed(
@@ -945,6 +1010,9 @@ mod imp {
             if let Some(err) = poll_ready(scope.pop()).flatten() {
                 self.note_surface_issue(format!("validation error: {err}"));
             }
+            if self.show_pending {
+                self.show_now();
+            }
 
             rects
         }
@@ -965,11 +1033,13 @@ mod imp {
                 passthrough_active: self.shared_input.borrow().passthrough,
                 rect_px: self.rect_px,
                 last_surface_status: self.last_surface_status.clone(),
+                topmost_reasserts: self.topmost_reasserts,
             }
         }
 
         fn close(&mut self) {
             self.visible = false;
+            self.show_pending = false;
             self.pending_textures_delta.clear();
             // Drop wgpu surface BEFORE destroying the HWND.
             self.surface.take();
@@ -1035,6 +1105,10 @@ mod imp {
         pub fn has_repaint_context(&self) -> bool {
             false
         }
+
+        pub fn take_display_changed(&mut self) -> bool {
+            false
+        }
     }
 
     impl OverlaySurfaceHost for Win32OverlayHost {
@@ -1046,7 +1120,7 @@ mod imp {
             &mut self,
             _visible: bool,
             _rect_px: [i32; 4],
-            _monitor_dpi: u32,
+            _pixels_per_point: f32,
             _passthrough: bool,
         ) {
         }

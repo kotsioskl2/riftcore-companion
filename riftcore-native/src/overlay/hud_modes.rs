@@ -73,6 +73,8 @@ impl TargetWindowState {
     ///
     /// Exclusive fullscreen cannot be distinguished reliably from borderless by monitor bounds
     /// alone; `game_cfg_window_mode` (`Some(0)`) marks exclusive fullscreen explicitly when known.
+    /// The DPI is the monitor's (what Windows renders the HUD window at), falling back to the
+    /// game window's own DPI when no monitor is known.
     pub fn from_league_window(
         info: LeagueWindowInfo,
         is_foreground: bool,
@@ -83,12 +85,44 @@ impl TargetWindowState {
         Self {
             hwnd: info.hwnd,
             client_rect_px: info.bounds,
-            monitor_dpi: info.dpi.max(96),
+            monitor_dpi: monitor.map_or(info.dpi, |m| m.dpi).max(96),
             is_foreground,
             presentation,
         }
     }
+
+    /// Pixels per point the HUD renders at over this game window; see [`hud_pixels_per_point`].
+    pub fn hud_pixels_per_point(&self) -> f32 {
+        let [left, top, right, bottom] = self.client_rect_px;
+        hud_pixels_per_point(
+            self.monitor_dpi,
+            [right.saturating_sub(left), bottom.saturating_sub(top)],
+        )
+    }
 }
+
+/// Smallest HUD canvas, in points, that the panel layout is designed for (16:9 at 720p).
+pub const MIN_HUD_CANVAS_PTS: [f32; 2] = [1280.0, 720.0];
+
+/// Pixels per point for the HUD over a `client_px` game: the monitor's Windows scaling, lowered
+/// (never below 1.0) when it would leave less than [`MIN_HUD_CANVAS_PTS`]. League's own HUD
+/// scales with the game resolution, not with Windows scaling, so e.g. 1920x1080 at 200 % renders
+/// the HUD at 150 % instead of letting its panels cover the game's ability bar and minimap.
+pub fn hud_pixels_per_point(monitor_dpi: u32, client_px: [i32; 2]) -> f32 {
+    let fit_w = client_px[0].max(1) as f32 / MIN_HUD_CANVAS_PTS[0];
+    let fit_h = client_px[1].max(1) as f32 / MIN_HUD_CANVAS_PTS[1];
+    dpi_scale(monitor_dpi).min(fit_w).min(fit_h).max(1.0)
+}
+
+/// Logical window sizes of the compact HUD modes, in points.
+pub const BAR_WINDOW_PTS: [f32; 2] = [620.0, 54.0];
+pub const PILL_WINDOW_PTS: [f32; 2] = [440.0, 54.0];
+pub const CARD_WINDOW_PTS: [f32; 2] = [360.0, 330.0];
+/// Compact-mode window while the Mayhem cards drawer is open.
+pub const MAYHEM_WINDOW_PTS: [f32; 2] = [430.0, 560.0];
+/// The Mayhem window ends above this share of the game height, clear of League's minimap
+/// (bottom-right) even when the minimap is scaled up.
+pub const MAYHEM_WINDOW_MAX_BOTTOM: f32 = 0.6;
 
 /// Infers `DisplayPresentationMode` conservatively so borderless windows are never misclassified
 /// as exclusive fullscreen solely for spanning a monitor.
@@ -141,53 +175,49 @@ pub fn compute_overlay_rect_px(
     mayhem_open: bool,
 ) -> [i32; 4] {
     let [t_left, t_top, t_right, t_bottom] = target.client_rect_px;
-    let game_w = (t_right - t_left).max(1);
-    let game_h = (t_bottom - t_top).max(1);
-    let scale = dpi_scale(target.monitor_dpi);
+    let game_w = t_right.saturating_sub(t_left).max(1);
+    let game_h = t_bottom.saturating_sub(t_top).max(1);
+    let scale = target.hud_pixels_per_point();
+    let px = |points: f32| (points * scale).round() as i32;
 
     let (off_x, off_y, width_px, height_px) =
         if mayhem_open && mode != HudPresentationMode::Integrated {
-            let w = (430.0 * scale).round() as i32;
-            let h = (560.0 * scale).round() as i32;
+            let w = px(MAYHEM_WINDOW_PTS[0]);
+            let top = px(52.0);
+            let max_h = ((game_h as f32 * MAYHEM_WINDOW_MAX_BOTTOM) as i32 - top).max(1);
             (
                 (game_w - w).max(0),
-                (52.0 * scale).round() as i32,
+                top,
                 w.min(game_w),
-                h.min(game_h),
+                px(MAYHEM_WINDOW_PTS[1]).min(max_h).min(game_h),
             )
         } else {
             match mode {
                 HudPresentationMode::Bar => {
-                    let w = (620.0 * scale).round() as i32;
-                    let h = (54.0 * scale).round() as i32;
-                    let clamped_w = w.min(game_w);
+                    let clamped_w = px(BAR_WINDOW_PTS[0]).min(game_w);
                     (
                         ((game_w - clamped_w) / 2).max(0),
-                        (12.0 * scale).round() as i32,
+                        px(12.0),
                         clamped_w,
-                        h.min(game_h),
+                        px(BAR_WINDOW_PTS[1]).min(game_h),
                     )
                 }
                 HudPresentationMode::Pill => {
-                    let w = (360.0 * scale).round() as i32;
-                    let h = (48.0 * scale).round() as i32;
-                    let clamped_w = w.min(game_w);
+                    let clamped_w = px(PILL_WINDOW_PTS[0]).min(game_w);
                     (
-                        (game_w - clamped_w - (14.0 * scale).round() as i32).max(0),
-                        (58.0 * scale).round() as i32,
+                        (game_w - clamped_w - px(14.0)).max(0),
+                        px(58.0),
                         clamped_w,
-                        h.min(game_h),
+                        px(PILL_WINDOW_PTS[1]).min(game_h),
                     )
                 }
                 HudPresentationMode::Card => {
-                    let w = (360.0 * scale).round() as i32;
-                    let h = (330.0 * scale).round() as i32;
-                    let clamped_w = w.min(game_w);
+                    let clamped_w = px(CARD_WINDOW_PTS[0]).min(game_w);
                     (
-                        (game_w - clamped_w - (14.0 * scale).round() as i32).max(0),
-                        (58.0 * scale).round() as i32,
+                        (game_w - clamped_w - px(14.0)).max(0),
+                        px(58.0),
                         clamped_w,
-                        h.min(game_h),
+                        px(CARD_WINDOW_PTS[1]).min(game_h),
                     )
                 }
                 HudPresentationMode::Integrated => {
@@ -249,20 +279,31 @@ pub fn cursor_hits_rects(
     rects.iter().any(|rect| rect.contains(local))
 }
 
-/// League's own bottom-centre ability/item bar, which default RiftCore panels keep clear of.
-pub fn league_ability_bar_zone(area: Rect) -> Rect {
-    Rect::from_center_size(
-        Pos2::new(area.center().x, area.bottom() - 95.0),
-        Vec2::new(780.0, 190.0),
+/// League's own bottom-centre ability/item bar on a HUD covering the game (`screen`, in points),
+/// which RiftCore panels keep clear of. League scales its HUD with the game height, so the
+/// zone is 780x190 at 1080 and proportional elsewhere, whatever the Windows scaling.
+pub fn league_ability_bar_zone(screen: Rect) -> Rect {
+    let unit = screen.height() / 1080.0;
+    let size = Vec2::new((780.0 * unit).min(screen.width()), 190.0 * unit);
+    Rect::from_min_size(
+        Pos2::new(screen.center().x - size.x / 2.0, screen.bottom() - size.y),
+        size,
     )
 }
 
-/// League's bottom-left chat box region.
-pub fn league_chat_zone(area: Rect) -> Rect {
-    Rect::from_min_max(
-        Pos2::new(area.left(), area.bottom() - area.height() * 0.3),
-        Pos2::new(area.left() + 480.0, area.bottom()),
-    )
+/// League's chat box: bottom-left, or bottom-right when the minimap is flipped to the left
+/// (both can't share the corner). 480 wide at 1080, the lower 30 % of the height.
+pub fn league_chat_zone(screen: Rect, minimap_flipped: bool) -> Rect {
+    let size = Vec2::new(
+        (480.0 * screen.height() / 1080.0).min(screen.width()),
+        screen.height() * 0.3,
+    );
+    let left = if minimap_flipped {
+        screen.right() - size.x
+    } else {
+        screen.left()
+    };
+    Rect::from_min_size(Pos2::new(left, screen.bottom() - size.y), size)
 }
 
 /// Default centre-top point of the integrated toolbar: top-centre, under RiftCore's scoreboard.
@@ -319,7 +360,8 @@ mod tests {
             (2560.0, 1440.0),
             (3840.0, 2160.0),
         ] {
-            let area = Rect::from_min_size(Pos2::new(14.0, 14.0), Vec2::new(w - 28.0, h - 28.0));
+            let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(w, h));
+            let area = screen.shrink(14.0);
             let toolbar_top = default_toolbar_pos(area);
             let toolbar = Rect::from_min_size(
                 Pos2::new(toolbar_top.x - 320.0, toolbar_top.y),
@@ -327,10 +369,99 @@ mod tests {
             );
             let relic = Rect::from_min_size(default_relic_pos(area), Vec2::new(200.0, 140.0));
             for panel in [toolbar, relic] {
-                assert!(!panel.intersects(league_ability_bar_zone(area)), "{w}x{h}");
-                assert!(!panel.intersects(league_chat_zone(area)), "{w}x{h}");
+                assert!(
+                    !panel.intersects(league_ability_bar_zone(screen)),
+                    "{w}x{h}"
+                );
+                assert!(
+                    !panel.intersects(league_chat_zone(screen, false)),
+                    "{w}x{h}"
+                );
                 assert!(area.contains_rect(panel), "{w}x{h}");
             }
+        }
+    }
+
+    #[test]
+    fn hud_scale_follows_windows_scaling_but_keeps_a_720p_canvas() {
+        // (client px, monitor dpi) -> pixels per point
+        for (client, dpi, expected) in [
+            ([1920, 1080], 96, 1.0),
+            ([1920, 1080], 144, 1.5),
+            ([1920, 1080], 192, 1.5),
+            ([1280, 720], 120, 1.0),
+            ([2560, 1440], 144, 1.5),
+            ([2560, 1440], 192, 2.0),
+            ([3840, 2160], 192, 2.0),
+            ([1024, 600], 192, 1.0),
+        ] {
+            let ppp = hud_pixels_per_point(dpi, client);
+            assert!((ppp - expected).abs() < 1e-4, "{client:?}@{dpi}: {ppp}");
+            let canvas = [client[0] as f32 / ppp, client[1] as f32 / ppp];
+            assert!(
+                ppp == 1.0 || (canvas[0] >= 1279.9 && canvas[1] >= 719.9),
+                "{client:?}@{dpi}"
+            );
+        }
+        // The HUD follows the monitor's DPI, not the game window's own (possibly unaware) DPI.
+        let info = LeagueWindowInfo {
+            hwnd: 7,
+            process_id: 1,
+            bounds: [0, 0, 2560, 1440],
+            dpi: 96,
+        };
+        let monitor = MonitorMetrics {
+            rect_px: [0, 0, 2560, 1440],
+            work_px: [0, 0, 2560, 1400],
+            dpi: 144,
+        };
+        let target = TargetWindowState::from_league_window(info, true, Some(&monitor), Some(0));
+        assert_eq!(target.monitor_dpi, 144);
+        assert_eq!(
+            target.presentation,
+            DisplayPresentationMode::ExclusiveFullscreen
+        );
+        assert!((target.hud_pixels_per_point() - 1.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn compact_windows_scale_with_the_hud_and_mayhem_stays_clear_of_the_minimap() {
+        for (client, dpi) in [([1280, 720], 96), ([1920, 1080], 144), ([3840, 2160], 192)] {
+            let target = TargetWindowState {
+                hwnd: 1,
+                client_rect_px: [0, 0, client[0], client[1]],
+                monitor_dpi: dpi,
+                is_foreground: true,
+                presentation: DisplayPresentationMode::ExclusiveFullscreen,
+            };
+            let ppp = target.hud_pixels_per_point();
+            for (mode, size) in [
+                (HudPresentationMode::Bar, BAR_WINDOW_PTS),
+                (HudPresentationMode::Pill, PILL_WINDOW_PTS),
+                (HudPresentationMode::Card, CARD_WINDOW_PTS),
+            ] {
+                let rect = compute_overlay_rect_px(&target, None, mode, false);
+                assert_eq!(
+                    rect[2] - rect[0],
+                    (size[0] * ppp).round() as i32,
+                    "{mode:?}"
+                );
+                assert_eq!(
+                    rect[3] - rect[1],
+                    (size[1] * ppp).round() as i32,
+                    "{mode:?}"
+                );
+                let mayhem = compute_overlay_rect_px(&target, None, mode, true);
+                assert!(mayhem[2] <= client[0] && mayhem[0] >= 0, "{mode:?}");
+                assert!(
+                    mayhem[3] as f32 <= client[1] as f32 * MAYHEM_WINDOW_MAX_BOTTOM,
+                    "{mode:?} {client:?}"
+                );
+            }
+            // Integrated keeps the 1-pixel inset inside a full-screen client rect.
+            let full =
+                compute_overlay_rect_px(&target, None, HudPresentationMode::Integrated, false);
+            assert_eq!(full, [0, 0, client[0] - 1, client[1] - 1]);
         }
     }
 }

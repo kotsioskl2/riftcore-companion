@@ -175,6 +175,42 @@ pub fn window_ex_style(_hwnd: isize) -> usize {
     0
 }
 
+/// True when top-level window `upper` is above `lower` in the z-order, found by walking up
+/// from `lower`. Used to notice a topmost Fullscreen game rising above the HUD.
+#[cfg(windows)]
+pub fn is_window_above(upper: isize, lower: isize) -> bool {
+    use std::ffi::c_void;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetWindow(hwnd: *mut c_void, cmd: u32) -> *mut c_void;
+    }
+
+    const GW_HWNDPREV: u32 = 3;
+    if upper == 0 || lower == 0 || upper == lower {
+        return false;
+    }
+    let mut current = lower as *mut c_void;
+    // Bounded walk: the z-order can change (windows close) while it runs.
+    for _ in 0..4096 {
+        // SAFETY: `GetWindow` accepts any HWND value and returns null for a stale handle or
+        // once the top of the z-order is reached; no memory is passed in.
+        current = unsafe { GetWindow(current, GW_HWNDPREV) };
+        if current.is_null() {
+            return false;
+        }
+        if current as isize == upper {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(not(windows))]
+pub fn is_window_above(_upper: isize, _lower: isize) -> bool {
+    false
+}
+
 /// Enumerates physical monitors and per-monitor DPI metrics.
 #[cfg(windows)]
 pub fn query_monitors() -> Vec<MonitorMetrics> {

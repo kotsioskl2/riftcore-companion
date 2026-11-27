@@ -12,7 +12,7 @@ use std::time::Instant;
 pub struct EframeChildViewportFallback {
     visible: bool,
     rect_px: [i32; 4],
-    monitor_dpi: u32,
+    pixels_per_point: f32,
     passthrough: bool,
     frames_rendered: u64,
     resize_events: u64,
@@ -30,7 +30,7 @@ impl Default for EframeChildViewportFallback {
         Self {
             visible: false,
             rect_px: [0, 0, 1, 1],
-            monitor_dpi: 96,
+            pixels_per_point: 1.0,
             passthrough: true,
             frames_rendered: 0,
             resize_events: 0,
@@ -64,7 +64,7 @@ impl OverlaySurfaceHost for EframeChildViewportFallback {
         &mut self,
         visible: bool,
         rect_px: [i32; 4],
-        monitor_dpi: u32,
+        pixels_per_point: f32,
         passthrough: bool,
     ) {
         if self.rect_px != rect_px {
@@ -82,7 +82,11 @@ impl OverlaySurfaceHost for EframeChildViewportFallback {
             self.rect_px = rect_px;
         }
         self.visible = visible;
-        self.monitor_dpi = monitor_dpi.max(96);
+        self.pixels_per_point = if pixels_per_point.is_finite() {
+            pixels_per_point.max(1.0)
+        } else {
+            1.0
+        };
         self.passthrough = passthrough;
     }
 
@@ -95,7 +99,7 @@ impl OverlaySurfaceHost for EframeChildViewportFallback {
         if !self.visible || !force_redraw {
             return Vec::new();
         }
-        let ppp = (self.monitor_dpi as f32 / 96.0).max(1.0);
+        let ppp = self.pixels_per_point;
         let w_px = (self.rect_px[2] - self.rect_px[0]).max(1) as f32;
         let h_px = (self.rect_px[3] - self.rect_px[1]).max(1) as f32;
         let screen_pts = Vec2::new(w_px / ppp, h_px / ppp);

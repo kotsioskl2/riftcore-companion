@@ -142,6 +142,7 @@ mod tests {
             OverlayLifecycleState::WaitingForGameWindow
         );
 
+        // League's Fullscreen mode shows the HUD just like Borderless.
         engine.apply_command(
             OverlayCommand::UpdateTarget(Some(TargetWindowState {
                 hwnd: 1,
@@ -154,7 +155,7 @@ mod tests {
         );
         assert_eq!(
             engine.lifecycle_state(),
-            OverlayLifecycleState::BlockedByExclusiveFullscreen
+            OverlayLifecycleState::ActiveVisible
         );
 
         engine.apply_command(
@@ -235,6 +236,143 @@ mod tests {
         engine.on_live_game_state(false, &mut cfg);
         engine.on_live_game_state(true, &mut cfg);
         assert!(engine.is_enabled());
+    }
+
+    /// Records what the engine asks of the HUD window; `game_above` simulates a Fullscreen
+    /// League window that rose above the HUD (it is topmost too and rises on activation).
+    #[derive(Default)]
+    struct RecordingHost {
+        syncs: Vec<(bool, [i32; 4], f32)>,
+        frames: u64,
+        game_above: bool,
+        raises: u64,
+    }
+
+    impl OverlaySurfaceHost for RecordingHost {
+        fn backend_kind(&self) -> OverlayHostBackend {
+            OverlayHostBackend::PathAEframeFallback
+        }
+
+        fn sync_window(&mut self, visible: bool, rect_px: [i32; 4], ppp: f32, _pass: bool) {
+            self.syncs.push((visible, rect_px, ppp));
+        }
+
+        fn keep_above(&mut self, game_hwnd: isize) -> bool {
+            assert_eq!(game_hwnd, 7, "keeps above the League window");
+            let raise = std::mem::take(&mut self.game_above);
+            self.raises += u64::from(raise);
+            raise
+        }
+
+        fn render_if_needed(
+            &mut self,
+            force_redraw: bool,
+            _state: &mut OverlayRenderState,
+            _render_ui: &mut dyn FnMut(
+                &mut eframe::egui::Ui,
+                &mut OverlayRenderState,
+                &mut Vec<Rect>,
+            ),
+        ) -> Vec<Rect> {
+            self.frames += u64::from(force_redraw);
+            Vec::new()
+        }
+
+        fn diagnostics(&self) -> OverlayDiagnostics {
+            OverlayDiagnostics {
+                frames_rendered: self.frames,
+                topmost_reasserts: self.raises,
+                ..OverlayDiagnostics::default()
+            }
+        }
+
+        fn close(&mut self) {}
+    }
+
+    #[test]
+    fn fullscreen_hud_shows_stays_on_top_hides_on_alt_tab_and_returns_at_new_size() {
+        let fullscreen = |size: [i32; 2], dpi: u32, foreground: bool| TargetWindowState {
+            hwnd: 7,
+            client_rect_px: [0, 0, size[0], size[1]],
+            monitor_dpi: dpi,
+            is_foreground: foreground,
+            presentation: DisplayPresentationMode::ExclusiveFullscreen,
+        };
+        let mut engine = OverlayEngine::default();
+        let mut cfg = OverlayConfig::default();
+        let mut host = RecordingHost::default();
+        let mut state = OverlayRenderState::default();
+        let mut tick = |engine: &mut OverlayEngine, host: &mut RecordingHost| {
+            let cfg = OverlayConfig::default();
+            engine
+                .tick(
+                    host,
+                    TickInput {
+                        monitor: None,
+                        cursor_px: None,
+                        pointer_down: false,
+                        config: &cfg,
+                        render_state: &mut state,
+                        force_interactive_redraw: false,
+                    },
+                    &mut |_, _, _| {},
+                )
+                .0
+        };
+        engine.on_live_game_state(true, &mut cfg);
+
+        // 1. Fullscreen 2560x1440 at 150 %: visible, full size minus the 1 px inset.
+        let target = Some(fullscreen([2560, 1440], 144, true));
+        engine.apply_command(OverlayCommand::UpdateTarget(target), &mut cfg);
+        assert_eq!(
+            tick(&mut engine, &mut host),
+            OverlayLifecycleState::ActiveVisible
+        );
+        assert_eq!(host.syncs.last(), Some(&(true, [0, 0, 2559, 1439], 1.5)));
+        assert_eq!(host.frames, 1);
+
+        // 2. League was activated and rose above the HUD: re-raised once, and not again
+        //    while the HUD stays on top (no z-order calls when nothing changed).
+        host.game_above = true;
+        tick(&mut engine, &mut host);
+        tick(&mut engine, &mut host);
+        assert_eq!(host.raises, 1);
+        assert_eq!(host.frames, 1, "stationary HUD is not re-rendered");
+
+        // 3. Alt-tab: League minimised (window gone) or in the background -> hidden.
+        engine.apply_command(OverlayCommand::UpdateTarget(None), &mut cfg);
+        assert_eq!(
+            tick(&mut engine, &mut host),
+            OverlayLifecycleState::WaitingForGameWindow
+        );
+        assert!(!host.syncs.last().expect("synced").0);
+        let target = Some(fullscreen([2560, 1440], 144, false));
+        engine.apply_command(OverlayCommand::UpdateTarget(target), &mut cfg);
+        assert_eq!(
+            tick(&mut engine, &mut host),
+            OverlayLifecycleState::WaitingForForeground
+        );
+        assert!(!host.syncs.last().expect("synced").0);
+        assert_eq!(host.raises, 1, "a hidden HUD never touches the z-order");
+
+        // 4. Back in game at 1920x1080 (fresh monitor DPI 200 %): the first visible frame is
+        //    re-rendered at the new size, with the HUD scale capped to a 1280x720 canvas.
+        let target = Some(fullscreen([1920, 1080], 192, true));
+        engine.apply_command(OverlayCommand::UpdateTarget(target), &mut cfg);
+        assert_eq!(
+            tick(&mut engine, &mut host),
+            OverlayLifecycleState::ActiveVisible
+        );
+        assert_eq!(host.syncs.last(), Some(&(true, [0, 0, 1919, 1079], 1.5)));
+        assert_eq!(host.frames, 2);
+
+        // 5. Even with an unchanged size and state, coming back always renders a fresh frame.
+        engine.apply_command(OverlayCommand::UpdateTarget(None), &mut cfg);
+        tick(&mut engine, &mut host);
+        let target = Some(fullscreen([1920, 1080], 192, true));
+        engine.apply_command(OverlayCommand::UpdateTarget(target), &mut cfg);
+        tick(&mut engine, &mut host);
+        assert_eq!(host.frames, 3);
     }
 
     #[test]
