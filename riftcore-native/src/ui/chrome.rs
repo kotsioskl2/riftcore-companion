@@ -665,7 +665,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
                         inset_card(ui, &palette, palette.border, |ui| {
                             ui.label(RichText::new("GLOBAL SHORTCUTS").size(11.5).strong().color(palette.accent));
                             ui.label(
-                                RichText::new("Alt + ` or Ctrl + Space: Toggle HUD   ·   Alt + Shift + `: Toggle click-through")
+                                RichText::new("Alt + ` or Alt + Shift + Space: Toggle HUD   ·   Alt + Shift + `: Toggle click-through")
                                     .size(11.0)
                                     .monospace()
                                     .color(palette.text),

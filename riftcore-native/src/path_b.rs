@@ -6,9 +6,12 @@
 //! engine and panels (`riftcore_native::overlay`). If the Path B window cannot be created the
 //! app keeps using its original child-viewport overlay instead.
 
+use eframe::egui;
 use riftcore_native::config::settings::AppSettings as OverlaySettingsSource;
 use riftcore_native::domain::live_game::LiveGameState;
-use riftcore_native::overlay::engine::{OverlayCommand, OverlayConfig, OverlayEngine, TickInput};
+use riftcore_native::overlay::engine::{
+    OverlayCommand, OverlayConfig, OverlayEngine, OverlayLifecycleState, TickInput,
+};
 use riftcore_native::overlay::host::{
     OverlayFrameActions, OverlayPanelSettings, OverlayRenderState, OverlaySurfaceHost,
 };
@@ -18,14 +21,57 @@ use riftcore_native::overlay::hud_modes::{
 use riftcore_native::overlay::panels::render_overlay_ui;
 use riftcore_native::overlay::win32_host::Win32OverlayHost;
 use riftcore_native::platform::window::{
-    cursor_screen_position, find_league_game_window, is_league_window_foreground, query_monitors,
-    MonitorMetrics,
+    cursor_screen_position, find_league_game_window, is_league_window_foreground,
+    minimised_league_window_pid, query_monitors, GameCfgWatcher, LeagueWindowInfo, MonitorMetrics,
 };
 use serde_json::Value;
+use std::hash::Hasher;
 use std::time::{Duration, Instant};
 
 const MONITOR_REFRESH: Duration = Duration::from_secs(2);
 const TARGET_REFRESH: Duration = Duration::from_millis(250);
+/// Hover polling cadence while visible when the HUD window cannot wake the app itself.
+const POLL_WITHOUT_WAKE: Duration = Duration::from_millis(100);
+
+/// Why the HUD is or is not on screen; [`PathBStatus::message`] is user-facing text.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PathBStatus {
+    #[default]
+    Disabled,
+    WaitingForGame,
+    Minimised,
+    Background,
+    ExclusiveFullscreen,
+    Visible,
+}
+
+impl PathBStatus {
+    pub fn message(self) -> Option<&'static str> {
+        match self {
+            Self::Disabled | Self::Visible => None,
+            Self::WaitingForGame => Some("Waiting for a League of Legends game window"),
+            Self::Minimised => Some("League is minimised \u{2014} click back into the game to show the HUD"),
+            Self::Background => Some("League is in the background \u{2014} click into the game to show the HUD"),
+            Self::ExclusiveFullscreen => Some(
+                "League is in Fullscreen \u{2014} switch to Borderless (Esc > Video > Window Mode) to see the HUD",
+            ),
+        }
+    }
+}
+
+/// Hashes serialized bytes without allocating, to detect settings changes cheaply.
+struct HashWriter(std::collections::hash_map::DefaultHasher);
+
+impl std::io::Write for HashWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.write(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
 
 /// What the classic app tells the HUD each frame.
 pub struct PathBFrame<'a> {
@@ -51,6 +97,12 @@ pub struct PathBOverlay {
     monitors: Vec<MonitorMetrics>,
     monitors_at: Option<Instant>,
     target_at: Option<Instant>,
+    league_window: Option<(LeagueWindowInfo, bool)>,
+    minimised: bool,
+    game_cfg: GameCfgWatcher,
+    window_mode: Option<u8>,
+    settings_hash: Option<u64>,
+    status: PathBStatus,
 }
 
 impl PathBOverlay {
@@ -72,6 +124,12 @@ impl PathBOverlay {
             monitors: Vec::new(),
             monitors_at: None,
             target_at: None,
+            league_window: None,
+            minimised: false,
+            game_cfg: GameCfgWatcher::default(),
+            window_mode: None,
+            settings_hash: None,
+            status: PathBStatus::Disabled,
         })
     }
 
@@ -93,14 +151,17 @@ impl PathBOverlay {
             .target_at
             .is_none_or(|at| at.elapsed() >= TARGET_REFRESH)
         {
-            let target = find_league_game_window().map(|info| {
+            let window = find_league_game_window();
+            self.league_window = window.map(|info| (info, is_league_window_foreground(info)));
+            // A skipped-but-present game window is minimised (fullscreen alt-tab gives 1x1).
+            let pid = window
+                .map(|info| info.process_id)
+                .or_else(minimised_league_window_pid);
+            self.minimised = window.is_none() && pid.is_some();
+            self.window_mode = pid.and_then(|pid| self.game_cfg.poll(pid));
+            let target = self.league_window.map(|(info, foreground)| {
                 let monitor = monitor_for_rect(info.bounds, &self.monitors);
-                TargetWindowState::from_league_window(
-                    info,
-                    is_league_window_foreground(info),
-                    monitor,
-                    None,
-                )
+                TargetWindowState::from_league_window(info, foreground, monitor, self.window_mode)
             });
             self.engine
                 .apply_command(OverlayCommand::UpdateTarget(target), &mut self.config);
@@ -121,12 +182,23 @@ impl PathBOverlay {
         self.config.force_passthrough = frame.force_passthrough;
         self.config.mayhem_open = frame.show_mayhem_cards;
 
-        // Both settings structs share the same JSON shape, so convert through JSON.
-        let source: OverlaySettingsSource = serde_json::to_value(settings)
+        // Both settings structs share the same JSON shape, so convert through JSON, but only
+        // when the settings changed; a failed conversion keeps the last good HUD settings.
+        let mut hasher = HashWriter(Default::default());
+        let hash = serde_json::to_writer(&mut hasher, settings)
             .ok()
-            .and_then(|value| serde_json::from_value(value).ok())
-            .unwrap_or_default();
-        self.render.settings = OverlayPanelSettings::from_app_settings(&source);
+            .map(|()| hasher.0.finish());
+        if hash != self.settings_hash {
+            self.settings_hash = hash;
+            match serde_json::to_value(settings)
+                .and_then(serde_json::from_value::<OverlaySettingsSource>)
+            {
+                Ok(source) => {
+                    self.render.settings = OverlayPanelSettings::from_app_settings(&source);
+                }
+                Err(err) => eprintln!("[riftcore hud] settings conversion failed: {err}"),
+            }
+        }
         self.render.preview_mode = false;
         self.render.show_mayhem_cards = frame.show_mayhem_cards;
 
@@ -136,7 +208,8 @@ impl PathBOverlay {
             .and_then(|target| monitor_for_rect(target.client_rect_px, &self.monitors))
             .cloned();
         let pointer_down = self.host.pointer_down();
-        let (_, next_repaint) = self.engine.tick(
+        self.host.set_force_passthrough(frame.force_passthrough);
+        let (state, next) = self.engine.tick(
             &mut self.host,
             TickInput {
                 monitor: monitor.as_ref(),
@@ -148,12 +221,51 @@ impl PathBOverlay {
             },
             &mut render_overlay_ui,
         );
+        self.status = match state {
+            OverlayLifecycleState::Disabled => PathBStatus::Disabled,
+            OverlayLifecycleState::ActiveVisible => PathBStatus::Visible,
+            OverlayLifecycleState::BlockedByExclusiveFullscreen => PathBStatus::ExclusiveFullscreen,
+            OverlayLifecycleState::WaitingForForeground => PathBStatus::Background,
+            OverlayLifecycleState::WaitingForGameWindow if self.minimised => {
+                if self.window_mode == Some(0) {
+                    PathBStatus::ExclusiveFullscreen
+                } else {
+                    PathBStatus::Minimised
+                }
+            }
+            OverlayLifecycleState::WaitingForGameWindow => PathBStatus::WaitingForGame,
+        };
+        // Idle ~1 s, 16 ms while hovering/dragging; keep polling for the game while waiting.
+        let next_repaint = match state {
+            OverlayLifecycleState::Disabled => None,
+            OverlayLifecycleState::ActiveVisible if !self.host.has_repaint_context() => {
+                next.map(|delay| delay.min(POLL_WITHOUT_WAKE))
+            }
+            OverlayLifecycleState::ActiveVisible => next,
+            _ => Some(TARGET_REFRESH),
+        };
 
         PathBOutput {
             actions: std::mem::take(&mut self.render.pending_actions),
             show_mayhem_cards: self.render.show_mayhem_cards,
             next_repaint,
         }
+    }
+
+    /// Why the HUD is (not) showing; `status().message()` is the notice for the HUD page.
+    pub fn status(&self) -> PathBStatus {
+        self.status
+    }
+
+    /// League game window found by the last 250 ms search, with its foreground flag.
+    pub fn league_window(&self) -> Option<(LeagueWindowInfo, bool)> {
+        self.league_window
+    }
+
+    /// Lets the HUD window wake the app when the cursor reaches a panel or input arrives,
+    /// so the app can repaint lazily (call once after creating the overlay).
+    pub fn set_repaint_context(&mut self, ctx: &egui::Context) {
+        self.host.set_repaint_context(ctx.clone());
     }
 
     pub fn close(&mut self) {

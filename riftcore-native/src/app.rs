@@ -126,6 +126,8 @@ pub struct RiftCoreApp {
     champion_search: String,
     champion_role_filter: String,
     last_synced_champion: u32,
+    /// Champion whose locked-in pick was already auto-imported this champ select.
+    last_auto_imported_champion: u32,
     pool_search: String,
     pool_role: String,
     pool_assign_slot: Option<usize>,
@@ -180,6 +182,7 @@ pub struct RiftCoreApp {
     tray_icon: Option<TrayIcon>,
     /// New in-game HUD (Path B). `None` means the original child-viewport HUD is used.
     path_b: Option<crate::path_b::PathBOverlay>,
+    path_b_status: crate::path_b::PathBStatus,
     primary_tree: u32,
     secondary_tree: u32,
     selected_perks: [i64; 9],
@@ -257,14 +260,18 @@ impl RiftCoreApp {
         }
         let (snapshot_rx, commands) = backend::start_core(creation.egui_ctx.clone());
         let _ = commands.send(CoreCommand::SetAutoAccept(settings.auto_accept));
+        let _ = commands.send(CoreCommand::SetAutoBorderless(settings.hud_auto_borderless));
         let _ = commands.send(CoreCommand::CheckUpdates);
-        let (hotkey_rx, _) = start_hotkey_listener();
+        let (hotkey_rx, _) = start_hotkey_listener(creation.egui_ctx.clone());
         let show_whats_new = settings.last_seen_version != env!("CARGO_PKG_VERSION");
         let show_quick_tour = !show_whats_new && !settings.first_run_tour_seen;
         #[cfg(windows)]
         let tray_icon = build_tray_icon();
         let path_b = match crate::path_b::PathBOverlay::new(creation.wgpu_render_state.clone()) {
-            Ok(overlay) => Some(overlay),
+            Ok(mut overlay) => {
+                overlay.set_repaint_context(&creation.egui_ctx);
+                Some(overlay)
+            }
             Err(err) => {
                 eprintln!("RiftCore: new in-game HUD unavailable ({err}); using classic HUD");
                 None
@@ -336,6 +343,7 @@ impl RiftCoreApp {
             champion_search: String::new(),
             champion_role_filter: "ALL".to_string(),
             last_synced_champion: 0,
+            last_auto_imported_champion: 0,
             pool_search: String::new(),
             pool_role: "MID".to_string(),
             pool_assign_slot: None,
@@ -380,7 +388,7 @@ impl RiftCoreApp {
             show_mayhem_cards: false,
             show_overlay_build: false,
             show_overlay_timers: false,
-            overlay_timer_tab: "SPELLS".to_string(),
+            overlay_timer_tab: "OBJECTIVES".to_string(),
             show_close_confirmation: false,
             force_exit: false,
             hidden_in_tray: false,
@@ -388,6 +396,7 @@ impl RiftCoreApp {
             #[cfg(windows)]
             tray_icon,
             path_b,
+            path_b_status: Default::default(),
             primary_tree: 8100,
             secondary_tree: 8000,
             selected_perks: [8112, 8126, 8140, 8135, 9111, 8014, 5008, 5008, 5001],
@@ -1152,7 +1161,16 @@ impl RiftCoreApp {
         else {
             return;
         };
-        let saved = self.champion_setups.get(&champion_id).cloned();
+        // In champ select, the assigned position picks the setup; otherwise the profile role.
+        let assigned_role = (self.snapshot.phase == "ChampSelect")
+            .then_some(self.snapshot.champ_select.as_ref())
+            .flatten()
+            .and_then(champ_select_assigned_role);
+        let saved = self
+            .champion_setups
+            .get(&champion_id)
+            .filter(|setup| assigned_role.is_none_or(|role| setup.role.eq_ignore_ascii_case(role)))
+            .cloned();
         self.selected_champion = champion_id;
         self.last_synced_champion = champion_id;
         if let Some(setup) = &saved {
@@ -1164,8 +1182,12 @@ impl RiftCoreApp {
             self.spell_one = setup.spell_one;
             self.spell_two = setup.spell_two;
         } else {
-            let build =
-                crate::builds::recommend(&champion.key, &champion.name, &champion.roles, None);
+            let build = crate::builds::recommend(
+                &champion.key,
+                &champion.name,
+                &champion.roles,
+                assigned_role,
+            );
             self.build_role = build.role.clone();
             self.primary_tree = build.primary_tree;
             self.secondary_tree = build.secondary_tree;
@@ -1295,7 +1317,7 @@ impl RiftCoreApp {
         let runes_mode = self.champ_select_detail_tab == 1;
         let total_width = ui.available_width();
         let left_width = if runes_mode {
-            300.0
+            (total_width * 0.34).clamp(220.0, 300.0)
         } else {
             ((total_width - 8.0) / 2.0).max(420.0)
         };
@@ -1322,7 +1344,13 @@ impl RiftCoreApp {
                             );
                         }
                         let avail_width = ui.available_width();
-                        let num_cols = ((avail_width - 16.0) / 106.0).floor().max(3.0) as usize;
+                        let min_cols = if runes_mode && avail_width < 240.0 {
+                            2.0
+                        } else {
+                            3.0
+                        };
+                        let num_cols =
+                            ((avail_width - 16.0) / 106.0).floor().max(min_cols) as usize;
                         let card_w = ((avail_width - 16.0 - ((num_cols - 1) as f32 * 8.0))
                             / num_cols as f32)
                             .max(80.0);
@@ -1433,7 +1461,7 @@ impl RiftCoreApp {
                                                 lerp_color(TEXT, CYAN, selected_t),
                                             );
                                             if response.clicked() {
-                                                self.select_champion_setup(champ.id, true);
+                                                self.select_champion_setup(champ.id, false);
                                             }
                                             if index % num_cols == num_cols - 1 {
                                                 ui.end_row();
@@ -1581,16 +1609,16 @@ impl RiftCoreApp {
                                     }
                                     ui.add_space(8.0);
                                     ui.horizontal_wrapped(|ui| {
-                                        for (tab, label, accent) in [
-                                            (0usize, "BUILD", CYAN),
-                                            (1, "RUNES & SPELLS", GOLD),
-                                            (2, "SESSION", SECONDARY),
+                                        for (tab, label) in [
+                                            (0usize, "BUILD"),
+                                            (1, "RUNES & SPELLS"),
+                                            (2, "SESSION"),
                                         ] {
-                                            if filter_chip(
+                                            if action_button(
                                                 ui,
                                                 label,
                                                 self.champ_select_detail_tab == tab,
-                                                accent,
+                                                CYAN,
                                             )
                                             .clicked()
                                             {
@@ -2598,6 +2626,7 @@ impl RiftCoreApp {
             "In-Game HUD",
             "Native transparent overlay for live match information",
         );
+        self.render_hud_display_card(ui);
         if self.snapshot.live_game.is_some() {
             ui.horizontal(|ui| {
                 let label = if self.overlay_mode {
@@ -2643,11 +2672,10 @@ impl RiftCoreApp {
                         });
                     });
                     ui.add_space(5.0);
-                    ui.label(RichText::new("Use Borderless or Windowed mode in League. Fullscreen can hide desktop overlays.").size(10.5).color(SECONDARY));
+                    ui.label(RichText::new("Use Borderless (or Windowed) mode in League. The HUD cannot draw over exclusive Fullscreen.").size(10.5).color(SECONDARY));
                     ui.add_space(8.0);
                     let overlay_btn = if self.overlay_mode { "DISABLE IN-GAME HUD" } else { "ENABLE IN-GAME HUD" };
                     if action_button(ui, overlay_btn, self.overlay_mode, CYAN).clicked() {
-                        self.settings.hud_preview_mode = false;
                         self.set_overlay_mode(ui.ctx(), !self.overlay_mode, false);
                     }
                 });
@@ -2661,12 +2689,48 @@ impl RiftCoreApp {
         self.render_hud_settings(ui);
     }
 
+    /// Says why the HUD is hidden (e.g. exclusive Fullscreen) and offers the Borderless fix.
+    fn render_hud_display_card(&mut self, ui: &mut egui::Ui) {
+        let status = self.path_b.as_ref().filter(|_| self.overlay_mode);
+        let status = status.and_then(|path_b| path_b.status().message());
+        let fullscreen = self.snapshot.league_window_mode == Some(0);
+        panel(ui, |ui| {
+            if let Some(message) = status {
+                ui.label(RichText::new(message).size(12.5).strong().color(GOLD));
+                ui.add_space(4.0);
+            }
+            if fullscreen {
+                ui.label(
+                    RichText::new("League is set to Fullscreen, which hides the HUD.")
+                        .size(10.5)
+                        .color(SECONDARY),
+                );
+                if action_button(ui, "SWITCH LEAGUE TO BORDERLESS", false, CYAN).clicked() {
+                    let _ = self.commands.send(CoreCommand::SetLeagueWindowMode(2));
+                }
+                ui.add_space(4.0);
+            }
+            if settings_row(
+                ui,
+                "Make HUD work automatically",
+                &mut self.settings.hud_auto_borderless,
+                "Always keep League in Borderless for the HUD (set while the game is closed)",
+            ) {
+                let enabled = self.settings.hud_auto_borderless;
+                let _ = self.commands.send(CoreCommand::SetAutoBorderless(enabled));
+                self.save_settings();
+            }
+        });
+        ui.add_space(8.0);
+    }
+
     fn render_live_summary(&self, ui: &mut egui::Ui) {
         if let Some(live) = self.snapshot.live_game.as_ref() {
             let data = live.get("gameData").unwrap_or(&Value::Null);
             let active = live.get("activePlayer").unwrap_or(&Value::Null);
+            let me = active_player_entry(live).unwrap_or(&Value::Null);
             let time = data.get("gameTime").and_then(Value::as_f64).unwrap_or(0.0) as u64;
-            let scores = active.get("scores").unwrap_or(&Value::Null);
+            let scores = me.get("scores").unwrap_or(&Value::Null);
             ui.horizontal(|ui| {
                 metric(
                     ui,
@@ -2835,17 +2899,8 @@ impl RiftCoreApp {
                                 .color(MUTED),
                         );
                         ui.end_row();
-                        for team in ["ORDER", "CHAOS"] {
-                            ui.label(
-                                RichText::new(if team == "ORDER" {
-                                    "YOUR TEAM"
-                                } else {
-                                    "ENEMY TEAM"
-                                })
-                                .size(10.0)
-                                .strong()
-                                .color(if team == "ORDER" { CYAN } else { RED }),
-                            );
+                        for (team, label, color) in scoreboard_teams(live) {
+                            ui.label(RichText::new(label).size(10.0).strong().color(color));
                             ui.label("");
                             ui.end_row();
                             for player in players.iter().filter(|player| {
@@ -2920,12 +2975,6 @@ impl RiftCoreApp {
                         "Manual click timers for allied R",
                         &mut self.settings.hud_ally_ult_timers,
                     );
-                    changed |= toggle_card_row(
-                        ui,
-                        "Enemy Summoner Timers",
-                        "Manual Flash and spell tracking",
-                        &mut self.settings.hud_enemy_spell_timers,
-                    );
                 });
                 panel(&mut columns[1], |ui| {
                     panel_title(ui, "RESPAWNS", "Camp and mode-specific timers");
@@ -2955,7 +3004,7 @@ impl RiftCoreApp {
                     changed |= toggle_card_row(
                         ui,
                         "CS Per Minute Pace",
-                        "Benchmark CS against pro targets",
+                        "Show your CS per minute",
                         &mut self.settings.hud_cs_benchmark,
                     );
                 });
@@ -2964,19 +3013,19 @@ impl RiftCoreApp {
                     changed |= toggle_card_row(
                         ui,
                         "Ability Rank Guide",
-                        "Recommended skill order",
+                        "Show your current ability ranks",
                         &mut self.settings.hud_skill_order,
                     );
                     changed |= toggle_card_row(
                         ui,
                         "Item Build Goals",
-                        "Current inventory and next purchase",
+                        "Show your current inventory",
                         &mut self.settings.hud_item_goal,
                     );
                     changed |= toggle_card_row(
                         ui,
                         "Trinket Ward Reminder",
-                        "Alert when ward charge is available",
+                        "Reminder when no trinket is equipped",
                         &mut self.settings.hud_trinket_reminder,
                     );
                 });
@@ -2987,7 +3036,7 @@ impl RiftCoreApp {
                     changed |= toggle_card_row(
                         ui,
                         "Mayhem & Arena Cards Guide",
-                        "Card selector and tier recommendations",
+                        "Card selector with rarity and descriptions",
                         &mut self.settings.hud_mayhem_cards,
                     );
                     changed |= toggle_card_row(
@@ -6014,7 +6063,7 @@ impl RiftCoreApp {
                         ("Ally timers", "Manually mark allied ultimate casts and reset their countdowns from the live HUD."),
                         ("In-game builds", "Open your active champion's core build and sync the item set to the League shop."),
                         ("Modes", "Browse the restored ARAM Mayhem and Arena card catalog by mode and tier."),
-                        ("Desktop controls", "Launch League, set borderless or fullscreen, and keep RiftCore in the system tray."),
+                        ("Desktop controls", "Launch League in Borderless mode (the HUD cannot draw over exclusive Fullscreen) and keep RiftCore in the system tray."),
                     ] {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("◆").size(12.0).color(CYAN));
@@ -6081,7 +6130,7 @@ impl RiftCoreApp {
                             ui.label(RichText::new("SHORTCUTS").size(12.0).strong().color(CYAN));
                             ui.label(RichText::new("Works while RiftCore is running").size(11.5).color(SECONDARY));
                             ui.add_space(4.0);
-                            ui.label(RichText::new("Alt + `  Toggle the HUD    ·    Alt + Shift + `  Toggle click-through").size(11.5).monospace().color(CYAN));
+                            ui.label(RichText::new("Alt + ` or Alt + Shift + Space  Toggle the HUD    ·    Alt + Shift + `  Toggle click-through").size(11.5).monospace().color(CYAN));
                         });
                     ui.add_space(14.0);
                     ui.horizontal(|ui| {
@@ -6158,7 +6207,6 @@ impl RiftCoreApp {
                         for card in &filtered {
                             let name = card.get("name").and_then(Value::as_str).unwrap_or("Card");
                             let tier = card.get("tier").and_then(Value::as_str).unwrap_or("—");
-                            let rank = card.get("rank").and_then(Value::as_str).unwrap_or("—");
                             let tag = card.get("tag").and_then(Value::as_str).unwrap_or("CARD");
                             let archetype = card.get("archetype").and_then(Value::as_str).unwrap_or("");
                             let description = card.get("description").and_then(Value::as_str).unwrap_or("");
@@ -6171,7 +6219,6 @@ impl RiftCoreApp {
                                         ui.horizontal(|ui| {
                                             ui.label(RichText::new(name).size(12.0).strong().color(TEXT));
                                             badge(ui, tier, tint);
-                                            badge(ui, rank, GOLD);
                                             badge(ui, tag, CYAN);
                                         });
                                         ui.label(RichText::new(archetype).size(9.5).color(SECONDARY));
@@ -6252,7 +6299,17 @@ impl RiftCoreApp {
             force_passthrough: self.overlay_mouse_passthrough,
             show_mayhem_cards: self.show_mayhem_cards,
         });
+        let status = path_b.status();
         self.show_mayhem_cards = output.show_mayhem_cards;
+        if status != self.path_b_status {
+            self.path_b_status = status;
+            // "Waiting for a game" is already announced when the HUD is switched on.
+            if let Some(message) = status.message().filter(|_| {
+                self.overlay_mode && status != crate::path_b::PathBStatus::WaitingForGame
+            }) {
+                self.set_notice(message);
+            }
+        }
         if let Some(next) = output.next_repaint {
             ctx.request_repaint_after(next);
         }
@@ -6426,16 +6483,6 @@ impl RiftCoreApp {
                                                     )
                                                     .size(9.0)
                                                     .color(GOLD),
-                                                );
-                                                ui.label(
-                                                    RichText::new(
-                                                        card.get("rank")
-                                                            .and_then(Value::as_str)
-                                                            .unwrap_or(""),
-                                                    )
-                                                    .size(9.0)
-                                                    .strong()
-                                                    .color(CYAN),
                                                 );
                                             });
                                             ui.label(
@@ -6671,20 +6718,14 @@ impl RiftCoreApp {
                         });
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
-                            for tab in ["SPELLS", "CAMPS", "OBJECTIVES"] {
+                            for tab in ["OBJECTIVES", "CAMPS"] {
                                 let enabled = match tab {
-                                    "SPELLS" => self.settings.hud_enemy_spell_timers,
                                     "CAMPS" => self.settings.hud_manual_camp_timers,
                                     _ => self.settings.hud_objective_timers,
                                 };
                                 if enabled
-                                    && filter_chip(
-                                        ui,
-                                        tab,
-                                        self.overlay_timer_tab == tab,
-                                        if tab == "SPELLS" { CYAN } else { GOLD },
-                                    )
-                                    .clicked()
+                                    && filter_chip(ui, tab, self.overlay_timer_tab == tab, GOLD)
+                                        .clicked()
                                 {
                                     self.overlay_timer_tab = tab.to_string();
                                 }
@@ -6699,15 +6740,8 @@ impl RiftCoreApp {
                                 "CAMPS" if self.settings.hud_manual_camp_timers => {
                                     render_manual_camp_timers(ui, &mut self.manual_spell_timers);
                                 }
-                                "OBJECTIVES" if self.settings.hud_objective_timers => {
+                                _ if self.settings.hud_objective_timers => {
                                     render_objective_timer_cards(ui, live);
-                                }
-                                _ if self.settings.hud_enemy_spell_timers => {
-                                    render_enemy_spell_timers(
-                                        ui,
-                                        live,
-                                        &mut self.manual_spell_timers,
-                                    );
                                 }
                                 _ => {
                                     ui.label(
@@ -6719,13 +6753,6 @@ impl RiftCoreApp {
                                     );
                                 }
                             });
-                        ui.label(
-                            RichText::new(
-                                "Spell times use base cooldowns; summoner haste is not inferred.",
-                            )
-                            .size(8.5)
-                            .color(MUTED),
-                        );
                     });
             });
         self.overlay_interactive_regions
@@ -6741,35 +6768,8 @@ impl RiftCoreApp {
             self.show_overlay_timers = false;
         }
         if copy_callout {
-            let game_time = live
-                .and_then(|data| data.get("gameData"))
-                .and_then(|data| data.get("gameTime"))
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0) as u64;
-            let now = Instant::now();
             let mut callouts = Vec::new();
             if let Some(live) = live {
-                for (role, champion, spell_one, spell_two, player_key) in
-                    enemy_summoner_spells(live)
-                {
-                    for (index, spell) in [spell_one, spell_two].into_iter().enumerate() {
-                        let key = format!("enemy-spell-{player_key}-{index}");
-                        if let Some(remaining) = self
-                            .manual_spell_timers
-                            .get(&key)
-                            .map(|end| end.saturating_duration_since(now).as_secs())
-                            .filter(|seconds| *seconds > 0)
-                        {
-                            callouts.push(format!(
-                                "{} {} {} {}",
-                                role.to_lowercase(),
-                                champion,
-                                spell.to_lowercase(),
-                                format_hud_clock(game_time + remaining)
-                            ));
-                        }
-                    }
-                }
                 for (label, timer) in objective_timers(live) {
                     callouts.push(format!("{} {}", label.to_lowercase(), timer));
                 }
@@ -6806,7 +6806,9 @@ impl RiftCoreApp {
                 let active = live
                     .and_then(|data| data.get("activePlayer"))
                     .unwrap_or(&Value::Null);
-                let scores = active.get("scores").unwrap_or(&Value::Null);
+                // Scores and items live in the player's `allPlayers` entry.
+                let me = live.and_then(active_player_entry).unwrap_or(&Value::Null);
+                let scores = me.get("scores").unwrap_or(&Value::Null);
                 let kda = format!(
                     "{} / {} / {}",
                     num(scores, "kills"),
@@ -7221,9 +7223,7 @@ impl RiftCoreApp {
                                     ui.label(
                                         RichText::new("INVENTORY").size(10.0).strong().color(GOLD),
                                     );
-                                    if let Some(items) =
-                                        active.get("items").and_then(Value::as_array)
-                                    {
+                                    if let Some(items) = me.get("items").and_then(Value::as_array) {
                                         let mut shown = 0;
                                         for item in items
                                             .iter()
@@ -7264,7 +7264,7 @@ impl RiftCoreApp {
                                     }
                                 }
                                 if self.settings.hud_trinket_reminder {
-                                    let has_trinket = active
+                                    let has_trinket = me
                                         .get("items")
                                         .and_then(Value::as_array)
                                         .map(|items| {
@@ -7491,8 +7491,9 @@ impl eframe::App for RiftCoreApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // eframe skips `ui` for a hidden window, but RiftCore does its background work there
         // (tray menu, League client updates, hotkeys, HUD auto-start). Keep it running while
-        // the window sits in the tray.
-        if self.hidden_in_tray {
+        // the window sits in the tray, is minimised, or is covered (e.g. by the game).
+        let hidden = ctx.input(|input| input.viewport().visible() == Some(false));
+        if self.hidden_in_tray || hidden {
             ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaintWhileHidden);
             ctx.request_repaint_after(Duration::from_millis(250));
         }
@@ -7566,16 +7567,19 @@ impl eframe::App for RiftCoreApp {
             }
             self.snapshot = snapshot;
             if self.snapshot.phase == "ChampSelect" {
-                let selected_lcu_champion = self
-                    .snapshot
-                    .champ_select
-                    .as_ref()
-                    .and_then(champ_select_local_champion)
-                    .unwrap_or(0);
-                if selected_lcu_champion > 0 && selected_lcu_champion != self.last_synced_champion {
-                    self.select_champion_setup(selected_lcu_champion, true);
+                let session = self.snapshot.champ_select.as_ref();
+                let shown = session.and_then(champ_select_local_champion).unwrap_or(0);
+                let locked = session.and_then(champ_select_locked_champion).unwrap_or(0);
+                // Hovering only previews the setup; the League client is written once,
+                // when the pick is locked in.
+                if locked > 0 && locked != self.last_auto_imported_champion {
+                    self.last_auto_imported_champion = locked;
+                    self.select_champion_setup(locked, true);
+                } else if shown > 0 && shown != self.last_synced_champion {
+                    self.select_champion_setup(shown, false);
                 }
             } else {
+                self.last_auto_imported_champion = 0;
                 self.last_synced_champion = 0;
             }
         }
@@ -7632,7 +7636,19 @@ impl eframe::App for RiftCoreApp {
         if !live {
             self.overlay_dismissed_by_user = false;
         }
-        if self.last_bounds_check.elapsed() > Duration::from_millis(250) {
+        if let Some(path_b) = self.path_b.as_ref() {
+            // The new HUD already searches for the game window every 250 ms.
+            let found = path_b.league_window();
+            self.overlay_target = found.map(|(window, _)| backend::LeagueWindowInfo {
+                hwnd: window.hwnd,
+                process_id: window.process_id,
+                bounds: window.bounds,
+                dpi: window.dpi,
+            });
+            self.overlay_target_is_foreground = found.is_some_and(|(_, foreground)| foreground);
+            self.overlay_waiting_for_window = self.overlay_mode
+                && (self.overlay_target.is_none() || !self.overlay_target_is_foreground);
+        } else if self.last_bounds_check.elapsed() > Duration::from_millis(250) {
             self.overlay_target = backend::league_game_window();
             self.overlay_target_is_foreground = self
                 .overlay_target
@@ -7654,11 +7670,10 @@ impl eframe::App for RiftCoreApp {
         } else {
             self.render_overlay_viewport(&ctx);
         }
-        ctx.request_repaint_after(Duration::from_millis(if self.overlay_mode {
-            33
-        } else {
-            250
-        }));
+        // The new HUD schedules its own repaints in `tick_path_b`; only the classic
+        // fallback HUD needs a fast fixed cadence.
+        let fast = self.overlay_mode && self.path_b.is_none();
+        ctx.request_repaint_after(Duration::from_millis(if fast { 33 } else { 250 }));
     }
 }
 
@@ -8658,10 +8673,28 @@ fn jungle_route_status(
     None
 }
 
-fn allied_teammates(live: &Value) -> Vec<(String, String, String)> {
-    let Some(players) = live.get("allPlayers").and_then(Value::as_array) else {
-        return Vec::new();
-    };
+/// The local player's entry in `allPlayers`. The Live Client API only reports team,
+/// items and scores there, not under `activePlayer`.
+fn active_player_entry(live: &Value) -> Option<&Value> {
+    let players = live.get("allPlayers")?.as_array()?;
+    players.get(active_player_index(live, players)?)
+}
+
+/// Scoreboard sections: the local player's team first, labelled as allies. Falls back
+/// to neutral side names when the local player cannot be matched (e.g. spectating).
+fn scoreboard_teams(live: &Value) -> [(&'static str, &'static str, egui::Color32); 2] {
+    let own = active_player_entry(live).and_then(|player| player.get("team"));
+    match own.and_then(Value::as_str) {
+        Some(team) if team.eq_ignore_ascii_case("CHAOS") => {
+            [("CHAOS", "YOUR TEAM", CYAN), ("ORDER", "ENEMY TEAM", RED)]
+        }
+        Some(_) => [("ORDER", "YOUR TEAM", CYAN), ("CHAOS", "ENEMY TEAM", RED)],
+        None => [("ORDER", "BLUE TEAM", CYAN), ("CHAOS", "RED TEAM", RED)],
+    }
+}
+
+/// Index of the local player in `allPlayers`.
+fn active_player_index(live: &Value, players: &[Value]) -> Option<usize> {
     let active = live.get("activePlayer").unwrap_or(&Value::Null);
     let active_riot_id = active.get("riotId").and_then(Value::as_str);
     let active_name = active
@@ -8669,7 +8702,7 @@ fn allied_teammates(live: &Value) -> Vec<(String, String, String)> {
         .or_else(|| active.get("riotIdGameName"))
         .and_then(Value::as_str);
     let active_champion = active.get("championName").and_then(Value::as_str);
-    let active_index = players.iter().position(|player| {
+    players.iter().position(|player| {
         active_riot_id
             .zip(player.get("riotId").and_then(Value::as_str))
             .is_some_and(|(active_id, player_id)| active_id == player_id)
@@ -8681,7 +8714,14 @@ fn allied_teammates(live: &Value) -> Vec<(String, String, String)> {
                 && active_champion
                     .zip(player.get("championName").and_then(Value::as_str))
                     .is_some_and(|(active_name, player_name)| active_name == player_name))
-    });
+    })
+}
+
+fn allied_teammates(live: &Value) -> Vec<(String, String, String)> {
+    let Some(players) = live.get("allPlayers").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let active_index = active_player_index(live, players);
     let Some(active_index) = active_index else {
         return Vec::new();
     };
@@ -8718,222 +8758,6 @@ fn allied_teammates(live: &Value) -> Vec<(String, String, String)> {
             (role, champion, format!("ally-ult-{key}"))
         })
         .collect()
-}
-
-fn enemy_summoner_spells(live: &Value) -> Vec<(String, String, String, String, String)> {
-    let Some(players) = live.get("allPlayers").and_then(Value::as_array) else {
-        return Vec::new();
-    };
-    let active = live.get("activePlayer").unwrap_or(&Value::Null);
-    let active_riot_id = active.get("riotId").and_then(Value::as_str);
-    let active_name = active
-        .get("summonerName")
-        .or_else(|| active.get("riotIdGameName"))
-        .and_then(Value::as_str);
-    let active_champion = active.get("championName").and_then(Value::as_str);
-    let own_team = players
-        .iter()
-        .find(|player| {
-            active_riot_id
-                .zip(player.get("riotId").and_then(Value::as_str))
-                .is_some_and(|(active_id, player_id)| active_id == player_id)
-                || active_name
-                    .zip(player.get("summonerName").and_then(Value::as_str))
-                    .is_some_and(|(active_name, player_name)| active_name == player_name)
-                || (active_name.is_none()
-                    && active_riot_id.is_none()
-                    && active_champion
-                        .zip(player.get("championName").and_then(Value::as_str))
-                        .is_some_and(|(active_champ, player_champ)| active_champ == player_champ))
-        })
-        .and_then(|player| player.get("team"))
-        .and_then(Value::as_str);
-    let Some(own_team) = own_team else {
-        return Vec::new();
-    };
-    let fallback_roles = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
-
-    players
-        .iter()
-        .enumerate()
-        .filter(|(_, player)| {
-            player
-                .get("team")
-                .and_then(Value::as_str)
-                .is_some_and(|team| !team.eq_ignore_ascii_case(own_team))
-        })
-        .take(5)
-        .map(|(index, player)| {
-            let champion = player
-                .get("championName")
-                .and_then(Value::as_str)
-                .filter(|value| !value.is_empty())
-                .unwrap_or("Enemy")
-                .to_string();
-            let role = player
-                .get("position")
-                .or_else(|| player.get("assignedPosition"))
-                .and_then(Value::as_str)
-                .filter(|value| !value.is_empty() && *value != "Invalid")
-                .map(str::to_ascii_uppercase)
-                .unwrap_or_else(|| fallback_roles[index % fallback_roles.len()].to_string());
-            let spells = player.get("summonerSpells").unwrap_or(&Value::Null);
-            let spell_name = |slot: &str| {
-                spells
-                    .get(slot)
-                    .and_then(|spell| spell.get("displayName"))
-                    .and_then(Value::as_str)
-                    .map(normalize_summoner_spell)
-                    .unwrap_or_else(|| "Unknown spell".to_string())
-            };
-            let player_key = player
-                .get("riotId")
-                .or_else(|| player.get("summonerName"))
-                .and_then(Value::as_str)
-                .filter(|value| !value.is_empty())
-                .map(str::to_owned)
-                .unwrap_or_else(|| format!("{champion}-{index}"));
-            (
-                role,
-                champion,
-                spell_name("summonerSpellOne"),
-                spell_name("summonerSpellTwo"),
-                player_key,
-            )
-        })
-        .collect()
-}
-
-fn normalize_summoner_spell(raw_name: &str) -> String {
-    let normalized = raw_name
-        .strip_prefix("Summoner")
-        .unwrap_or(raw_name)
-        .to_ascii_lowercase();
-    [
-        ("flash", "Flash"),
-        ("teleport", "Teleport"),
-        ("ghost", "Ghost"),
-        ("heal", "Heal"),
-        ("barrier", "Barrier"),
-        ("exhaust", "Exhaust"),
-        ("ignite", "Ignite"),
-        ("cleanse", "Cleanse"),
-        ("smite", "Smite"),
-        ("mark", "Mark"),
-        ("snowball", "Mark"),
-        ("clarity", "Clarity"),
-    ]
-    .iter()
-    .find_map(|(needle, label)| normalized.contains(needle).then_some((*label).to_string()))
-    .unwrap_or_else(|| raw_name.to_string())
-}
-
-fn summoner_spell_cooldown(spell: &str) -> u64 {
-    let spell = spell.to_ascii_lowercase();
-    if spell.contains("flash") {
-        300
-    } else if spell.contains("teleport") {
-        360
-    } else if spell.contains("ghost") || spell.contains("heal") {
-        240
-    } else if spell.contains("barrier") {
-        180
-    } else if spell.contains("exhaust") || spell.contains("cleanse") {
-        210
-    } else if spell.contains("ignite") {
-        180
-    } else if spell.contains("smite") {
-        90
-    } else if spell.contains("mark") || spell.contains("snowball") {
-        80
-    } else if spell.contains("clarity") {
-        144
-    } else {
-        300
-    }
-}
-
-fn render_enemy_spell_timers(
-    ui: &mut egui::Ui,
-    live: Option<&Value>,
-    timers: &mut HashMap<String, Instant>,
-) {
-    let Some(live) = live else {
-        ui.label(
-            RichText::new("Waiting for live game data.")
-                .size(10.0)
-                .color(SECONDARY),
-        );
-        return;
-    };
-    let enemies = enemy_summoner_spells(live);
-    if enemies.is_empty() {
-        ui.label(
-            RichText::new("Enemy spell data is not available yet.")
-                .size(10.0)
-                .color(SECONDARY),
-        );
-        return;
-    }
-    let now = Instant::now();
-    for (role, champion, spell_one, spell_two, player_key) in enemies {
-        Frame::new()
-            .fill(Color32::from_rgba_unmultiplied(13, 20, 31, 230))
-            .stroke(Stroke::new(1.0, BORDER))
-            .corner_radius(egui::CornerRadius::same(8))
-            .inner_margin(egui::Margin::symmetric(8, 6))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.add_sized(
-                        [94.0, 30.0],
-                        egui::Label::new(
-                            RichText::new(format!("{role}  {champion}"))
-                                .size(9.5)
-                                .strong()
-                                .color(TEXT),
-                        )
-                        .wrap(),
-                    );
-                    for (index, spell) in [spell_one.as_str(), spell_two.as_str()]
-                        .into_iter()
-                        .enumerate()
-                    {
-                        let key = format!("enemy-spell-{player_key}-{index}");
-                        let remaining = timers
-                            .get(&key)
-                            .map(|ready_at| ready_at.saturating_duration_since(now).as_secs())
-                            .unwrap_or(0);
-                        let label = if remaining > 0 {
-                            format!("{spell}  {}", format_hud_clock(remaining))
-                        } else {
-                            format!("{spell}  START")
-                        };
-                        if ui
-                            .add_sized(
-                                [132.0, 30.0],
-                                egui::Button::new(
-                                    RichText::new(label)
-                                        .size(9.0)
-                                        .strong()
-                                        .color(if remaining > 0 { RED } else { GREEN }),
-                                ),
-                            )
-                            .clicked()
-                        {
-                            if remaining > 0 {
-                                timers.remove(&key);
-                            } else {
-                                timers.insert(
-                                    key,
-                                    now + Duration::from_secs(summoner_spell_cooldown(spell)),
-                                );
-                            }
-                        }
-                    }
-                });
-            });
-        ui.add_space(4.0);
-    }
 }
 
 fn render_manual_camp_timers(ui: &mut egui::Ui, timers: &mut HashMap<String, Instant>) {
@@ -9252,6 +9076,64 @@ fn session_picks(session: &Value, team_key: &str) -> [u32; 5] {
         }
     }
     picks
+}
+
+fn champ_select_local_member(session: &Value) -> Option<&Value> {
+    let local_cell = session.get("localPlayerCellId").and_then(Value::as_u64)?;
+    session
+        .get("myTeam")?
+        .as_array()?
+        .iter()
+        .find(|member| member.get("cellId").and_then(Value::as_u64) == Some(local_cell))
+}
+
+/// The local player's champion once it is locked in: their pick action is completed,
+/// or, in modes without pick actions (ARAM), the champion they were given.
+fn champ_select_locked_champion(session: &Value) -> Option<u32> {
+    let local_cell = session.get("localPlayerCellId").and_then(Value::as_u64)?;
+    let picks = session
+        .get("actions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .flat_map(|group| {
+            group
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(std::slice::from_ref(group))
+        })
+        .filter(|action| {
+            action.get("actorCellId").and_then(Value::as_u64) == Some(local_cell)
+                && action.get("type").and_then(Value::as_str) == Some("pick")
+        })
+        .collect::<Vec<_>>();
+    let champion = if picks.is_empty() {
+        champ_select_local_member(session)?.get("championId")
+    } else {
+        picks
+            .iter()
+            .find(|action| action.get("completed").and_then(Value::as_bool) == Some(true))?
+            .get("championId")
+    };
+    champion
+        .and_then(Value::as_u64)
+        .filter(|id| *id > 0)
+        .map(|id| id as u32)
+}
+
+/// Maps the local player's champ select `assignedPosition` to a build role.
+fn champ_select_assigned_role(session: &Value) -> Option<&'static str> {
+    let position = champ_select_local_member(session)?
+        .get("assignedPosition")?
+        .as_str()?;
+    match position.to_ascii_lowercase().as_str() {
+        "top" => Some("TOP"),
+        "jungle" => Some("JUNGLE"),
+        "middle" | "mid" => Some("MID"),
+        "bottom" | "adc" => Some("ADC"),
+        "utility" | "support" => Some("SUPPORT"),
+        _ => None,
+    }
 }
 
 fn champ_select_local_champion(session: &Value) -> Option<u32> {
@@ -10280,7 +10162,9 @@ fn load_settings(path: &std::path::Path) -> AppSettings {
         .unwrap_or_default()
 }
 
-fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, Option<std::thread::JoinHandle<()>>) {
+fn start_hotkey_listener(
+    ctx: egui::Context,
+) -> (Receiver<HotkeyEvent>, Option<std::thread::JoinHandle<()>>) {
     let (sender, receiver) = std::sync::mpsc::channel();
     #[cfg(windows)]
     let handle = std::thread::Builder::new()
@@ -10318,18 +10202,20 @@ fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, Option<std::thread::JoinHa
                 ) -> i32;
             }
             const MOD_ALT: u32 = 0x0001;
-            const MOD_CONTROL: u32 = 0x0002;
             const MOD_SHIFT: u32 = 0x0004;
+            const MOD_NOREPEAT: u32 = 0x4000;
             const VK_OEM_3: u32 = 0x00C0;
             const VK_SPACE: u32 = 0x20;
             const WM_HOTKEY: u32 = 0x0312;
             unsafe {
-                let alt_registered =
-                    RegisterHotKey(std::ptr::null_mut(), 1, MOD_ALT, VK_OEM_3) != 0;
+                let alt = MOD_ALT | MOD_NOREPEAT;
+                let alt_registered = RegisterHotKey(std::ptr::null_mut(), 1, alt, VK_OEM_3) != 0;
                 let shift_registered =
-                    RegisterHotKey(std::ptr::null_mut(), 2, MOD_ALT | MOD_SHIFT, VK_OEM_3) != 0;
-                let ctrl_registered =
-                    RegisterHotKey(std::ptr::null_mut(), 3, MOD_CONTROL, VK_SPACE) != 0;
+                    RegisterHotKey(std::ptr::null_mut(), 2, alt | MOD_SHIFT, VK_OEM_3) != 0;
+                // Alt+Shift+Space is the fallback HUD toggle for layouts without a ` key.
+                // (Ctrl+Space is avoided: it is IDE autocomplete / IME switching everywhere.)
+                let space_registered =
+                    RegisterHotKey(std::ptr::null_mut(), 3, alt | MOD_SHIFT, VK_SPACE) != 0;
                 let mut message: Message = std::mem::zeroed();
                 loop {
                     let result = GetMessageW(&mut message, std::ptr::null_mut(), 0, 0);
@@ -10349,6 +10235,8 @@ fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, Option<std::thread::JoinHa
                             _ => continue,
                         };
                         let _ = sender.send(event);
+                        // Wake the UI even while it is hidden so the toggle applies at once.
+                        ctx.request_repaint();
                     }
                 }
                 if alt_registered {
@@ -10357,14 +10245,17 @@ fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, Option<std::thread::JoinHa
                 if shift_registered {
                     UnregisterHotKey(std::ptr::null_mut(), 2);
                 }
-                if ctrl_registered {
+                if space_registered {
                     UnregisterHotKey(std::ptr::null_mut(), 3);
                 }
             }
         })
         .ok();
     #[cfg(not(windows))]
-    let handle = None;
+    let handle = {
+        drop((ctx, sender));
+        None
+    };
     (receiver, handle)
 }
 
@@ -10384,5 +10275,60 @@ mod tft_text_tests {
         );
         assert_eq!(clean_tft_text("plain text"), "plain text");
         assert_eq!(clean_tft_text("broken <tag"), "broken");
+    }
+}
+
+#[cfg(test)]
+mod live_and_champ_select_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn live(team: &str) -> Value {
+        json!({
+            "activePlayer": {"riotId": "Me#EUW"},
+            "allPlayers": [
+                {"riotId": "Other#EUW", "team": "ORDER"},
+                {"riotId": "Me#EUW", "team": team, "items": [{"itemID": 1055}]}
+            ]
+        })
+    }
+
+    #[test]
+    fn scoreboard_lists_own_team_first() {
+        let labels = |live: &Value| scoreboard_teams(live).map(|(team, label, _)| (team, label));
+        assert_eq!(
+            labels(&live("CHAOS")),
+            [("CHAOS", "YOUR TEAM"), ("ORDER", "ENEMY TEAM")]
+        );
+        assert_eq!(
+            labels(&live("ORDER")),
+            [("ORDER", "YOUR TEAM"), ("CHAOS", "ENEMY TEAM")]
+        );
+        assert_eq!(labels(&json!({}))[0], ("ORDER", "BLUE TEAM"));
+        let chaos = live("CHAOS");
+        let me = active_player_entry(&chaos).unwrap();
+        assert!(me.get("items").is_some());
+    }
+
+    #[test]
+    fn champ_select_role_and_lock_in() {
+        let mut session = json!({
+            "localPlayerCellId": 2,
+            "myTeam": [{"cellId": 2, "assignedPosition": "utility", "championId": 0,
+                        "championPickIntent": 25}],
+            "actions": [[{"actorCellId": 2, "type": "pick", "championId": 25,
+                          "completed": false}]]
+        });
+        assert_eq!(champ_select_assigned_role(&session), Some("SUPPORT"));
+        assert_eq!(champ_select_locked_champion(&session), None);
+        session["actions"][0][0]["completed"] = json!(true);
+        assert_eq!(champ_select_locked_champion(&session), Some(25));
+        session["myTeam"][0]["assignedPosition"] = json!("bottom");
+        assert_eq!(champ_select_assigned_role(&session), Some("ADC"));
+        // ARAM: no pick actions, the given champion counts as locked.
+        let aram = json!({"localPlayerCellId": 1, "actions": [],
+                          "myTeam": [{"cellId": 1, "championId": 99, "assignedPosition": ""}]});
+        assert_eq!(champ_select_locked_champion(&aram), Some(99));
+        assert_eq!(champ_select_assigned_role(&aram), None);
     }
 }

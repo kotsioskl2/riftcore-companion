@@ -10,11 +10,12 @@ mod imp {
     use crate::overlay::host::{
         OverlayDiagnostics, OverlayHostBackend, OverlayRenderState, OverlaySurfaceHost,
     };
+    use crate::overlay::hud_modes::cursor_hits_rects;
     use crate::platform::overlay_window::{
         WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
         WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
     };
-    use crate::platform::window::{dpi_scale, window_ex_style};
+    use crate::platform::window::{cursor_screen_position, dpi_scale, window_ex_style};
     use eframe::egui::{self, Pos2, Rect, Vec2};
     use eframe::egui_wgpu::{
         self, Renderer as EguiWgpuRenderer, RendererOptions, ScreenDescriptor,
@@ -24,7 +25,7 @@ mod imp {
     use std::ffi::c_void;
     use std::num::NonZeroIsize;
     use std::rc::Rc;
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
 
     const GWL_EXSTYLE: i32 = -20;
     const GWLP_USERDATA: i32 = -21;
@@ -38,11 +39,12 @@ mod imp {
     const SWP_NOSIZE: u32 = 0x0001;
     const SWP_NOMOVE: u32 = 0x0002;
     const SWP_NOACTIVATE: u32 = 0x0010;
-    const SWP_FRAMECHANGED: u32 = 0x0020;
 
     const WM_DESTROY: u32 = 0x0002;
     const WM_SIZE: u32 = 0x0005;
     const WM_SETCURSOR: u32 = 0x0020;
+    const WM_NCHITTEST: u32 = 0x0084;
+    const WM_TIMER: u32 = 0x0113;
     const WM_MOUSEACTIVATE: u32 = 0x0021;
     const WM_STYLECHANGING: u32 = 0x007C;
     const WM_MOUSEMOVE: u32 = 0x0200;
@@ -55,7 +57,10 @@ mod imp {
     const WM_MOUSELEAVE: u32 = 0x02A3;
     const WM_DPICHANGED: u32 = 0x02E0;
 
-    const HTCLIENT: isize = 1;
+    const HTTRANSPARENT: isize = -1;
+    const HIT_TIMER_ID: usize = 0x5243;
+    const HIT_TIMER_MS: u32 = 30;
+    const LWA_ALPHA: u32 = 0x2;
     const MA_NOACTIVATE: isize = 3;
     const IDC_ARROW: usize = 32512;
     const TME_LEAVE: u32 = 0x0000_0002;
@@ -134,6 +139,9 @@ mod imp {
         fn GetCapture() -> *mut c_void;
         fn SetCapture(hwnd: *mut c_void) -> *mut c_void;
         fn ReleaseCapture() -> i32;
+        fn SetTimer(hwnd: *mut c_void, id: usize, elapse_ms: u32, func: *const c_void) -> usize;
+        fn KillTimer(hwnd: *mut c_void, id: usize) -> i32;
+        fn SetLayeredWindowAttributes(hwnd: *mut c_void, key: u32, alpha: u8, flags: u32) -> i32;
     }
 
     #[derive(Default)]
@@ -143,6 +151,69 @@ mod imp {
         pointer_down: bool,
         tracking_leave: bool,
         pending_resize: Option<[u32; 2]>,
+        /// Interactive panel rects (logical, window-local) from the last rendered frame.
+        hit_rects: Vec<Rect>,
+        origin_px: [i32; 2],
+        force_passthrough: bool,
+        /// Whether `WS_EX_TRANSPARENT` (click-through) is currently applied.
+        passthrough: bool,
+        repaint: Option<egui::Context>,
+    }
+
+    /// Toggles only `WS_EX_TRANSPARENT`; `WS_EX_LAYERED` stays on (with `LWA_ALPHA` 255) so the
+    /// change needs no z-order/frame update and is safe from inside the window procedure.
+    unsafe fn set_click_through(hwnd: *mut c_void, passthrough: bool) {
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
+        let next = (if passthrough {
+            ex | WS_EX_TRANSPARENT
+        } else {
+            ex & !WS_EX_TRANSPARENT
+        }) | WS_EX_LAYERED;
+        if next != ex {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next as isize);
+        }
+    }
+
+    /// Hit-tests the live cursor against the last frame's panel rects and flips click-through
+    /// immediately (no wait for the app's next tick). Returns `true` when over a panel.
+    unsafe fn refresh_hit_test(
+        hwnd: *mut c_void,
+        shared: *const RefCell<OverlayInputShared>,
+    ) -> bool {
+        let Some(cursor) = cursor_screen_position() else {
+            return true;
+        };
+        if shared.is_null() {
+            return true;
+        }
+        let (inside, wake) = {
+            let Ok(mut st) = (*shared).try_borrow_mut() else {
+                return true;
+            };
+            let inside = !st.force_passthrough
+                && (st.pointer_down
+                    || cursor_hits_rects(&st.hit_rects, st.origin_px, st.pixels_per_point, cursor));
+            if st.passthrough == !inside {
+                return inside;
+            }
+            st.passthrough = !inside;
+            (inside, st.repaint.clone())
+        };
+        set_click_through(hwnd, !inside);
+        if let Some(ctx) = wake {
+            ctx.request_repaint();
+        }
+        inside
+    }
+
+    /// Polls a wgpu error-scope future once; native wgpu resolves it immediately.
+    fn poll_ready<F: std::future::Future>(fut: F) -> Option<F::Output> {
+        let mut fut = std::pin::pin!(fut);
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        match std::future::Future::poll(fut.as_mut(), &mut cx) {
+            std::task::Poll::Ready(out) => Some(out),
+            std::task::Poll::Pending => None,
+        }
     }
 
     // SAFETY: Win32 guarantees `hwnd` is valid during synchronous message dispatch on the
@@ -164,19 +235,28 @@ mod imp {
                     ss.style_new |= (WS_EX_NOACTIVATE
                         | WS_EX_TOOLWINDOW
                         | WS_EX_TOPMOST
-                        | WS_EX_NOREDIRECTIONBITMAP) as u32;
+                        | WS_EX_NOREDIRECTIONBITMAP
+                        | WS_EX_LAYERED) as u32;
                     ss.style_new &= !(WS_EX_APPWINDOW as u32);
                 }
                 return 0;
             }
-            WM_SETCURSOR if (lparam & 0xFFFF) == HTCLIENT => {
-                let cursor = LoadCursorW(std::ptr::null_mut(), IDC_ARROW as *const u16);
-                let _ = SetCursor(cursor);
+            WM_TIMER if wparam == HIT_TIMER_ID => {
+                let _ = refresh_hit_test(hwnd, ptr);
+                return 0;
+            }
+            WM_NCHITTEST if !refresh_hit_test(hwnd, ptr) => return HTTRANSPARENT,
+            WM_SETCURSOR => {
+                // Arrow only over RiftCore panels; elsewhere keep the game's own cursor.
+                if refresh_hit_test(hwnd, ptr) {
+                    let _ = SetCursor(LoadCursorW(std::ptr::null_mut(), IDC_ARROW as *const u16));
+                }
                 return 1;
             }
             _ => {}
         }
 
+        let mut wake = None;
         if !ptr.is_null() {
             // SAFETY: Non-null `GWLP_USERDATA` points to the live `Rc<RefCell<OverlayInputShared>>`.
             let shared = &*ptr;
@@ -276,7 +356,11 @@ mod imp {
                     }
                     _ => {}
                 }
+                wake = st.repaint.clone().filter(|_| !st.events.is_empty());
             }
+        }
+        if let Some(ctx) = wake {
+            ctx.request_repaint();
         }
         DefWindowProcW(hwnd, msg, wparam, lparam)
     }
@@ -296,7 +380,8 @@ mod imp {
         visible: bool,
         rect_px: [i32; 4],
         configured_size: [u32; 2],
-        passthrough: bool,
+        reconfigure_pending: bool,
+        last_issue_log: Option<Instant>,
         start_time: Instant,
         frames_rendered: u64,
         resize_events: u64,
@@ -311,6 +396,7 @@ mod imp {
 
             let shared_input = Rc::new(RefCell::new(OverlayInputShared {
                 pixels_per_point: 1.0,
+                passthrough: true,
                 ..Default::default()
             }));
             let shared_input_raw = Rc::into_raw(Rc::clone(&shared_input));
@@ -328,7 +414,8 @@ mod imp {
                     cb_wnd_extra: 0,
                     h_instance: hinstance,
                     h_icon: std::ptr::null_mut(),
-                    h_cursor: LoadCursorW(std::ptr::null_mut(), IDC_ARROW as *const u16),
+                    // No class cursor: WM_SETCURSOR sets the arrow only over panels.
+                    h_cursor: std::ptr::null_mut(),
                     hbr_background: std::ptr::null_mut(),
                     lpsz_menu_name: std::ptr::null(),
                     lpsz_class_name: class_name.as_ptr(),
@@ -361,6 +448,10 @@ mod imp {
                     return Err("CreateWindowExW failed for Win32OverlayHost".to_string());
                 }
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, shared_input_raw as isize);
+                // A layered window must have its attributes set; opaque `LWA_ALPHA` leaves the
+                // DComp content untouched, and `WS_EX_LAYERED` + `WS_EX_TRANSPARENT` is what
+                // makes the window click-through across processes.
+                let _ = SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
                 hwnd
             };
 
@@ -402,7 +493,8 @@ mod imp {
                 visible: false,
                 rect_px: [0, 0, 640, 320],
                 configured_size: [640, 320],
-                passthrough: true,
+                reconfigure_pending: false,
+                last_issue_log: None,
                 start_time: Instant::now(),
                 frames_rendered: 0,
                 resize_events: 0,
@@ -487,16 +579,49 @@ mod imp {
             cfg.alpha_mode = alpha_mode;
             cfg.view_formats = vec![render_state.target_format];
             cfg.desired_maximum_frame_latency = 1;
+            let scope = render_state
+                .device
+                .push_error_scope(wgpu::ErrorFilter::Validation);
             surface.configure(&render_state.device, &cfg);
-            Ok(())
+            match poll_ready(scope.pop()).flatten() {
+                Some(err) => Err(format!("surface configure failed: {err}")),
+                None => Ok(()),
+            }
+        }
+
+        /// Click-through forced by the user (ALT+SHIFT+~): panels never become interactive.
+        pub fn set_force_passthrough(&mut self, force: bool) {
+            self.shared_input.borrow_mut().force_passthrough = force;
+        }
+
+        /// Context woken when the cursor reaches a panel or HUD input arrives.
+        pub fn set_repaint_context(&mut self, ctx: egui::Context) {
+            self.shared_input.borrow_mut().repaint = Some(ctx);
+        }
+
+        pub fn has_repaint_context(&self) -> bool {
+            self.shared_input.borrow().repaint.is_some()
+        }
+
+        /// Records a non-success surface status and logs it at most every 10 s.
+        fn note_surface_issue(&mut self, status: String) {
+            if self
+                .last_issue_log
+                .is_none_or(|at| at.elapsed() >= Duration::from_secs(10))
+            {
+                eprintln!("[riftcore hud] overlay surface: {status}");
+                self.last_issue_log = Some(Instant::now());
+            }
+            self.last_surface_status = status;
         }
 
         fn apply_ex_style(&self, passthrough: bool) {
             if self.hwnd.is_null() {
                 return;
             }
-            if passthrough {
-                if let Ok(mut st) = self.shared_input.try_borrow_mut() {
+            if let Ok(mut st) = self.shared_input.try_borrow_mut() {
+                st.passthrough = passthrough;
+                if passthrough {
                     st.pointer_down = false;
                 }
             }
@@ -506,16 +631,7 @@ mod imp {
                 if passthrough && GetCapture() == self.hwnd {
                     let _ = ReleaseCapture();
                 }
-                let mut ex = GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE) as usize;
-                ex |=
-                    WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
-                ex &= !WS_EX_APPWINDOW;
-                if passthrough {
-                    ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
-                } else {
-                    ex &= !(WS_EX_TRANSPARENT | WS_EX_LAYERED);
-                }
-                SetWindowLongPtrW(self.hwnd, GWL_EXSTYLE, ex as isize);
+                set_click_through(self.hwnd, passthrough);
                 SetWindowPos(
                     self.hwnd,
                     HWND_TOPMOST as *mut c_void,
@@ -523,7 +639,7 @@ mod imp {
                     0,
                     0,
                     0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                 );
             }
         }
@@ -553,7 +669,11 @@ mod imp {
                 (rect_px[2] - rect_px[0]).max(1) as u32,
                 (rect_px[3] - rect_px[1]).max(1) as u32,
             ];
-            self.shared_input.borrow_mut().pixels_per_point = dpi_scale(monitor_dpi);
+            {
+                let mut st = self.shared_input.borrow_mut();
+                st.pixels_per_point = dpi_scale(monitor_dpi);
+                st.origin_px = [rect_px[0], rect_px[1]];
+            }
 
             if self.rect_px != rect_px {
                 self.rect_px = rect_px;
@@ -588,8 +708,7 @@ mod imp {
                 }
             }
 
-            if self.passthrough != passthrough {
-                self.passthrough = passthrough;
+            if self.shared_input.borrow().passthrough != passthrough {
                 self.apply_ex_style(passthrough);
             }
 
@@ -607,9 +726,17 @@ mod imp {
                 // SAFETY: `self.hwnd` is verified non-null; `SW_SHOWNOACTIVATE`/`SW_HIDE` never activates.
                 unsafe {
                     ShowWindow(self.hwnd, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE });
+                    // The hit-test timer flips click-through as the cursor enters a panel,
+                    // independent of how often the app ticks.
+                    if visible {
+                        let _ = SetTimer(self.hwnd, HIT_TIMER_ID, HIT_TIMER_MS, std::ptr::null());
+                    } else {
+                        let _ = KillTimer(self.hwnd, HIT_TIMER_ID);
+                    }
                 }
                 if visible {
-                    self.apply_ex_style(self.passthrough);
+                    let passthrough = self.shared_input.borrow().passthrough;
+                    self.apply_ex_style(passthrough);
                 }
             }
         }
@@ -668,6 +795,7 @@ mod imp {
             let full_output = self.egui_ctx.run_ui(raw_input, |ui| {
                 render_ui(ui, state, &mut rects);
             });
+            self.shared_input.borrow_mut().hit_rects.clone_from(&rects);
             self.pending_textures_delta
                 .append(full_output.textures_delta);
 
@@ -678,6 +806,21 @@ mod imp {
             let Some(surface) = self.surface.as_ref() else {
                 return rects;
             };
+            // Capture validation errors from this frame instead of the shared device's
+            // default (panicking) uncaptured-error handler.
+            let scope = self
+                .render_state
+                .device
+                .push_error_scope(wgpu::ErrorFilter::Validation);
+            if std::mem::take(&mut self.reconfigure_pending) {
+                let _ = Self::configure_surface(
+                    surface,
+                    &self.render_state,
+                    self.alpha_mode,
+                    w_px,
+                    h_px,
+                );
+            }
 
             let mut encoder =
                 self.render_state
@@ -709,51 +852,58 @@ mod imp {
                 &screen_descriptor,
             );
 
-            let tex = surface.get_current_texture();
-            let output_frame = match tex {
-                wgpu::CurrentSurfaceTexture::Success(frame) => {
-                    self.last_surface_status = "Success".to_string();
-                    Some(frame)
-                }
-                wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-                    self.last_surface_status = "Suboptimal".to_string();
-                    let _ = Self::configure_surface(
-                        surface,
-                        &self.render_state,
-                        self.alpha_mode,
-                        w_px,
-                        h_px,
-                    );
-                    Some(frame)
-                }
-                wgpu::CurrentSurfaceTexture::Outdated => {
-                    self.last_surface_status = "Outdated".to_string();
-                    let _ = Self::configure_surface(
-                        surface,
-                        &self.render_state,
-                        self.alpha_mode,
-                        w_px,
-                        h_px,
-                    );
-                    None
-                }
-                wgpu::CurrentSurfaceTexture::Lost => {
-                    self.last_surface_status = "Lost".to_string();
-                    self.surface = None;
-                    if let Ok((new_surf, new_alpha, new_modes)) =
-                        Self::create_surface_for_hwnd(&self.render_state, self.hwnd, [w_px, h_px])
-                    {
-                        self.surface = Some(new_surf);
-                        self.alpha_mode = new_alpha;
-                        self.supported_alpha_modes = new_modes;
+            // Outdated/Lost: reconfigure or recreate, then retry once in the same frame.
+            let mut output_frame = None;
+            for retry in [false, true] {
+                let Some(surface) = self.surface.as_ref() else {
+                    break;
+                };
+                match surface.get_current_texture() {
+                    wgpu::CurrentSurfaceTexture::Success(frame) => {
+                        self.last_surface_status = "Success".to_string();
+                        output_frame = Some(frame);
+                        break;
                     }
-                    None
+                    wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+                        // Configuring while a texture is acquired is invalid: do it next frame.
+                        self.reconfigure_pending = true;
+                        self.last_surface_status = "Suboptimal".to_string();
+                        output_frame = Some(frame);
+                        break;
+                    }
+                    wgpu::CurrentSurfaceTexture::Outdated if !retry => {
+                        let configured = Self::configure_surface(
+                            surface,
+                            &self.render_state,
+                            self.alpha_mode,
+                            w_px,
+                            h_px,
+                        );
+                        if let Err(err) = configured {
+                            self.note_surface_issue(format!("Outdated: {err}"));
+                        }
+                    }
+                    wgpu::CurrentSurfaceTexture::Lost if !retry => {
+                        self.surface = None;
+                        match Self::create_surface_for_hwnd(
+                            &self.render_state,
+                            self.hwnd,
+                            [w_px, h_px],
+                        ) {
+                            Ok((new_surf, new_alpha, new_modes)) => {
+                                self.surface = Some(new_surf);
+                                self.alpha_mode = new_alpha;
+                                self.supported_alpha_modes = new_modes;
+                            }
+                            Err(err) => self.note_surface_issue(format!("Lost: {err}")),
+                        }
+                    }
+                    other => {
+                        self.note_surface_issue(format!("{other:?}"));
+                        break;
+                    }
                 }
-                other => {
-                    self.last_surface_status = format!("{other:?}");
-                    None
-                }
-            };
+            }
 
             if let Some(frame) = output_frame {
                 let view = frame
@@ -792,6 +942,9 @@ mod imp {
                 self.render_state.queue.present(frame);
                 self.frames_rendered += 1;
             }
+            if let Some(err) = poll_ready(scope.pop()).flatten() {
+                self.note_surface_issue(format!("validation error: {err}"));
+            }
 
             rects
         }
@@ -809,7 +962,7 @@ mod imp {
                 ex_style: window_ex_style(self.hwnd as isize),
                 frames_rendered: self.frames_rendered,
                 resize_events: self.resize_events,
-                passthrough_active: self.passthrough,
+                passthrough_active: self.shared_input.borrow().passthrough,
                 rect_px: self.rect_px,
                 last_surface_status: self.last_surface_status.clone(),
             }
@@ -873,6 +1026,14 @@ mod imp {
 
         pub fn hwnd(&self) -> isize {
             0
+        }
+
+        pub fn set_force_passthrough(&mut self, _force: bool) {}
+
+        pub fn set_repaint_context(&mut self, _ctx: egui::Context) {}
+
+        pub fn has_repaint_context(&self) -> bool {
+            false
         }
     }
 

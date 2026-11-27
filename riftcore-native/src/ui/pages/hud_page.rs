@@ -92,7 +92,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                 );
                 ui.add_space(4.0);
                 ui.label(
-                    RichText::new("Hotkeys: Alt + ` or Ctrl + Space (HUD)  ·  Alt + Shift + ` (Click-through)")
+                    RichText::new("Hotkeys: Alt + ` or Alt + Shift + Space (HUD)  ·  Alt + Shift + ` (Click-through)")
                         .size(9.5)
                         .monospace()
                         .color(palette.muted),

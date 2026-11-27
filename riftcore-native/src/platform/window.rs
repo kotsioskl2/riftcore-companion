@@ -1,5 +1,6 @@
-use crate::platform::process::utf16_z_to_string;
-use std::path::Path;
+use crate::platform::process::{find_process_exe_path, utf16_z_to_string};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WindowBounds {
@@ -520,4 +521,167 @@ pub fn is_league_window_foreground(window: LeagueWindowInfo) -> bool {
 #[cfg(not(windows))]
 pub fn is_league_window_foreground(_window: LeagueWindowInfo) -> bool {
     false
+}
+
+/// PID of the League game window when it exists but [`find_league_game_window`] skips it
+/// (minimised, hidden or shrunk to 1x1 after alt-tab from fullscreen).
+#[cfg(windows)]
+pub fn minimised_league_window_pid() -> Option<u32> {
+    use std::ffi::c_void;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn FindWindowW(class_name: *const u16, title: *const u16) -> *mut c_void;
+        fn GetWindowThreadProcessId(hwnd: *mut c_void, process_id: *mut u32) -> u32;
+    }
+
+    let class: Vec<u16> = "RiotWindowClass\0".encode_utf16().collect();
+    let title: Vec<u16> = "League of Legends (TM) Client\0".encode_utf16().collect();
+    let mut pid = 0u32;
+    // SAFETY: both strings are NUL-terminated and outlive the call; `pid` is a valid out pointer.
+    unsafe {
+        let hwnd = FindWindowW(class.as_ptr(), title.as_ptr());
+        if hwnd.is_null() {
+            return None;
+        }
+        let _ = GetWindowThreadProcessId(hwnd, &mut pid);
+    }
+    (pid != 0).then_some(pid)
+}
+
+#[cfg(not(windows))]
+pub fn minimised_league_window_pid() -> Option<u32> {
+    None
+}
+
+/// Full image path of process `pid`; `None` when access is denied.
+#[cfg(windows)]
+pub fn process_image_path(pid: u32) -> Option<PathBuf> {
+    use std::ffi::c_void;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn QueryFullProcessImageNameW(
+            process: *mut c_void,
+            flags: u32,
+            path: *mut u16,
+            size: *mut u32,
+        ) -> i32;
+        fn CloseHandle(handle: *mut c_void) -> i32;
+    }
+
+    let mut buffer = [0u16; 1024];
+    let mut size = buffer.len() as u32;
+    // SAFETY: the handle is null-checked and always closed; `size` bounds the buffer write.
+    let ok = unsafe {
+        let process = OpenProcess(0x1000, 0, pid);
+        if process.is_null() {
+            return None;
+        }
+        let ok = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0;
+        let _ = CloseHandle(process);
+        ok
+    };
+    let slice = buffer.get(..size as usize).filter(|_| ok)?;
+    Some(PathBuf::from(String::from_utf16_lossy(slice)))
+}
+
+#[cfg(not(windows))]
+pub fn process_image_path(_pid: u32) -> Option<PathBuf> {
+    None
+}
+
+/// Parses `[General] WindowMode` from League's `game.cfg` (0 fullscreen, 1 windowed, 2 borderless).
+pub fn parse_game_cfg_window_mode(text: &str) -> Option<u8> {
+    let mut general = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            general = line.eq_ignore_ascii_case("[General]");
+        } else if let Some((key, value)) = line.split_once('=').filter(|_| general) {
+            if key.trim().eq_ignore_ascii_case("WindowMode") {
+                return value.trim().parse::<u8>().ok().filter(|mode| *mode <= 2);
+            }
+        }
+    }
+    None
+}
+
+/// `Config/game.cfg` beside a League executable or one folder up (`<root>/Game/League of Legends.exe`).
+pub fn game_cfg_candidates(exe: &Path) -> Vec<PathBuf> {
+    exe.ancestors()
+        .skip(1)
+        .take(2)
+        .map(|dir| dir.join("Config").join("game.cfg"))
+        .collect()
+}
+
+/// Caches the `game.cfg` path per game process and re-reads `WindowMode` at most every 5 s.
+#[derive(Debug, Default)]
+pub struct GameCfgWatcher {
+    pid: u32,
+    path: Option<PathBuf>,
+    mode: Option<u8>,
+    at: Option<Instant>,
+}
+
+impl GameCfgWatcher {
+    pub fn poll(&mut self, pid: u32) -> Option<u8> {
+        if pid == self.pid
+            && self
+                .at
+                .is_some_and(|at| at.elapsed() < Duration::from_secs(5))
+        {
+            return self.mode;
+        }
+        if pid != self.pid {
+            *self = Self {
+                pid,
+                ..Self::default()
+            };
+        }
+        self.at = Some(Instant::now());
+        if self.path.is_none() {
+            self.path = ["", "LeagueClient.exe", "LeagueClientUx.exe"]
+                .into_iter()
+                .filter_map(|name| match name {
+                    "" => process_image_path(pid),
+                    _ => find_process_exe_path(name),
+                })
+                .flat_map(|exe| game_cfg_candidates(&exe))
+                .find(|path| path.is_file());
+        }
+        // Keep the last value when the file is briefly unreadable (League rewriting it).
+        if let Some(mode) = self
+            .path
+            .as_deref()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .and_then(|text| parse_game_cfg_window_mode(&text))
+        {
+            self.mode = Some(mode);
+        }
+        self.mode
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn game_cfg_window_mode_reads_general_section_only() {
+        let cfg = "[Sound]\r\nWindowMode=9\r\n[General]\r\nWidth=1920\r\n WindowMode = 0 \r\n";
+        assert_eq!(parse_game_cfg_window_mode(cfg), Some(0));
+        assert_eq!(
+            parse_game_cfg_window_mode("[General]\nWindowMode=2"),
+            Some(2)
+        );
+        assert_eq!(parse_game_cfg_window_mode("[Sound]\nWindowMode=0"), None);
+        assert_eq!(parse_game_cfg_window_mode("[General]\nWindowMode=7"), None);
+        let exe = Path::new("E:/Riot Games/League of Legends/Game/League of Legends.exe");
+        assert_eq!(
+            game_cfg_candidates(exe)[1],
+            Path::new("E:/Riot Games/League of Legends/Config/game.cfg")
+        );
+    }
 }

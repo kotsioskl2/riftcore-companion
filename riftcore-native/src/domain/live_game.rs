@@ -909,6 +909,84 @@ fn trailing_number(input: &str) -> Option<f64> {
         .filter(|v| v.is_finite() && *v > 0.0)
 }
 
+/// Ability slot letters in `[Q, W, E, R]` rank order.
+pub const SKILL_SLOTS: [&str; 4] = ["Q", "W", "E", "R"];
+
+/// Next ability to rank up when a skill point is unspent (`ranks` = `[Q, W, E, R]`).
+/// Follows `order` (18-level recommended order), respecting rank n -> level 2n-1, R at
+/// 6/11/16 (max 3). Orders with > 3 R ranks (Udyr) treat R as a basic 6-rank ability.
+pub fn next_skill_up(level: u32, ranks: [u32; 4], order: &[String]) -> Option<&'static str> {
+    if ranks.iter().sum::<u32>() >= level {
+        return None;
+    }
+    let slot_of = |s: &str| {
+        SKILL_SLOTS
+            .iter()
+            .position(|k| k.eq_ignore_ascii_case(s.trim()))
+    };
+    let r_basic = order.iter().filter(|s| slot_of(s) == Some(3)).count() > 3;
+    let can_rank = |slot: usize| {
+        let rank = ranks[slot];
+        if slot == 3 && !r_basic {
+            rank < 3 && level >= [6, 11, 16][rank as usize]
+        } else {
+            rank < if r_basic { 6 } else { 5 } && level > 2 * rank
+        }
+    };
+    let mut expected = [0u32; 4];
+    for slot in order.iter().filter_map(|s| slot_of(s)) {
+        expected[slot] += 1;
+        if expected[slot] > ranks[slot] && can_rank(slot) {
+            return Some(SKILL_SLOTS[slot]);
+        }
+    }
+    [3, 0, 2, 1]
+        .into_iter()
+        .find(|&slot| can_rank(slot))
+        .map(|slot| SKILL_SLOTS[slot])
+}
+
+/// Team kill totals `(your team, enemy team)` for `team` (`ORDER`/`CHAOS`).
+pub fn team_kill_score(players: &[LivePlayer], team: &str) -> (u32, u32) {
+    players.iter().fold((0, 0), |(ally, enemy), p| {
+        if p.team.eq_ignore_ascii_case(team) {
+            (ally + p.scores.kills, enemy)
+        } else {
+            (ally, enemy + p.scores.kills)
+        }
+    })
+}
+
+/// Kill participation percent; `None` when the team has no kills yet.
+pub fn kill_participation_pct(kills: u32, assists: u32, team_kills: u32) -> Option<u32> {
+    (team_kills > 0).then(|| ((kills + assists) * 100 / team_kills).min(100))
+}
+
+/// CS/min pace bucket: `None` before 2:00, else green (>= 8), gold (6-8), red (< 6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CsPace {
+    Neutral,
+    Good,
+    Fair,
+    Low,
+}
+
+pub fn cs_pace(cs_per_min: f64, game_time_secs: f64) -> CsPace {
+    match cs_per_min {
+        _ if game_time_secs < 120.0 => CsPace::Neutral,
+        v if v >= 8.0 => CsPace::Good,
+        v if v >= 6.0 => CsPace::Fair,
+        _ => CsPace::Low,
+    }
+}
+
+/// First recommended core item not yet in `owned` item ids.
+pub fn next_build_item(core: &[u32], owned: &[u32]) -> Option<u32> {
+    core.iter()
+        .copied()
+        .find(|id| *id > 0 && !owned.contains(id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1044,5 +1122,52 @@ mod tests {
             "events": { "Events": [] }
         });
         assert!(objective_timers_from_json(&aram).is_empty());
+    }
+
+    fn order(p: &str) -> Vec<String> {
+        crate::domain::builds::skill_order(p)
+    }
+
+    #[test]
+    fn next_skill_follows_order_and_rank_rules() {
+        let o = order("Q > E > W");
+        assert_eq!(next_skill_up(1, [0, 0, 0, 0], &o), Some("Q"));
+        assert_eq!(next_skill_up(1, [1, 0, 0, 0], &o), None);
+        assert_eq!(next_skill_up(3, [1, 0, 1, 0], &o), Some("W"));
+        assert_eq!(next_skill_up(6, [3, 1, 1, 0], &o), Some("R"));
+        // Off-order ranks: level 2 can't take Q rank 2 (needs level 3).
+        assert_eq!(next_skill_up(2, [1, 0, 0, 0], &o), Some("E"));
+        assert_eq!(next_skill_up(18, [5, 5, 5, 3], &o), None);
+    }
+
+    #[test]
+    fn next_skill_udyr_treats_r_as_basic() {
+        let o = order("Q>R>E");
+        assert_eq!(next_skill_up(2, [1, 0, 0, 0], &o), Some("R"));
+        assert_eq!(next_skill_up(5, [2, 0, 1, 1], &o), Some("Q"));
+        assert_eq!(next_skill_up(11, [6, 0, 1, 3], &o), Some("R"));
+    }
+
+    #[test]
+    fn kill_participation_and_team_sides() {
+        let mk = |team: &str, kills| LivePlayer {
+            team: team.into(),
+            scores: LivePlayerScores {
+                kills,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let players = [mk("ORDER", 4), mk("ORDER", 8), mk("CHAOS", 9)];
+        assert_eq!(team_kill_score(&players, "ORDER"), (12, 9));
+        assert_eq!(team_kill_score(&players, "CHAOS"), (9, 12));
+        assert_eq!(kill_participation_pct(4, 5, 12), Some(75));
+        assert_eq!(kill_participation_pct(0, 0, 0), None);
+        assert_eq!(cs_pace(9.0, 60.0), CsPace::Neutral);
+        assert_eq!(cs_pace(8.0, 600.0), CsPace::Good);
+        assert_eq!(cs_pace(6.5, 600.0), CsPace::Fair);
+        assert_eq!(cs_pace(5.9, 600.0), CsPace::Low);
+        assert_eq!(next_build_item(&[3078, 3053], &[3078]), Some(3053));
+        assert_eq!(next_build_item(&[3078], &[3078]), None);
     }
 }

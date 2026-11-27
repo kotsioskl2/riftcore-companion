@@ -452,7 +452,7 @@ impl LcuClient {
             let is_riftcore = set
                 .get("title")
                 .and_then(Value::as_str)
-                .is_some_and(|title| title.starts_with("RiftCore:"));
+                .is_some_and(is_riftcore_item_set_title);
             let same_champion = set
                 .get("associatedChampions")
                 .and_then(Value::as_array)
@@ -637,6 +637,14 @@ pub fn set_league_window_mode(mode: u8, install_dir: Option<&Path>) -> Result<St
             "fullscreen"
         }
     ))
+}
+
+/// Matches item sets written by any RiftCore version, including the old
+/// Electron app's "⚡ RiftCore: …" titles, so re-exports replace them.
+fn is_riftcore_item_set_title(title: &str) -> bool {
+    title
+        .trim_start_matches(|c: char| !c.is_alphanumeric())
+        .starts_with("RiftCore")
 }
 
 #[cfg(test)]

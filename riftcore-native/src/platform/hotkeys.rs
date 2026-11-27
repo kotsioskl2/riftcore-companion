@@ -11,7 +11,7 @@ pub struct HotkeyEvent {
 pub struct HotkeyRegistrationStatus {
     pub toggle_alt_tilde: bool,
     pub passthrough_alt_shift_tilde: bool,
-    pub toggle_ctrl_space: bool,
+    pub toggle_alt_shift_space: bool,
 }
 
 /// Lifecycle guard for the global hotkey listener thread.
@@ -60,7 +60,7 @@ impl Drop for HotkeyHandle {
 }
 
 /// Starts the dedicated Win32 global hotkey message loop with `MOD_NOREPEAT` enabled
-/// on all bindings (`Alt+\``, `Alt+Shift+\``, and `Ctrl+Space`).
+/// on all bindings (`Alt+\``, `Alt+Shift+\``, and `Alt+Shift+Space`).
 pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
     let (event_tx, event_rx) = mpsc::channel();
 
@@ -114,7 +114,6 @@ pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
                 }
 
                 const MOD_ALT: u32 = 0x0001;
-                const MOD_CONTROL: u32 = 0x0002;
                 const MOD_SHIFT: u32 = 0x0004;
                 const MOD_NOREPEAT: u32 = 0x4000;
                 const VK_OEM_3: u32 = 0x00C0;
@@ -124,7 +123,7 @@ pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
 
                 const ID_TOGGLE_ALT_TILDE: i32 = 1;
                 const ID_PASSTHROUGH_ALT_SHIFT_TILDE: i32 = 2;
-                const ID_TOGGLE_CTRL_SPACE: i32 = 3;
+                const ID_TOGGLE_ALT_SHIFT_SPACE: i32 = 3;
 
                 let mut message = Message {
                     hwnd: std::ptr::null_mut(),
@@ -156,10 +155,10 @@ pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
                             MOD_ALT | MOD_SHIFT | MOD_NOREPEAT,
                             VK_OEM_3,
                         ) != 0,
-                        toggle_ctrl_space: RegisterHotKey(
+                        toggle_alt_shift_space: RegisterHotKey(
                             std::ptr::null_mut(),
-                            ID_TOGGLE_CTRL_SPACE,
-                            MOD_CONTROL | MOD_NOREPEAT,
+                            ID_TOGGLE_ALT_SHIFT_SPACE,
+                            MOD_ALT | MOD_SHIFT | MOD_NOREPEAT,
                             VK_SPACE,
                         ) != 0,
                     };
@@ -174,7 +173,7 @@ pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
                         }
                         if message.message == WM_HOTKEY {
                             let event = match message.wparam as i32 {
-                                ID_TOGGLE_ALT_TILDE | ID_TOGGLE_CTRL_SPACE => HotkeyEvent {
+                                ID_TOGGLE_ALT_TILDE | ID_TOGGLE_ALT_SHIFT_SPACE => HotkeyEvent {
                                     toggle_overlay: true,
                                     toggle_passthrough: false,
                                 },
@@ -197,8 +196,8 @@ pub fn start_hotkey_listener() -> (Receiver<HotkeyEvent>, HotkeyHandle) {
                         let _ =
                             UnregisterHotKey(std::ptr::null_mut(), ID_PASSTHROUGH_ALT_SHIFT_TILDE);
                     }
-                    if status.toggle_ctrl_space {
-                        let _ = UnregisterHotKey(std::ptr::null_mut(), ID_TOGGLE_CTRL_SPACE);
+                    if status.toggle_alt_shift_space {
+                        let _ = UnregisterHotKey(std::ptr::null_mut(), ID_TOGGLE_ALT_SHIFT_SPACE);
                     }
                 }
             })

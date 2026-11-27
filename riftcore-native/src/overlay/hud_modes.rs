@@ -233,6 +233,48 @@ pub fn physical_cursor_to_logical(
     )
 }
 
+/// True when screen-pixel `cursor_px` is inside any of `rects` (logical points, local to a
+/// window whose top-left is `origin_px`). Used by the HUD window's per-message hit test.
+pub fn cursor_hits_rects(
+    rects: &[Rect],
+    origin_px: [i32; 2],
+    pixels_per_point: f32,
+    cursor_px: [i32; 2],
+) -> bool {
+    let local = physical_cursor_to_logical(
+        cursor_px,
+        [origin_px[0], origin_px[1], 0, 0],
+        pixels_per_point,
+    );
+    rects.iter().any(|rect| rect.contains(local))
+}
+
+/// League's own bottom-centre ability/item bar, which default RiftCore panels keep clear of.
+pub fn league_ability_bar_zone(area: Rect) -> Rect {
+    Rect::from_center_size(
+        Pos2::new(area.center().x, area.bottom() - 95.0),
+        Vec2::new(780.0, 190.0),
+    )
+}
+
+/// League's bottom-left chat box region.
+pub fn league_chat_zone(area: Rect) -> Rect {
+    Rect::from_min_max(
+        Pos2::new(area.left(), area.bottom() - area.height() * 0.3),
+        Pos2::new(area.left() + 480.0, area.bottom()),
+    )
+}
+
+/// Default centre-top point of the integrated toolbar: top-centre, under RiftCore's scoreboard.
+pub fn default_toolbar_pos(area: Rect) -> Pos2 {
+    Pos2::new(area.center().x, area.top() + 96.0)
+}
+
+/// Default top-left of the ARAM relic panel: left edge, vertically centred (above chat).
+pub fn default_relic_pos(area: Rect) -> Pos2 {
+    Pos2::new(area.left() + 4.0, area.center().y - 60.0)
+}
+
 /// Clamps a saved logical panel position inside `area` so resolution or monitor switches
 /// never strand draggable panels off-screen.
 pub fn clamp_logical_panel_pos(pos: [f32; 2], area: Rect, panel_size: Vec2) -> Pos2 {
@@ -242,4 +284,53 @@ pub fn clamp_logical_panel_pos(pos: [f32; 2], area: Rect, panel_size: Vec2) -> P
         pos[0].clamp(area.left(), max_x),
         pos[1].clamp(area.top(), max_y),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hit_test_uses_window_origin_and_dpi() {
+        let rects = [Rect::from_min_size(
+            Pos2::new(10.0, 10.0),
+            Vec2::new(100.0, 40.0),
+        )];
+        assert!(cursor_hits_rects(
+            &rects,
+            [-1920, 100],
+            1.5,
+            [-1920 + 30, 100 + 30]
+        ));
+        assert!(!cursor_hits_rects(
+            &rects,
+            [-1920, 100],
+            1.5,
+            [-1920 + 200, 100 + 30]
+        ));
+        assert!(!cursor_hits_rects(&[], [0, 0], 1.0, [0, 0]));
+    }
+
+    #[test]
+    fn default_panels_avoid_ability_bar_and_chat() {
+        for (w, h) in [
+            (1280.0, 720.0),
+            (1920.0, 1080.0),
+            (2560.0, 1440.0),
+            (3840.0, 2160.0),
+        ] {
+            let area = Rect::from_min_size(Pos2::new(14.0, 14.0), Vec2::new(w - 28.0, h - 28.0));
+            let toolbar_top = default_toolbar_pos(area);
+            let toolbar = Rect::from_min_size(
+                Pos2::new(toolbar_top.x - 320.0, toolbar_top.y),
+                Vec2::new(640.0, 44.0),
+            );
+            let relic = Rect::from_min_size(default_relic_pos(area), Vec2::new(200.0, 140.0));
+            for panel in [toolbar, relic] {
+                assert!(!panel.intersects(league_ability_bar_zone(area)), "{w}x{h}");
+                assert!(!panel.intersects(league_chat_zone(area)), "{w}x{h}");
+                assert!(area.contains_rect(panel), "{w}x{h}");
+            }
+        }
+    }
 }

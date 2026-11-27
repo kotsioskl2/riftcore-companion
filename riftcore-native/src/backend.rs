@@ -50,6 +50,7 @@ pub struct AppSettings {
     pub hud_minimap_nudge_y: f32,
     pub hud_edit_layout: bool,
     pub hud_preview_mode: bool,
+    pub hud_auto_borderless: bool,
     pub hud_positions: HashMap<String, [f32; 2]>,
     pub favorite_champions: Vec<u32>,
     pub champion_pool: HashMap<String, Vec<u32>>,
@@ -98,6 +99,7 @@ impl Default for AppSettings {
             hud_minimap_nudge_y: 0.0,
             hud_edit_layout: false,
             hud_preview_mode: false,
+            hud_auto_borderless: false,
             hud_positions: HashMap::new(),
             favorite_champions: Vec::new(),
             champion_pool: HashMap::from([
@@ -128,6 +130,8 @@ pub struct CoreSnapshot {
     pub latest_release: Option<Value>,
     pub update_status: Option<String>,
     pub notice: Option<String>,
+    /// `[General] WindowMode` from League's game.cfg (0 = exclusive Fullscreen).
+    pub league_window_mode: Option<u8>,
     pub last_updated: Option<Instant>,
 }
 
@@ -154,6 +158,7 @@ pub enum CoreCommand {
     InstallUpdate,
     LaunchLeague,
     SetLeagueWindowMode(u8),
+    SetAutoBorderless(bool),
     Refresh,
 }
 
@@ -223,6 +228,8 @@ pub fn start_core(ctx: eframe::egui::Context) -> (Receiver<CoreSnapshot>, Sender
             let mut snapshot = CoreSnapshot::default();
             let mut credentials: Option<LcuCredentials> = None;
             let mut auto_accept = true;
+            let mut auto_borderless = false;
+            let mut auto_borderless_failed = false;
             let mut refresh_credentials = Instant::now() - Duration::from_secs(10);
             let mut refresh_profile = Instant::now() - Duration::from_secs(10);
             let mut refresh_history = Instant::now() - Duration::from_secs(60);
@@ -235,6 +242,10 @@ pub fn start_core(ctx: eframe::egui::Context) -> (Receiver<CoreSnapshot>, Sender
                 while let Ok(command) = command_rx.try_recv() {
                     match command {
                         CoreCommand::SetAutoAccept(enabled) => auto_accept = enabled,
+                        CoreCommand::SetAutoBorderless(enabled) => {
+                            auto_borderless = enabled;
+                            auto_borderless_failed = false;
+                        }
                         CoreCommand::Refresh => {
                             refresh_credentials = Instant::now() - Duration::from_secs(10);
                             refresh_profile = Instant::now() - Duration::from_secs(10);
@@ -331,7 +342,11 @@ pub fn start_core(ctx: eframe::egui::Context) -> (Receiver<CoreSnapshot>, Sender
                             snapshot.notice = Some(launch_league());
                         }
                         CoreCommand::SetLeagueWindowMode(mode) => {
-                            snapshot.notice = Some(set_league_window_mode(mode, credentials.as_ref()));
+                            let result = set_league_window_mode(mode, credentials.as_ref());
+                            if result.is_ok() {
+                                snapshot.league_window_mode = Some(mode);
+                            }
+                            snapshot.notice = Some(result.unwrap_or_else(|error| error));
                         }
                     }
                 }
@@ -341,6 +356,26 @@ pub fn start_core(ctx: eframe::egui::Context) -> (Receiver<CoreSnapshot>, Sender
                     snapshot.connected = credentials.is_some();
                     snapshot.riot_client_open = is_riot_client_open();
                     refresh_credentials = Instant::now();
+                    snapshot.league_window_mode = find_league_game_cfg(credentials.as_ref())
+                        .and_then(|path| std::fs::read_to_string(path).ok())
+                        .and_then(|cfg| read_window_mode_in_cfg(&cfg));
+                    // League rewrites game.cfg while the game runs, so only fix it while closed.
+                    if auto_borderless
+                        && !auto_borderless_failed
+                        && snapshot.league_window_mode == Some(0)
+                        && find_process("League of Legends.exe").is_none()
+                    {
+                        snapshot.notice = Some(match set_league_window_mode(2, credentials.as_ref()) {
+                            Ok(message) => {
+                                snapshot.league_window_mode = Some(2);
+                                format!("HUD auto-fix: {message}")
+                            }
+                            Err(error) => {
+                                auto_borderless_failed = true;
+                                format!("HUD auto-fix failed: {error}")
+                            }
+                        });
+                    }
                     if credentials.is_none() {
                         snapshot.phase = "None".to_string();
                         snapshot.summoner = None;
@@ -550,15 +585,12 @@ async fn import_runes(client: &Client, creds: &LcuCredentials, mut page: Value) 
         Ok(pages) => pages,
         Err(error) => return format!("League Client returned invalid rune page data: {error}"),
     };
+    // Only ever overwrite an editable page that RiftCore itself named.
     let target = pages.iter().find_map(|entry| {
         let owned = entry
-            .get("isDeletable")
+            .get("isEditable")
             .and_then(Value::as_bool)
-            .unwrap_or(false)
-            || entry
-                .get("isEditable")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
+            .unwrap_or(false);
         let name = entry
             .get("name")
             .and_then(Value::as_str)
@@ -594,6 +626,14 @@ async fn import_runes(client: &Client, creds: &LcuCredentials, mut page: Value) 
             Some(id),
         )
     } else {
+        let inventory =
+            lcu_request(client, creds, Method::GET, "/lol-perks/v1/inventory", None).await;
+        let owned = inventory
+            .ok()
+            .and_then(|inventory| inventory.get("ownedPageCount")?.as_u64());
+        if rune_slots_full(&pages, owned) {
+            return RUNE_PAGES_FULL.to_string();
+        }
         (create_rune_page(client, creds, &mut page).await, None)
     };
 
@@ -617,8 +657,23 @@ async fn import_runes(client: &Client, creds: &LcuCredentials, mut page: Value) 
                 Err(error) => format!("Rune page saved, but League could not activate it: {error}"),
             }
         }
+        Err(error) if target.is_none() => format!(
+            "Could not create a rune page: {error}. If your pages are full, delete one or              rename one to 'RiftCore' and RiftCore will reuse it."
+        ),
         Err(error) => format!("Could not import rune page: {error}"),
     }
+}
+
+const RUNE_PAGES_FULL: &str =
+    "All rune pages are full — delete one or rename one to 'RiftCore' and RiftCore will reuse it.";
+
+/// True when every rune page slot the account owns is already used by its own pages.
+fn rune_slots_full(pages: &[Value], owned_page_count: Option<u64>) -> bool {
+    let used = pages
+        .iter()
+        .filter(|page| page.get("isDeletable").and_then(Value::as_bool) == Some(true))
+        .count() as u64;
+    owned_page_count.is_some_and(|owned| used >= owned)
 }
 
 async fn export_item_set(client: &Client, creds: &LcuCredentials, item_set: Value) -> String {
@@ -659,7 +714,7 @@ async fn export_item_set(client: &Client, creds: &LcuCredentials, item_set: Valu
         let is_riftcore = set
             .get("title")
             .and_then(Value::as_str)
-            .is_some_and(|title| title.starts_with("RiftCore:"));
+            .is_some_and(is_riftcore_item_set_title);
         let same_champion = set
             .get("associatedChampions")
             .and_then(Value::as_array)
@@ -1102,70 +1157,109 @@ fn find_league_game_cfg(credentials: Option<&LcuCredentials>) -> Option<PathBuf>
     candidates.into_iter().find(|path| path.is_file())
 }
 
-fn set_league_window_mode(mode: u8, credentials: Option<&LcuCredentials>) -> String {
+fn set_league_window_mode(
+    mode: u8,
+    credentials: Option<&LcuCredentials>,
+) -> Result<String, String> {
     if !matches!(mode, 0 | 2) {
-        return "Unsupported League display mode".to_string();
+        return Err("Unsupported League display mode".to_string());
     }
-    let Some(path) = find_league_game_cfg(credentials) else {
-        return "League game.cfg was not found; launch League once and try again".to_string();
+    let path = find_league_game_cfg(credentials)
+        .ok_or("League game.cfg was not found; launch League once and try again")?;
+    let content = std::fs::read_to_string(&path)
+        .map_err(|error| format!("Could not read League game.cfg: {error}"))?;
+    let name = if mode == 2 {
+        "borderless"
+    } else {
+        "fullscreen"
     };
-    let mut content = match std::fs::read_to_string(&path) {
-        Ok(content) => content,
-        Err(error) => return format!("Could not read League game.cfg: {error}"),
-    };
+    if read_window_mode_in_cfg(&content) == Some(mode) {
+        return Ok(format!("League display mode is already {name}"));
+    }
+    if std::fs::metadata(&path).is_ok_and(|meta| meta.permissions().readonly()) {
+        return Err(format!(
+            "{} is read-only (League settings lock); clear Read-only in its Properties and retry",
+            path.display()
+        ));
+    }
+    let backup = path.with_file_name("game.cfg.riftcore.bak");
+    if !backup.exists() {
+        std::fs::copy(&path, &backup)
+            .map_err(|error| format!("Could not back up League game.cfg: {error}"))?;
+    }
+    // Same-folder temp file + rename, so League never sees a half-written game.cfg.
+    let temp = path.with_file_name("game.cfg.riftcore.tmp");
+    std::fs::write(&temp, set_window_mode_in_cfg(&content, mode))
+        .and_then(|()| std::fs::rename(&temp, &path))
+        .map_err(|error| {
+            let _ = std::fs::remove_file(&temp);
+            format!("Could not update League game.cfg: {error}")
+        })?;
+    Ok(format!(
+        "League display mode set to {name}. It applies the next time the game starts."
+    ))
+}
 
+/// Value of a `WindowMode=` line, if `line` is one.
+fn cfg_window_mode_value(line: &str) -> Option<&str> {
+    let (key, value) = line.trim().split_once('=')?;
+    (key.trim() == "WindowMode").then_some(value.trim())
+}
+
+fn read_window_mode_in_cfg(content: &str) -> Option<u8> {
+    let mut in_general = false;
+    for line in content.lines() {
+        if line.trim().starts_with('[') {
+            in_general = line.trim().eq_ignore_ascii_case("[General]");
+        } else if let Some(value) = cfg_window_mode_value(line).filter(|_| in_general) {
+            return value.parse().ok();
+        }
+    }
+    None
+}
+
+/// Sets `[General] WindowMode`, adding the key (or section) if missing; every other byte,
+/// including CRLF line endings, is kept as is.
+fn set_window_mode_in_cfg(content: &str, mode: u8) -> String {
     let newline = if content.contains("\r\n") {
         "\r\n"
     } else {
         "\n"
     };
-    let mut found = false;
-    let mut lines = content
-        .lines()
-        .map(|line| {
-            if line.trim_start().starts_with("WindowMode=") {
-                found = true;
-                let indent = &line[..line.len() - line.trim_start().len()];
-                format!("{indent}WindowMode={mode}")
-            } else {
-                line.to_string()
+    let entry = format!("WindowMode={mode}");
+    let mut out = String::with_capacity(content.len() + 32);
+    let (mut in_general, mut seen_general, mut done) = (false, false, false);
+    for line in content.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\r', '\n']);
+        if body.trim().starts_with('[') {
+            if in_general && !done {
+                out.push_str(&entry);
+                out.push_str(newline);
+                done = true;
             }
-        })
-        .collect::<Vec<_>>();
-
-    if !found {
-        if let Some(general) = lines.iter().position(|line| line.trim() == "[General]") {
-            lines.insert(general + 1, format!("WindowMode={mode}"));
-        } else {
-            if lines.last().is_some_and(|line| !line.is_empty()) {
-                lines.push(String::new());
-            }
-            lines.push("[General]".to_string());
-            lines.push(format!("WindowMode={mode}"));
+            in_general = body.trim().eq_ignore_ascii_case("[General]");
+            seen_general |= in_general;
+        } else if in_general && cfg_window_mode_value(body).is_some() {
+            out.push_str(&body[..body.len() - body.trim_start().len()]);
+            out.push_str(&entry);
+            out.push_str(&line[body.len()..]);
+            done = true;
+            continue;
         }
+        out.push_str(line);
     }
-    content = lines.join(newline);
-    content.push_str(newline);
-
-    let mut backup = path.as_os_str().to_os_string();
-    backup.push(".riftcore-backup");
-    let backup = PathBuf::from(backup);
-    if !backup.exists() {
-        if let Err(error) = std::fs::copy(&path, &backup) {
-            return format!("Could not back up League game.cfg: {error}");
+    if !done {
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push_str(newline);
         }
+        if !seen_general {
+            out.push_str("[General]");
+            out.push_str(newline);
+        }
+        out.push_str(&entry);
+        out.push_str(newline);
     }
-    match std::fs::write(path, content) {
-        Ok(()) => format!(
-            "League display mode set to {}. Restart the game to apply it.",
-            if mode == 2 {
-                "borderless"
-            } else {
-                "fullscreen"
-            }
-        ),
-        Err(error) => format!("Could not update League game.cfg: {error}"),
-    }
+    out
 }
 
 fn detect_league_client() -> Option<LcuCredentials> {
@@ -1184,7 +1278,7 @@ fn detect_league_client() -> Option<LcuCredentials> {
     if let Ok(path) = std::env::var("RIFTCORE_LOCKFILE") {
         candidates.insert(0, PathBuf::from(path));
     }
-    if let Some(path) = find_league_client_ux_path() {
+    if let Some(path) = find_process("LeagueClientUx.exe").flatten() {
         if let Some(parent) = path.parent() {
             candidates.insert(0, parent.join("lockfile"));
         }
@@ -1266,8 +1360,9 @@ struct ProcessEntry32W {
     executable: [u16; 260],
 }
 
+/// `Some` while a process named `executable` runs; the inner path is `None` if it can't be queried.
 #[cfg(windows)]
-fn find_league_client_ux_path() -> Option<PathBuf> {
+fn find_process(executable: &str) -> Option<Option<PathBuf>> {
     #[link(name = "kernel32")]
     extern "system" {
         fn CreateToolhelp32Snapshot(flags: u32, process_id: u32) -> *mut std::ffi::c_void;
@@ -1293,10 +1388,8 @@ fn find_league_client_ux_path() -> Option<PathBuf> {
         if Process32FirstW(snapshot, &mut entry) != 0 {
             loop {
                 let name = String::from_utf16_lossy(&entry.executable);
-                if name
-                    .trim_matches('\0')
-                    .eq_ignore_ascii_case("LeagueClientUx.exe")
-                {
+                if name.trim_matches('\0').eq_ignore_ascii_case(executable) {
+                    found = Some(None);
                     let process = OpenProcess(0x1000, 0, entry.process_id);
                     if !process.is_null() {
                         let mut buffer = [0u16; 1024];
@@ -1304,9 +1397,9 @@ fn find_league_client_ux_path() -> Option<PathBuf> {
                         if QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size)
                             != 0
                         {
-                            found = Some(PathBuf::from(String::from_utf16_lossy(
+                            found = Some(Some(PathBuf::from(String::from_utf16_lossy(
                                 &buffer[..size as usize],
-                            )));
+                            ))));
                         }
                         CloseHandle(process);
                     }
@@ -1323,7 +1416,7 @@ fn find_league_client_ux_path() -> Option<PathBuf> {
 }
 
 #[cfg(not(windows))]
-fn find_league_client_ux_path() -> Option<PathBuf> {
+fn find_process(_executable: &str) -> Option<Option<PathBuf>> {
     None
 }
 
@@ -1634,3 +1727,70 @@ pub fn cursor_screen_position() -> Option<[i32; 2]> {
 
 #[cfg(not(windows))]
 pub fn maintain_native_overlay() {}
+
+/// Matches item sets written by any RiftCore version, including the old
+/// Electron app's "⚡ RiftCore: …" titles, so re-exports replace them.
+fn is_riftcore_item_set_title(title: &str) -> bool {
+    title
+        .trim_start_matches(|c: char| !c.is_alphanumeric())
+        .starts_with("RiftCore")
+}
+
+#[cfg(test)]
+mod rune_page_tests {
+    use super::rune_slots_full;
+    use serde_json::json;
+
+    #[test]
+    fn detects_full_rune_page_slots() {
+        let pages = [
+            json!({"isDeletable": true}),
+            json!({"isDeletable": true}),
+            json!({"isDeletable": false}),
+        ];
+        assert!(rune_slots_full(&pages, Some(2)));
+        assert!(!rune_slots_full(&pages, Some(3)));
+        assert!(!rune_slots_full(&pages, None));
+    }
+}
+
+#[cfg(test)]
+mod window_mode_tests {
+    use super::{read_window_mode_in_cfg, set_window_mode_in_cfg};
+
+    #[test]
+    fn replaces_only_general_key_and_keeps_crlf() {
+        let cfg =
+            "[General]\r\nWidth=2560\r\n  WindowMode=0\r\nHeight=1440\r\n[HUD]\r\nWindowMode=0\r\n";
+        let out = set_window_mode_in_cfg(cfg, 2);
+        assert_eq!(
+            out,
+            "[General]\r\nWidth=2560\r\n  WindowMode=2\r\nHeight=1440\r\n[HUD]\r\nWindowMode=0\r\n"
+        );
+        assert_eq!(read_window_mode_in_cfg(cfg), Some(0));
+        assert_eq!(read_window_mode_in_cfg(&out), Some(2));
+    }
+
+    #[test]
+    fn adds_missing_key_to_general_section() {
+        let cfg = "[General]\r\nWidth=1920\r\n[HUD]\r\nWindowMode=0\r\n";
+        assert_eq!(
+            set_window_mode_in_cfg(cfg, 2),
+            "[General]\r\nWidth=1920\r\nWindowMode=2\r\n[HUD]\r\nWindowMode=0\r\n"
+        );
+        assert_eq!(read_window_mode_in_cfg(cfg), None);
+        assert_eq!(
+            set_window_mode_in_cfg("[General]\nWidth=1920", 2),
+            "[General]\nWidth=1920\nWindowMode=2\n"
+        );
+    }
+
+    #[test]
+    fn adds_general_section_when_missing() {
+        assert_eq!(
+            set_window_mode_in_cfg("[HUD]\nScale=1\n", 2),
+            "[HUD]\nScale=1\n[General]\nWindowMode=2\n"
+        );
+        assert_eq!(set_window_mode_in_cfg("", 0), "[General]\nWindowMode=0\n");
+    }
+}

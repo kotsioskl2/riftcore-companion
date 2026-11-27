@@ -10,11 +10,13 @@
 use crate::domain::builds::{self, BuildProfile};
 use crate::domain::champions::{self, Champion, Role};
 use crate::domain::items;
-use crate::domain::live_game::LiveGameState;
+use crate::domain::live_game::{self, CsPace, LiveGameState};
 use crate::domain::mayhem::{self, CardMode, CardTier, MayhemCard};
 use crate::domain::protocol::LIVE_COACH_ENABLED;
 use crate::overlay::host::{OverlayRenderState, OverlayTimerTab};
-use crate::overlay::hud_modes::{clamp_logical_panel_pos, HudPresentationMode};
+use crate::overlay::hud_modes::{
+    clamp_logical_panel_pos, default_relic_pos, default_toolbar_pos, HudPresentationMode,
+};
 use crate::overlay::minimap::{jungle_route_status, render_minimap_guide_pins};
 use eframe::egui::{
     self, Align, Color32, CornerRadius, Frame, Id, Layout, Margin, Rect, RichText, ScrollArea,
@@ -61,6 +63,20 @@ fn overlay_button(ui: &mut egui::Ui, label: &str, active: bool, accent: Color32)
     )
 }
 
+/// Saves a panel position after an edit-layout drag (same flow as the other movable panels).
+fn remember_drag(
+    positions: &mut HashMap<String, [f32; 2]>,
+    updates: &mut Vec<(String, [f32; 2])>,
+    key: &str,
+    response: &egui::Response,
+) {
+    if response.drag_stopped() {
+        let pos = [response.rect.min.x, response.rect.min.y];
+        positions.insert(key.to_string(), pos);
+        updates.push((key.to_string(), pos));
+    }
+}
+
 fn overlay_metric(ui: &mut egui::Ui, label: &str, value: &str, color: Color32) {
     ui.vertical(|ui| {
         ui.label(RichText::new(label).size(8.5).strong().color(MUTED));
@@ -100,6 +116,103 @@ pub fn resolve_personal_build(live: &LiveGameState) -> Option<(&'static Champion
     Some((champ, profile))
 }
 
+/// Derived live HUD extras (level, next skill/item, KP, team score, CS pace, vision).
+#[derive(Default)]
+struct HudExtras {
+    level: u32,
+    next_skill: Option<&'static str>,
+    pace: Color32,
+    cs10: Option<u32>,
+    kp: String,
+    score: Option<(u32, u32)>,
+    next_item: Option<(String, Option<u32>, bool)>,
+    vision: u32,
+}
+
+fn hud_extras(
+    live: Option<&LiveGameState>,
+    cs10: Option<u32>,
+    cspm: f64,
+    build: bool,
+) -> HudExtras {
+    let mut x = HudExtras {
+        level: 1,
+        pace: TEXT,
+        cs10,
+        kp: "KP —".into(),
+        ..Default::default()
+    };
+    let Some(live) = live else { return x };
+    let p = &live.active_player;
+    x.level = p.level.max(1);
+    x.pace = match live_game::cs_pace(cspm, live.game_time_secs) {
+        CsPace::Good => GREEN,
+        CsPace::Fair => GOLD,
+        CsPace::Low => RED,
+        CsPace::Neutral => TEXT,
+    };
+    x.vision = p.scores.ward_score.max(0.0).round() as u32;
+    if !p.team.is_empty() {
+        let (ally, enemy) = live_game::team_kill_score(&live.all_players, &p.team);
+        x.score = Some((ally, enemy));
+        if let Some(pct) = live_game::kill_participation_pct(p.scores.kills, p.scores.assists, ally)
+        {
+            x.kp = format!("KP {pct}%");
+        }
+    }
+    if let Some((_, b)) = build.then(|| resolve_personal_build(live)).flatten() {
+        let a = &p.abilities;
+        let ranks = [
+            a.q.ability_level,
+            a.w.ability_level,
+            a.e.ability_level,
+            a.r.ability_level,
+        ];
+        x.next_skill = live_game::next_skill_up(x.level, ranks, &b.skill_order);
+        let owned: Vec<u32> = p.items.iter().map(|i| i.item_id).collect();
+        x.next_item = live_game::next_build_item(&b.core_items, &owned).map(|id| {
+            let cost = items::item_total_cost(id).filter(|c| *c > 0);
+            let buy = cost.is_some_and(|c| p.current_gold >= c as f64);
+            (items::item_name(id), cost, buy)
+        });
+    }
+    x
+}
+
+fn chip(ui: &mut egui::Ui, text: &str, color: Color32, filled: bool) {
+    let alpha = if filled { 70 } else { 24 };
+    Frame::new()
+        .fill(Color32::from_rgba_unmultiplied(
+            color.r(),
+            color.g(),
+            color.b(),
+            alpha,
+        ))
+        .stroke(Stroke::new(1.0, color))
+        .corner_radius(CornerRadius::same(8))
+        .inner_margin(Margin::symmetric(6, 1))
+        .show(ui, |ui| {
+            ui.label(RichText::new(text).size(9.5).strong().color(color))
+        });
+}
+
+/// "LEVEL UP: Q" / "NEXT <item>" chips (gated by skill-order / item-goal toggles).
+fn next_chips(ui: &mut egui::Ui, x: &HudExtras, skill: bool, item: bool) {
+    if let Some(s) = x.next_skill.filter(|_| skill) {
+        chip(ui, &format!("LEVEL UP: {s}"), GOLD, true);
+    }
+    if let Some((name, cost, buy)) = x.next_item.as_ref().filter(|_| item) {
+        let mut text = format!("NEXT {name}");
+        if let Some(c) = cost {
+            text.push_str(&format!(" · {c}g"));
+        }
+        if *buy {
+            text.push_str(" · CAN BUY");
+        }
+        chip(ui, &text, if *buy { GREEN } else { SECONDARY }, *buy);
+    }
+}
+
 /// Filters Mayhem & Arena augment cards cleanly without subjective rank strings.
 pub fn filter_mayhem_cards(
     mode_filter: &str,
@@ -136,6 +249,13 @@ pub fn render_overlay_ui(
         )
         .show(ui, |ui| {
             let area = ui.available_rect_before_wrap();
+            if let Some(g) = state.live_game.as_ref() {
+                if g.game_time_secs < 600.0 {
+                    state.cs_at_10 = None;
+                } else if g.game_time_secs < 630.0 && state.cs_at_10.is_none() {
+                    state.cs_at_10 = Some(g.active_player.scores.creep_score);
+                }
+            }
             let live_ref = state.live_game.as_ref();
             let clock = live_ref
                 .map(|g| g.game_time_secs.max(0.0) as u64)
@@ -149,6 +269,14 @@ pub fn render_overlay_ui(
             let current_gold = live_ref
                 .map(|g| g.active_player.current_gold.max(0.0) as u64)
                 .unwrap_or(0);
+            let set = &state.settings;
+            let x = hud_extras(
+                live_ref,
+                state.cs_at_10,
+                cs_per_minute,
+                set.hud_skill_order || set.hud_item_goal,
+            );
+            let (skill_on, item_on) = (set.hud_skill_order, set.hud_item_goal);
             let game_mode = live_ref
                 .map(|g| g.game_mode.as_str())
                 .filter(|m| !m.is_empty())
@@ -176,6 +304,7 @@ pub fn render_overlay_ui(
                                         .strong()
                                         .color(TEXT),
                                 );
+                                chip(ui, &format!("LV {}", x.level), CYAN, false);
                                 ui.label(RichText::new(&kda).size(12.0).strong().color(TEXT));
                                 ui.label(
                                     RichText::new(format!("{creep_score} CS"))
@@ -186,7 +315,7 @@ pub fn render_overlay_ui(
                                     ui.label(
                                         RichText::new(format!("{cs_per_minute:.1}/m"))
                                             .size(10.0)
-                                            .color(GOLD),
+                                            .color(x.pace),
                                     );
                                 }
                                 if state.settings.hud_gold_lead {
@@ -196,6 +325,7 @@ pub fn render_overlay_ui(
                                             .color(GREEN),
                                     );
                                 }
+                                next_chips(ui, &x, skill_on, false);
                                 if state.settings.hud_mayhem_cards
                                     && overlay_button(ui, "CARDS", state.show_mayhem_cards, GOLD)
                                         .clicked()
@@ -228,12 +358,21 @@ pub fn render_overlay_ui(
                                         .strong()
                                         .color(TEXT),
                                 );
+                                chip(ui, &format!("LV {}", x.level), CYAN, false);
                                 ui.label(RichText::new(&kda).size(11.0).strong().color(TEXT));
                                 ui.label(
                                     RichText::new(format!("{creep_score} CS"))
                                         .size(10.0)
                                         .color(GOLD),
                                 );
+                                if state.settings.hud_cs_benchmark {
+                                    ui.label(
+                                        RichText::new(format!("{cs_per_minute:.1}/m"))
+                                            .size(9.5)
+                                            .color(x.pace),
+                                    );
+                                }
+                                next_chips(ui, &x, skill_on, false);
                                 if state.settings.hud_mayhem_cards
                                     && overlay_button(ui, "CARDS", state.show_mayhem_cards, GOLD)
                                         .clicked()
@@ -290,9 +429,26 @@ pub fn render_overlay_ui(
                                     ui,
                                     "CS / MIN",
                                     &format!("{cs_per_minute:.1}"),
-                                    GOLD,
+                                    x.pace,
                                 );
+                                if let Some(cs10) = x.cs10 {
+                                    overlay_metric(ui, "CS@10", &cs10.to_string(), SECONDARY);
+                                }
                             });
+                            ui.horizontal(|ui| {
+                                overlay_metric(ui, "LEVEL", &x.level.to_string(), CYAN);
+                                if state.settings.hud_gold_lead {
+                                    let kp = x.kp.trim_start_matches("KP ");
+                                    overlay_metric(ui, "KILL PART.", kp, TEXT);
+                                    let team =
+                                        x.score.map_or("—".into(), |(a, e)| format!("{a} – {e}"));
+                                    overlay_metric(ui, "TEAM", &team, TEXT);
+                                }
+                                if state.settings.hud_trinket_reminder {
+                                    overlay_metric(ui, "VISION", &x.vision.to_string(), SECONDARY);
+                                }
+                            });
+                            ui.horizontal_wrapped(|ui| next_chips(ui, &x, skill_on, item_on));
                             if state.settings.hud_gold_lead {
                                 ui.label(
                                     RichText::new(format!("CURRENT GOLD   {current_gold}"))
@@ -342,7 +498,7 @@ pub fn render_overlay_ui(
             // Integrated full-viewport HUD
             render_minimap_guide_pins(&ctx, area, live_ref, &state.settings, clock);
 
-            let top_default = [area.center().x - 285.0, area.top() + 20.0];
+            let top_default = [area.center().x - 300.0, area.top() + 20.0];
             let top_pos = clamp_logical_panel_pos(
                 state
                     .settings
@@ -351,7 +507,7 @@ pub fn render_overlay_ui(
                     .copied()
                     .unwrap_or(top_default),
                 area,
-                Vec2::new(420.0, 56.0),
+                Vec2::new(600.0, 78.0),
             );
             let top_resp = egui::Area::new(Id::unique("riftcore-hud-top"))
                 .current_pos(top_pos)
@@ -375,7 +531,19 @@ pub fn render_overlay_ui(
                                         .color(TEXT),
                                 );
                                 ui.separator();
+                                chip(ui, &format!("LV {}", x.level), CYAN, false);
                                 ui.label(RichText::new(&kda).size(13.0).strong().color(TEXT));
+                                if state.settings.hud_gold_lead {
+                                    ui.label(RichText::new(&x.kp).size(10.5).color(SECONDARY));
+                                    if let Some((a, e)) = x.score {
+                                        ui.label(
+                                            RichText::new(format!("{a} – {e}"))
+                                                .size(11.5)
+                                                .strong()
+                                                .color(TEXT),
+                                        );
+                                    }
+                                }
                                 ui.separator();
                                 ui.label(
                                     RichText::new(format!("{creep_score} CS"))
@@ -387,8 +555,12 @@ pub fn render_overlay_ui(
                                     ui.label(
                                         RichText::new(format!("{cs_per_minute:.1}/m"))
                                             .size(11.0)
-                                            .color(GOLD),
+                                            .color(x.pace),
                                     );
+                                    if let Some(cs10) = x.cs10 {
+                                        let t = format!("@10 {cs10}");
+                                        ui.label(RichText::new(t).size(10.0).color(SECONDARY));
+                                    }
                                 }
                                 if state.settings.hud_gold_lead {
                                     ui.separator();
@@ -398,8 +570,15 @@ pub fn render_overlay_ui(
                                             .color(GREEN),
                                     );
                                 }
+                                if state.settings.hud_trinket_reminder {
+                                    let t = format!("VIS {}", x.vision);
+                                    ui.label(RichText::new(t).size(10.0).color(SECONDARY));
+                                }
                             });
-                            ui.label(RichText::new(game_mode).size(9.0).strong().color(MUTED));
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(game_mode).size(9.0).strong().color(MUTED));
+                                next_chips(ui, &x, skill_on, item_on);
+                            });
                         });
                 });
             if top_resp.response.drag_stopped() {
@@ -493,8 +672,14 @@ pub fn render_overlay_ui(
             }
 
             if state.settings.hud_aram_health_timers && game_mode.eq_ignore_ascii_case("ARAM") {
+                // Default: left edge, mid-height, clear of League's chat (bottom-left).
+                let relic_pos = state.settings.hud_positions.get("relics").map_or_else(
+                    || default_relic_pos(area),
+                    |pos| clamp_logical_panel_pos(*pos, area, Vec2::new(180.0, 120.0)),
+                );
                 let relic_resp = egui::Area::new(Id::unique("riftcore-hud-aram-relics"))
-                    .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(20.0, -110.0))
+                    .current_pos(relic_pos)
+                    .movable(state.settings.hud_edit_layout)
                     .show(&ctx, |ui| {
                         render_aram_relic_timers(
                             ui,
@@ -503,6 +688,12 @@ pub fn render_overlay_ui(
                             state.settings.opacity,
                         );
                     });
+                remember_drag(
+                    &mut state.settings.hud_positions,
+                    &mut state.pending_actions.updated_positions,
+                    "relics",
+                    &relic_resp.response,
+                );
                 interactive_rects_out.push(relic_resp.response.rect);
             }
 
@@ -717,86 +908,104 @@ pub fn render_overlay_ui(
                 interactive_rects_out.push(player_resp.response.rect);
             }
 
-            let toolbar_resp = egui::Area::new(Id::unique("riftcore-hud-bottom"))
-                .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -18.0))
-                .show(&ctx, |ui| {
-                    Frame::new()
-                        .fill(panel_fill(state.settings.opacity, 218))
-                        .stroke(Stroke::new(1.0, BORDER))
-                        .inner_margin(Margin::same(8))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("ALT + ~  HUD")
-                                        .size(10.0)
-                                        .strong()
-                                        .color(CYAN),
-                                );
-                                ui.label(
-                                    RichText::new("ALT + SHIFT + ~  INPUT")
-                                        .size(10.0)
-                                        .color(SECONDARY),
-                                );
-                                if !state.passthrough_active {
+            // Default: top-centre under the scoreboard, never over League's ability bar.
+            let toolbar_area = match state.settings.hud_positions.get("toolbar") {
+                Some(pos) => egui::Area::new(Id::unique("riftcore-hud-bottom"))
+                    .current_pos(clamp_logical_panel_pos(*pos, area, Vec2::new(320.0, 40.0))),
+                None => egui::Area::new(Id::unique("riftcore-hud-bottom"))
+                    .pivot(egui::Align2::CENTER_TOP)
+                    .current_pos(default_toolbar_pos(area)),
+            };
+            let toolbar_resp =
+                toolbar_area
+                    .movable(state.settings.hud_edit_layout)
+                    .show(&ctx, |ui| {
+                        Frame::new()
+                            .fill(panel_fill(state.settings.opacity, 218))
+                            .stroke(Stroke::new(1.0, BORDER))
+                            .inner_margin(Margin::same(8))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
                                     ui.label(
-                                        RichText::new("SMART INPUT").size(9.0).strong().color(GOLD),
+                                        RichText::new("ALT + ~  HUD")
+                                            .size(10.0)
+                                            .strong()
+                                            .color(CYAN),
                                     );
-                                }
-                                if state.settings.hud_mayhem_cards
-                                    && overlay_button(
-                                        ui,
-                                        "MAYHEM CARDS",
-                                        state.show_mayhem_cards,
-                                        GOLD,
-                                    )
-                                    .clicked()
-                                {
-                                    state.show_mayhem_cards = !state.show_mayhem_cards;
-                                    if state.show_mayhem_cards {
-                                        state.show_build_panel = false;
-                                    }
-                                }
-                                if overlay_button(ui, "BUILD", state.show_build_panel, CYAN)
-                                    .clicked()
-                                {
-                                    state.show_build_panel = !state.show_build_panel;
-                                    if state.show_build_panel {
-                                        state.show_mayhem_cards = false;
-                                        state.show_timers_panel = false;
-                                    }
-                                }
-                                if overlay_button(ui, "TIMERS", state.show_timers_panel, GOLD)
-                                    .clicked()
-                                {
-                                    state.show_timers_panel = !state.show_timers_panel;
-                                    if state.show_timers_panel {
-                                        state.show_build_panel = false;
-                                        state.show_mayhem_cards = false;
-                                    }
-                                }
-                                if state.settings.hud_jungle_pathing
-                                    && live_ref.is_some_and(LiveGameState::is_summoners_rift)
-                                {
-                                    if let Some((step, camp, remaining, active)) =
-                                        jungle_route_status(
-                                            clock,
-                                            &state.settings.jungle_start_buff,
-                                        )
-                                    {
+                                    ui.label(
+                                        RichText::new("ALT + SHIFT + ~  INPUT")
+                                            .size(10.0)
+                                            .color(SECONDARY),
+                                    );
+                                    if !state.passthrough_active {
                                         ui.label(
-                                            RichText::new(format!(
-                                                "JG #{step} {camp} {}{}",
-                                                if active { "NOW " } else { "IN " },
-                                                format_clock(remaining)
-                                            ))
-                                            .size(9.5)
-                                            .color(if active { GREEN } else { SECONDARY }),
+                                            RichText::new("SMART INPUT")
+                                                .size(9.0)
+                                                .strong()
+                                                .color(GOLD),
                                         );
                                     }
-                                }
+                                    if state.settings.hud_mayhem_cards
+                                        && overlay_button(
+                                            ui,
+                                            "MAYHEM CARDS",
+                                            state.show_mayhem_cards,
+                                            GOLD,
+                                        )
+                                        .clicked()
+                                    {
+                                        state.show_mayhem_cards = !state.show_mayhem_cards;
+                                        if state.show_mayhem_cards {
+                                            state.show_build_panel = false;
+                                        }
+                                    }
+                                    if overlay_button(ui, "BUILD", state.show_build_panel, CYAN)
+                                        .clicked()
+                                    {
+                                        state.show_build_panel = !state.show_build_panel;
+                                        if state.show_build_panel {
+                                            state.show_mayhem_cards = false;
+                                            state.show_timers_panel = false;
+                                        }
+                                    }
+                                    if overlay_button(ui, "TIMERS", state.show_timers_panel, GOLD)
+                                        .clicked()
+                                    {
+                                        state.show_timers_panel = !state.show_timers_panel;
+                                        if state.show_timers_panel {
+                                            state.show_build_panel = false;
+                                            state.show_mayhem_cards = false;
+                                        }
+                                    }
+                                    if state.settings.hud_jungle_pathing
+                                        && live_ref.is_some_and(LiveGameState::is_summoners_rift)
+                                    {
+                                        if let Some((step, camp, remaining, active)) =
+                                            jungle_route_status(
+                                                clock,
+                                                &state.settings.jungle_start_buff,
+                                            )
+                                        {
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "JG #{step} {camp} {}{}",
+                                                    if active { "NOW " } else { "IN " },
+                                                    format_clock(remaining)
+                                                ))
+                                                .size(9.5)
+                                                .color(if active { GREEN } else { SECONDARY }),
+                                            );
+                                        }
+                                    }
+                                });
                             });
-                        });
-                });
+                    });
+            remember_drag(
+                &mut state.settings.hud_positions,
+                &mut state.pending_actions.updated_positions,
+                "toolbar",
+                &toolbar_resp.response,
+            );
             interactive_rects_out.push(toolbar_resp.response.rect);
 
             if state.show_mayhem_cards {

@@ -162,28 +162,44 @@ fn available(items: Vec<u32>) -> Vec<u32> {
     items.into_iter().filter(|id| item_available(*id)).collect()
 }
 
+/// Builds an 18-level order from a priority such as "Q > E > W". Each ability is
+/// unlocked once (in priority order), then the highest-priority ability that may still
+/// be ranked is taken, honouring League's gate (rank n needs level 2n - 1). R is an
+/// ultimate (ranks at 6/11/16) unless the priority lists it, as for Udyr, whose four
+/// abilities are all basic with six ranks.
 fn skill_order(priority: &str) -> Vec<String> {
-    let skills: Vec<&str> = priority.split('>').map(str::trim).collect();
-    let (first, second, third) = match skills.as_slice() {
-        [first, second, third, ..] => (*first, *second, *third),
-        _ => ("Q", "E", "W"),
-    };
-    let mut order = vec![first, second, third];
-    let (mut first_count, mut second_count) = (1, 1);
-    for level in 4..=18 {
-        if [6, 11, 16].contains(&level) {
-            order.push("R");
-        } else if first_count < 5 {
-            order.push(first);
-            first_count += 1;
-        } else if second_count < 5 {
-            order.push(second);
-            second_count += 1;
-        } else {
-            order.push(third);
+    let mut slots: Vec<&str> = Vec::new();
+    for token in priority.split('>').map(str::trim) {
+        let slot = ["Q", "W", "E", "R"]
+            .into_iter()
+            .find(|slot| slot.eq_ignore_ascii_case(token));
+        if let Some(slot) = slot.filter(|slot| !slots.contains(slot)) {
+            slots.push(slot);
         }
     }
-    order.into_iter().map(str::to_owned).collect()
+    let ult_is_basic = slots.contains(&"R");
+    for slot in ["Q", "E", "W"] {
+        if !slots.contains(&slot) {
+            slots.push(slot);
+        }
+    }
+    let max_rank = if ult_is_basic { 6 } else { 5 };
+    let mut ranks = vec![0u32; slots.len()];
+    (1..=18u32)
+        .map(|level| {
+            if !ult_is_basic && matches!(level, 6 | 11 | 16) {
+                return "R".to_owned();
+            }
+            let cap = max_rank.min(level.div_ceil(2));
+            let index = ranks
+                .iter()
+                .position(|rank| *rank == 0)
+                .or_else(|| ranks.iter().position(|rank| *rank < cap))
+                .unwrap_or(0);
+            ranks[index] += 1;
+            slots[index].to_owned()
+        })
+        .collect()
 }
 
 type PresetTuple = (
@@ -385,4 +401,27 @@ fn preset(archetype: &str, role: &str) -> PresetTuple {
         spell_one,
         spell_two,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::skill_order;
+
+    #[test]
+    fn normal_champion_follows_level_gates() {
+        let order = skill_order("Q > E > W");
+        assert_eq!(order.join(""), "QEWQQRQEQEREEWWRWW");
+    }
+
+    #[test]
+    fn udyr_ranks_r_as_a_basic_ability() {
+        let order = skill_order("Q > R > E");
+        assert_eq!(order.join(""), "QREWQQQRQRQRRREEEE");
+        assert_eq!(order.iter().filter(|slot| *slot == "R").count(), 6);
+    }
+
+    #[test]
+    fn malformed_priority_falls_back_to_basics() {
+        assert_eq!(skill_order("").join(""), "QEWQQRQEQEREEWWRWW");
+    }
 }

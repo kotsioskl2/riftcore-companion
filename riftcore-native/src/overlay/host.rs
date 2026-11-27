@@ -189,6 +189,8 @@ pub struct OverlayRenderState {
     pub timer_tab: OverlayTimerTab,
     pub aram_relic_seconds: String,
     pub manual_timers: HashMap<String, Instant>,
+    /// Creep score snapshot taken as game time crosses 10:00 (`CS@10`).
+    pub cs_at_10: Option<u32>,
     /// Active-game coaching flag; locked behind `crate::domain::protocol::LIVE_COACH_ENABLED`.
     pub live_coach_enabled: bool,
     pub host_diag: OverlayDiagnostics,
@@ -213,6 +215,7 @@ impl Default for OverlayRenderState {
             timer_tab: OverlayTimerTab::Camps,
             aram_relic_seconds: "90".to_string(),
             manual_timers: HashMap::new(),
+            cs_at_10: None,
             live_coach_enabled: LIVE_COACH_ENABLED,
             host_diag: OverlayDiagnostics::default(),
             pending_actions: OverlayFrameActions::default(),
