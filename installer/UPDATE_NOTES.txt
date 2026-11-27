@@ -1,4 +1,17 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.3.4
+--------------------------------------------------
+
+* Rune setup redesign:
+  - Primary and secondary runes now sit on cards tinted with their tree's colour and icon.
+  - A rune path line connects the keystone and the runes you picked in each row.
+  - Secondary runes: every row is visible at once; pick 2 runes from different rows.
+  - Switching trees now automatically fixes any rune picks that no longer fit.
+
+* Summoner spells:
+  - Spell slots now show the real spell icons instead of text.
+
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.3.3
 --------------------------------------------------
 
