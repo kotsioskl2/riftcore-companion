@@ -3,7 +3,7 @@
 use crate::overlay::host::{OverlayDiagnostics, OverlayRenderState, OverlaySurfaceHost};
 use crate::overlay::hud_modes::{
     clamp_logical_panel_pos, compute_overlay_rect_px, physical_cursor_to_logical,
-    DisplayPresentationMode, HudPresentationMode, TargetWindowState,
+    DisplayPresentationMode, TargetWindowState,
 };
 use crate::platform::window::MonitorMetrics;
 use eframe::egui::{self, Pos2, Rect, Vec2};
@@ -26,22 +26,18 @@ pub enum OverlayLifecycleState {
 /// Overlay user configuration independent of live game telemetry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OverlayConfig {
-    pub mode: HudPresentationMode,
     pub opacity: f32,
     pub edit_layout: bool,
     pub force_passthrough: bool,
-    pub mayhem_open: bool,
     pub positions: HashMap<String, [f32; 2]>,
 }
 
 impl Default for OverlayConfig {
     fn default() -> Self {
         Self {
-            mode: HudPresentationMode::Integrated,
             opacity: 0.90,
             edit_layout: false,
             force_passthrough: false,
-            mayhem_open: false,
             positions: HashMap::new(),
         }
     }
@@ -309,7 +305,7 @@ impl OverlayEngine {
             );
         };
 
-        let rect_px = compute_overlay_rect_px(target, monitor, config.mode, config.mayhem_open);
+        let rect_px = compute_overlay_rect_px(target, monitor);
         let ppp = target.hud_pixels_per_point();
         let cursor_logical = cursor_px.map(|c| physical_cursor_to_logical(c, rect_px, ppp));
         let desired_passthrough =

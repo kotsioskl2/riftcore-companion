@@ -327,7 +327,10 @@ pub struct AppUiState {
 
     pub show_quick_tour: bool,
     pub show_whats_new: bool,
+    /// In-game HUD cards drawer (Mayhem & Arena augments).
     pub show_mayhem_cards: bool,
+    /// Card guide dialog in the main window; separate from the HUD drawer.
+    pub show_mayhem_guide: bool,
     pub show_close_confirmation: bool,
     pub force_exit: bool,
     pub update_banner_dismissed: bool,
@@ -363,6 +366,7 @@ impl Default for AppUiState {
             show_quick_tour: false,
             show_whats_new: false,
             show_mayhem_cards: false,
+            show_mayhem_guide: false,
             show_close_confirmation: false,
             force_exit: false,
             update_banner_dismissed: false,

@@ -13,7 +13,7 @@ use crate::overlay::engine::{OverlayCommand, OverlayConfig, OverlayEngine, TickI
 use crate::overlay::host::{
     select_host_or_fallback, OverlayPanelSettings, OverlayRenderState, OverlaySurfaceHost,
 };
-use crate::overlay::hud_modes::{monitor_for_rect, HudPresentationMode, TargetWindowState};
+use crate::overlay::hud_modes::{monitor_for_rect, TargetWindowState};
 use crate::overlay::panels::render_overlay_ui;
 use crate::overlay::win32_host::Win32OverlayHost;
 use crate::platform::hotkeys::{start_hotkey_listener, HotkeyEvent, HotkeyHandle};
@@ -154,11 +154,9 @@ impl RiftCoreShell {
 
     fn sync_overlay_config(&mut self) {
         let s = &self.store.settings;
-        self.overlay_config.mode = HudPresentationMode::parse_lossy(&s.hud_mode);
         self.overlay_config.edit_layout = s.hud_edit_layout;
         self.overlay_config.positions.clone_from(&s.hud_positions);
         self.overlay_config.force_passthrough = self.state.overlay_mouse_passthrough;
-        self.overlay_config.mayhem_open = self.state.show_mayhem_cards;
     }
 
     fn set_overlay(&mut self, enabled: bool, automatic: bool) {

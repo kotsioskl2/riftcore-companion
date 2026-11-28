@@ -695,7 +695,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
         }
     }
 
-    if ctx.state.show_mayhem_cards {
+    if ctx.state.show_mayhem_guide {
         let mut close = false;
         egui::Modal::new(egui::Id::unique("riftcore-mayhem-guide-modal"))
             .frame(
@@ -848,7 +848,7 @@ pub fn render_dialogs(ctx: &mut PageContext<'_>, egui_ctx: &egui::Context) {
                 );
             });
         if close {
-            ctx.state.show_mayhem_cards = false;
+            ctx.state.show_mayhem_guide = false;
         }
     }
 

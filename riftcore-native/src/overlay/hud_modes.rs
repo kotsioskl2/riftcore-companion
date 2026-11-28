@@ -114,16 +114,6 @@ pub fn hud_pixels_per_point(monitor_dpi: u32, client_px: [i32; 2]) -> f32 {
     dpi_scale(monitor_dpi).min(fit_w).min(fit_h).max(1.0)
 }
 
-/// Logical window sizes of the compact HUD modes, in points.
-pub const BAR_WINDOW_PTS: [f32; 2] = [620.0, 54.0];
-pub const PILL_WINDOW_PTS: [f32; 2] = [440.0, 54.0];
-pub const CARD_WINDOW_PTS: [f32; 2] = [360.0, 330.0];
-/// Compact-mode window while the Mayhem cards drawer is open.
-pub const MAYHEM_WINDOW_PTS: [f32; 2] = [430.0, 560.0];
-/// The Mayhem window ends above this share of the game height, clear of League's minimap
-/// (bottom-right) even when the minimap is scaled up.
-pub const MAYHEM_WINDOW_MAX_BOTTOM: f32 = 0.6;
-
 /// Infers `DisplayPresentationMode` conservatively so borderless windows are never misclassified
 /// as exclusive fullscreen solely for spanning a monitor.
 pub fn infer_presentation_mode(
@@ -168,65 +158,20 @@ pub fn monitor_for_rect(rect_px: [i32; 4], monitors: &[MonitorMetrics]) -> Optio
 
 /// Computes exact Win32 physical virtual-screen coordinates `[left, top, right, bottom]`
 /// for the overlay window across mixed-DPI multi-monitor coordinates.
+///
+/// The HUD window covers the game's client area in every HUD style: the style only changes
+/// the main stats panel, and the other overlays (minimap pins, timers, benchmark, drawers)
+/// need the whole game to draw on.
 pub fn compute_overlay_rect_px(
     target: &TargetWindowState,
     monitor: Option<&MonitorMetrics>,
-    mode: HudPresentationMode,
-    mayhem_open: bool,
 ) -> [i32; 4] {
     let [t_left, t_top, t_right, t_bottom] = target.client_rect_px;
     let game_w = t_right.saturating_sub(t_left).max(1);
     let game_h = t_bottom.saturating_sub(t_top).max(1);
-    let scale = target.hud_pixels_per_point();
-    let px = |points: f32| (points * scale).round() as i32;
-
-    let (off_x, off_y, width_px, height_px) =
-        if mayhem_open && mode != HudPresentationMode::Integrated {
-            let w = px(MAYHEM_WINDOW_PTS[0]);
-            let top = px(52.0);
-            let max_h = ((game_h as f32 * MAYHEM_WINDOW_MAX_BOTTOM) as i32 - top).max(1);
-            (
-                (game_w - w).max(0),
-                top,
-                w.min(game_w),
-                px(MAYHEM_WINDOW_PTS[1]).min(max_h).min(game_h),
-            )
-        } else {
-            match mode {
-                HudPresentationMode::Bar => {
-                    let clamped_w = px(BAR_WINDOW_PTS[0]).min(game_w);
-                    (
-                        ((game_w - clamped_w) / 2).max(0),
-                        px(12.0),
-                        clamped_w,
-                        px(BAR_WINDOW_PTS[1]).min(game_h),
-                    )
-                }
-                HudPresentationMode::Pill => {
-                    let clamped_w = px(PILL_WINDOW_PTS[0]).min(game_w);
-                    (
-                        (game_w - clamped_w - px(14.0)).max(0),
-                        px(58.0),
-                        clamped_w,
-                        px(PILL_WINDOW_PTS[1]).min(game_h),
-                    )
-                }
-                HudPresentationMode::Card => {
-                    let clamped_w = px(CARD_WINDOW_PTS[0]).min(game_w);
-                    (
-                        (game_w - clamped_w - px(14.0)).max(0),
-                        px(58.0),
-                        clamped_w,
-                        px(CARD_WINDOW_PTS[1]).min(game_h),
-                    )
-                }
-                HudPresentationMode::Integrated => {
-                    // Keep 1 physical pixel inside a full-screen client rect so Windows DWM does not
-                    // treat the topmost DirectComposition window as exclusive full-screen occlusion.
-                    (0, 0, (game_w - 1).max(1), (game_h - 1).max(1))
-                }
-            }
-        };
+    // Keep 1 physical pixel inside a full-screen client rect so Windows DWM does not treat the
+    // topmost DirectComposition window as exclusive full-screen occlusion.
+    let (off_x, off_y, width_px, height_px) = (0, 0, (game_w - 1).max(1), (game_h - 1).max(1));
 
     let mut left = t_left + off_x;
     let mut top = t_top + off_y;
@@ -425,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn compact_windows_scale_with_the_hud_and_mayhem_stays_clear_of_the_minimap() {
+    fn hud_window_covers_the_game_one_pixel_inside() {
         for (client, dpi) in [([1280, 720], 96), ([1920, 1080], 144), ([3840, 2160], 192)] {
             let target = TargetWindowState {
                 hwnd: 1,
@@ -434,33 +379,7 @@ mod tests {
                 is_foreground: true,
                 presentation: DisplayPresentationMode::ExclusiveFullscreen,
             };
-            let ppp = target.hud_pixels_per_point();
-            for (mode, size) in [
-                (HudPresentationMode::Bar, BAR_WINDOW_PTS),
-                (HudPresentationMode::Pill, PILL_WINDOW_PTS),
-                (HudPresentationMode::Card, CARD_WINDOW_PTS),
-            ] {
-                let rect = compute_overlay_rect_px(&target, None, mode, false);
-                assert_eq!(
-                    rect[2] - rect[0],
-                    (size[0] * ppp).round() as i32,
-                    "{mode:?}"
-                );
-                assert_eq!(
-                    rect[3] - rect[1],
-                    (size[1] * ppp).round() as i32,
-                    "{mode:?}"
-                );
-                let mayhem = compute_overlay_rect_px(&target, None, mode, true);
-                assert!(mayhem[2] <= client[0] && mayhem[0] >= 0, "{mode:?}");
-                assert!(
-                    mayhem[3] as f32 <= client[1] as f32 * MAYHEM_WINDOW_MAX_BOTTOM,
-                    "{mode:?} {client:?}"
-                );
-            }
-            // Integrated keeps the 1-pixel inset inside a full-screen client rect.
-            let full =
-                compute_overlay_rect_px(&target, None, HudPresentationMode::Integrated, false);
+            let full = compute_overlay_rect_px(&target, None);
             assert_eq!(full, [0, 0, client[0] - 1, client[1] - 1]);
         }
     }

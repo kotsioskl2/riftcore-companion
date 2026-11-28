@@ -268,6 +268,12 @@ impl LiveGameState {
         is_aram_mode(&self.game_mode, self.map_number)
     }
 
+    /// True in modes with augments: ARAM Mayhem (reported as `KIWI`) and Arena (`CHERRY`).
+    /// Gates the in-game augment card guide.
+    pub fn has_augments(&self) -> bool {
+        mode_has_augments(&self.game_mode)
+    }
+
     /// Returns allied teammates (excluding active player) for manual ally R reference.
     pub fn allied_teammates(&self) -> Vec<AllyTeammate> {
         let own_team = if !self.active_player.team.is_empty() {
@@ -510,6 +516,14 @@ pub fn countdown_secs(ready_at: f64, now: f64) -> u64 {
     } else {
         0
     }
+}
+
+/// True for Live Client `gameMode`s with augments: ARAM Mayhem (`KIWI`) and Arena (`CHERRY`).
+pub fn mode_has_augments(game_mode: &str) -> bool {
+    let mode = game_mode.trim();
+    ["KIWI", "CHERRY", "ARENA"]
+        .iter()
+        .any(|m| mode.eq_ignore_ascii_case(m))
 }
 
 /// [`LiveGameState::is_aram`] for callers holding raw `gameMode` / `mapNumber` values.
@@ -1244,6 +1258,26 @@ mod tests {
             "events": { "Events": [] }
         });
         assert!(objective_timers_from_json(&aram).is_empty());
+    }
+
+    #[test]
+    fn augment_modes_are_aram_mayhem_and_arena_only() {
+        let game = |mode: &str, map: u32| LiveGameState {
+            game_mode: mode.to_string(),
+            map_number: map,
+            ..Default::default()
+        };
+        assert!(game("KIWI", 12).has_augments());
+        assert!(game("CHERRY", 30).has_augments());
+        for (mode, map) in [
+            ("CLASSIC", 11),
+            ("ARAM", 12),
+            ("URF", 11),
+            ("TFT", 22),
+            ("", 0),
+        ] {
+            assert!(!game(mode, map).has_augments(), "{mode}");
+        }
     }
 
     #[test]

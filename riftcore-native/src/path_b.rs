@@ -15,9 +15,7 @@ use riftcore_native::overlay::engine::{
 use riftcore_native::overlay::host::{
     OverlayFrameActions, OverlayPanelSettings, OverlayRenderState, OverlaySurfaceHost,
 };
-use riftcore_native::overlay::hud_modes::{
-    monitor_for_rect, HudPresentationMode, TargetWindowState,
-};
+use riftcore_native::overlay::hud_modes::{monitor_for_rect, TargetWindowState};
 use riftcore_native::overlay::panels::render_overlay_ui;
 use riftcore_native::overlay::win32_host::Win32OverlayHost;
 use riftcore_native::platform::window::{
@@ -193,11 +191,9 @@ impl PathBOverlay {
         );
 
         let settings = frame.settings;
-        self.config.mode = HudPresentationMode::parse_lossy(&settings.hud_mode);
         self.config.edit_layout = settings.hud_edit_layout;
         self.config.positions.clone_from(&settings.hud_positions);
         self.config.force_passthrough = frame.force_passthrough;
-        self.config.mayhem_open = frame.show_mayhem_cards;
 
         // Both settings structs share the same JSON shape, so convert through JSON, but only
         // when the settings changed; a failed conversion keeps the last good HUD settings.

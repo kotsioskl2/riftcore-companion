@@ -170,7 +170,11 @@ pub struct RiftCoreApp {
     pinned: bool,
     show_quick_tour: bool,
     show_whats_new: bool,
+    /// In-game HUD cards drawer (Mayhem & Arena augments).
     show_mayhem_cards: bool,
+    /// Card guide dialog in the main window (Modes page); separate from the HUD drawer so
+    /// opening one never opens the other.
+    show_mayhem_guide: bool,
     show_overlay_build: bool,
     show_overlay_timers: bool,
     overlay_timer_tab: String,
@@ -390,6 +394,7 @@ impl RiftCoreApp {
             show_quick_tour,
             show_whats_new,
             show_mayhem_cards: false,
+            show_mayhem_guide: false,
             show_overlay_build: false,
             show_overlay_timers: false,
             overlay_timer_tab: "OBJECTIVES".to_string(),
@@ -469,7 +474,22 @@ impl RiftCoreApp {
         }
     }
 
+    /// In-game augment cards are offered only in ARAM Mayhem and Arena.
+    fn hud_cards_available(&self) -> bool {
+        self.settings.hud_mayhem_cards
+            && self
+                .snapshot
+                .live_game
+                .as_ref()
+                .and_then(|live| live.pointer("/gameData/gameMode"))
+                .and_then(Value::as_str)
+                .is_some_and(riftcore_native::domain::live_game::mode_has_augments)
+    }
+
     fn render_overlay_viewport(&mut self, ctx: &egui::Context) {
+        if !self.hud_cards_available() {
+            self.show_mayhem_cards = false;
+        }
         if !self.overlay_mode {
             if self.overlay_viewport_open {
                 ctx.send_viewport_cmd_to(overlay_viewport_id(), egui::ViewportCommand::Close);
@@ -1081,7 +1101,7 @@ impl RiftCoreApp {
                         &self.tft_tab,
                         self.selected_game_mode,
                         self.champ_select_detail_tab,
-                        self.show_mayhem_cards,
+                        self.show_mayhem_guide,
                     ),
                 );
                 if self.active_page == Page::ChampSelect {
@@ -2636,9 +2656,20 @@ impl RiftCoreApp {
         let status = self.path_b.as_ref().filter(|_| self.overlay_mode);
         let status = status.and_then(|path_b| path_b.status().message());
         let fullscreen = self.snapshot.league_window_mode == Some(0);
+        let classic_hud = self.path_b.is_none();
         panel(ui, |ui| {
             if let Some(message) = status {
                 ui.label(RichText::new(message).size(12.5).strong().color(GOLD));
+                ui.add_space(4.0);
+            }
+            if classic_hud {
+                ui.label(
+                    RichText::new(
+                        "Classic HUD in use: the DirectX 12 overlay could not start on this PC. It works in Borderless and shows the basic panels only (no benchmark, item gold or scouting).",
+                    )
+                    .size(10.5)
+                    .color(GOLD),
+                );
                 ui.add_space(4.0);
             }
             if fullscreen {
@@ -3052,7 +3083,11 @@ impl RiftCoreApp {
             }),
             HudSettingsTab::Layout => ui.columns(2, |columns| {
                 panel(&mut columns[0], |ui| {
-                    panel_title(ui, "HUD PRESENTATION", "Choose the overlay arrangement");
+                    panel_title(
+                        ui,
+                        "HUD PRESENTATION",
+                        "Style of the stats panel; every overlay shows in each style",
+                    );
                     ui.horizontal_wrapped(|ui| {
                         for (mode, label) in [
                             ("integrated", "INTEGRATED"),
@@ -3176,7 +3211,7 @@ impl RiftCoreApp {
             }
         });
         if action_button(ui, "OPEN MAYHEM & ARENA CARD GUIDE", false, GOLD).clicked() {
-            self.show_mayhem_cards = true;
+            self.show_mayhem_guide = true;
         }
         ui.add_space(12.0);
         let mode_index = self.selected_game_mode.min(5);
@@ -6115,7 +6150,7 @@ impl RiftCoreApp {
             }
         }
 
-        if self.show_mayhem_cards {
+        if self.show_mayhem_guide {
             let cards = MAYHEM_CARDS.as_array().cloned().unwrap_or_default();
             let mut close = false;
             egui::Modal::new(egui::Id::unique("riftcore-mayhem-guide"))
@@ -6198,7 +6233,7 @@ impl RiftCoreApp {
                     ui.label(RichText::new("Curated card descriptions can change between patches; check the in-game card text before choosing.").size(9.0).color(MUTED));
                 });
             if close {
-                self.show_mayhem_cards = false;
+                self.show_mayhem_guide = false;
             }
         }
 
@@ -6823,6 +6858,7 @@ impl RiftCoreApp {
 
     fn render_overlay(&mut self, ui: &mut egui::Ui) {
         self.overlay_interactive_regions.clear();
+        let cards_ok = self.hud_cards_available();
         let ctx = ui.ctx().clone();
         let live_snapshot = self.snapshot.live_game.clone();
         let frame_fill = Color32::TRANSPARENT;
@@ -6911,7 +6947,7 @@ impl RiftCoreApp {
                                             .color(GREEN),
                                         );
                                     }
-                                    if self.settings.hud_mayhem_cards
+                                    if cards_ok
                                         && action_button(ui, "CARDS", self.show_mayhem_cards, GOLD)
                                             .clicked()
                                     {
@@ -6954,7 +6990,7 @@ impl RiftCoreApp {
                                             .size(10.0)
                                             .color(GOLD),
                                     );
-                                    if self.settings.hud_mayhem_cards
+                                    if cards_ok
                                         && action_button(ui, "CARDS", self.show_mayhem_cards, GOLD)
                                             .clicked()
                                     {
@@ -7031,7 +7067,7 @@ impl RiftCoreApp {
                                     }
                                 }
                                 ui.horizontal(|ui| {
-                                    if self.settings.hud_mayhem_cards
+                                    if cards_ok
                                         && action_button(
                                             ui,
                                             "MAYHEM & ARENA CARDS",
@@ -7372,7 +7408,7 @@ impl RiftCoreApp {
                                                     .color(GOLD),
                                             );
                                         }
-                                        if self.settings.hud_mayhem_cards
+                                        if cards_ok
                                             && action_button(
                                                 ui,
                                                 "MAYHEM CARDS",

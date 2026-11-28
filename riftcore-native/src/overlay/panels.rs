@@ -337,11 +337,10 @@ pub fn render_overlay_ui(
             let clock = state.clock_secs;
             let now_secs = clock as f64;
             state.manual_timers.retain(|_, end| *end > now_secs);
-            if state.settings.hud_mode != HudPresentationMode::Integrated && state.show_mayhem_cards
-            {
-                // Compact modes swap their small window for the cards drawer while it is open.
-                render_mayhem_drawer(&ctx, area, state, interactive_rects_out);
-                return;
+            // Augment cards exist only in ARAM Mayhem and Arena; anywhere else they stay closed.
+            let cards_ok = cards_available(state);
+            if !cards_ok {
+                state.show_mayhem_cards = false;
             }
             let live_ref = state.live_game.as_ref();
             let scores = live_ref.map(|g| &g.active_player.scores);
@@ -370,332 +369,476 @@ pub fn render_overlay_ui(
                     "LIVE"
                 });
 
-            match state.settings.hud_mode {
-                HudPresentationMode::Bar => {
-                    let bar = Frame::new()
-                        .fill(panel_fill(state.settings.opacity, 238))
-                        .stroke(Stroke::new(1.0, CYAN))
-                        .corner_radius(CornerRadius::same(12))
-                        .inner_margin(Margin::symmetric(12, 7))
-                        .show(ui, |ui| {
-                            ui.horizontal_centered(|ui| {
-                                ui.label(RichText::new("RIFTCORE").size(10.0).strong().color(CYAN));
-                                ui.separator();
-                                ui.label(
-                                    RichText::new(format_clock(clock))
-                                        .size(16.0)
-                                        .monospace()
-                                        .strong()
-                                        .color(TEXT),
-                                );
-                                chip(ui, &format!("LV {}", x.level), CYAN, false);
-                                ui.label(RichText::new(&kda).size(12.0).strong().color(TEXT));
-                                ui.label(
-                                    RichText::new(format!("{creep_score} CS"))
-                                        .size(10.5)
-                                        .color(GOLD),
-                                );
-                                if state.settings.hud_cs_benchmark {
-                                    ui.label(
-                                        RichText::new(format!("{cs_per_minute:.1}/m"))
-                                            .size(10.0)
-                                            .color(x.pace),
-                                    );
-                                }
-                                if state.settings.hud_gold_lead {
-                                    ui.label(
-                                        RichText::new(format!("{current_gold} G"))
-                                            .size(10.0)
-                                            .color(GREEN),
-                                    );
-                                }
-                                next_chips(ui, &x, skill_on, false);
-                                if state.settings.hud_mayhem_cards
-                                    && overlay_button(ui, "CARDS", state.show_mayhem_cards, GOLD)
-                                        .clicked()
-                                {
-                                    state.show_mayhem_cards = !state.show_mayhem_cards;
-                                }
-                                if overlay_button(ui, "×", false, RED).clicked() {
-                                    state.pending_actions.request_close_overlay = true;
-                                }
-                            });
-                        });
-                    interactive_rects_out.push(bar.response.rect);
-                    return;
-                }
-                HudPresentationMode::Pill => {
-                    let pill = Frame::new()
-                        .fill(panel_fill(state.settings.opacity, 238))
-                        .stroke(Stroke::new(1.0, GOLD))
-                        .corner_radius(CornerRadius::same(20))
-                        .inner_margin(Margin::symmetric(13, 7))
-                        .show(ui, |ui| {
-                            ui.horizontal_centered(|ui| {
-                                ui.label(
-                                    RichText::new(format_clock(clock))
-                                        .size(14.0)
-                                        .monospace()
-                                        .strong()
-                                        .color(TEXT),
-                                );
-                                chip(ui, &format!("LV {}", x.level), CYAN, false);
-                                ui.label(RichText::new(&kda).size(11.0).strong().color(TEXT));
-                                ui.label(
-                                    RichText::new(format!("{creep_score} CS"))
-                                        .size(10.0)
-                                        .color(GOLD),
-                                );
-                                if state.settings.hud_cs_benchmark {
-                                    ui.label(
-                                        RichText::new(format!("{cs_per_minute:.1}/m"))
-                                            .size(9.5)
-                                            .color(x.pace),
-                                    );
-                                }
-                                next_chips(ui, &x, skill_on, false);
-                                if state.settings.hud_mayhem_cards
-                                    && overlay_button(ui, "CARDS", state.show_mayhem_cards, GOLD)
-                                        .clicked()
-                                {
-                                    state.show_mayhem_cards = !state.show_mayhem_cards;
-                                }
-                                if overlay_button(ui, "×", false, RED).clicked() {
-                                    state.pending_actions.request_close_overlay = true;
-                                }
-                            });
-                        });
-                    interactive_rects_out.push(pill.response.rect);
-                    return;
-                }
-                HudPresentationMode::Card => {
-                    let card = Frame::new()
-                        .fill(panel_fill(state.settings.opacity, 240))
-                        .stroke(Stroke::new(1.0, CYAN))
-                        .corner_radius(CornerRadius::same(16))
-                        .inner_margin(Margin::same(14))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.vertical(|ui| {
-                                    ui.label(
-                                        RichText::new("LIVE TACTICAL CARD")
-                                            .size(9.5)
-                                            .strong()
-                                            .color(CYAN),
-                                    );
-                                    ui.label(
-                                        RichText::new(format!(
-                                            "{}  ·  {game_mode}",
-                                            format_clock(clock)
-                                        ))
-                                        .size(15.0)
-                                        .strong()
-                                        .color(TEXT),
-                                    );
-                                });
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    if overlay_button(ui, "×", false, RED).clicked() {
-                                        state.pending_actions.request_close_overlay = true;
-                                    }
-                                });
-                            });
-                            ui.separator();
-                            ui.horizontal(|ui| {
-                                overlay_metric(ui, "K / D / A", &kda, TEXT);
-                                overlay_metric(ui, "CS", &creep_score.to_string(), GOLD);
-                                overlay_metric(
-                                    ui,
-                                    "CS / MIN",
-                                    &format!("{cs_per_minute:.1}"),
-                                    x.pace,
-                                );
-                                if let Some(cs10) = x.cs10 {
-                                    overlay_metric(ui, "CS@10", &cs10.to_string(), SECONDARY);
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                overlay_metric(ui, "LEVEL", &x.level.to_string(), CYAN);
-                                if state.settings.hud_gold_lead {
-                                    let kp = x.kp.trim_start_matches("KP ");
-                                    overlay_metric(ui, "KILL PART.", kp, TEXT);
-                                    let team =
-                                        x.score.map_or("—".into(), |(a, e)| format!("{a} – {e}"));
-                                    overlay_metric(ui, "TEAM", &team, TEXT);
-                                }
-                                if state.settings.hud_trinket_reminder {
-                                    overlay_metric(ui, "VISION", &x.vision.to_string(), SECONDARY);
-                                }
-                            });
-                            ui.horizontal_wrapped(|ui| next_chips(ui, &x, skill_on, item_on));
-                            if state.settings.hud_gold_lead {
-                                ui.label(
-                                    RichText::new(format!("CURRENT GOLD   {current_gold}"))
-                                        .size(11.0)
-                                        .color(GREEN),
-                                );
-                            }
-                            if state.settings.hud_objective_timers {
-                                if let Some(live) = live_ref {
-                                    for timer in live.objective_timers_at(now_secs) {
-                                        ui.label(
-                                            RichText::new(format!(
-                                                "{:<9}  {}",
-                                                timer.label,
-                                                timer.formatted_remaining()
-                                            ))
-                                            .size(10.5)
-                                            .monospace()
-                                            .color(TEXT),
-                                        );
-                                    }
-                                }
-                            }
-                            ui.horizontal(|ui| {
-                                if state.settings.hud_mayhem_cards
-                                    && overlay_button(
-                                        ui,
-                                        "MAYHEM & ARENA CARDS",
-                                        state.show_mayhem_cards,
-                                        GOLD,
-                                    )
-                                    .clicked()
-                                {
-                                    state.show_mayhem_cards = !state.show_mayhem_cards;
-                                }
-                            });
-                        });
-                    interactive_rects_out.push(card.response.rect);
-                    return;
-                }
-                HudPresentationMode::Integrated => {}
-            }
-
-            // Integrated full-viewport HUD. League's HUD (ability bar, minimap, chat) scales
-            // with the game size; RiftCore's panels keep clear of it and of each other:
-            // scoreboard and toolbar top-centre, ally ults top-left, player panel top-right,
-            // objectives dock right above League's minimap, one drawer at a time under the toolbar.
+            // Every HUD style covers the whole game: the style only picks the main stats panel
+            // (scoreboard and player panel, top bar, minimap pill or tactical card). The other
+            // overlays (minimap pins, objectives, ally and relic timers, benchmark, toolbar and
+            // drawers) show in every style. League's HUD (ability bar, minimap, chat) scales with
+            // the game size; RiftCore's panels keep clear of it and of each other.
             let screen = ctx.content_rect();
             let minimap = minimap_square(screen, &state.settings);
             let ability_bar = league_ability_bar_zone(screen);
             render_minimap_guide_pins(&ctx, screen, live_ref, &state.settings, clock);
             let edit = state.settings.hud_edit_layout;
+            let mode = state.settings.hud_mode;
 
-            let top_id = Id::unique("riftcore-hud-top");
-            let top_size = measured_size(&ctx, top_id, Vec2::new(600.0, 70.0));
-            let top_moved = state.settings.hud_positions.contains_key("scoreboard");
-            let top_pos = saved_or(
-                &state.settings.hud_positions,
-                "scoreboard",
-                area,
-                top_size,
-                Pos2::new(area.center().x - top_size.x / 2.0, area.top() + 20.0),
-            );
-            let top_resp = show_settled(
-                &ctx,
-                top_id,
-                overlay_area(top_id).current_pos(top_pos).movable(edit),
-                |ui| {
-                    Frame::new()
-                        .fill(panel_fill(state.settings.opacity, 228))
-                        .stroke(Stroke::new(1.0, CYAN))
-                        .inner_margin(Margin::same(10))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("◆ RIFTCORE").size(11.0).strong().color(CYAN),
-                                );
-                                ui.separator();
-                                ui.label(
-                                    RichText::new(format_clock(clock))
-                                        .monospace()
-                                        .size(18.0)
-                                        .strong()
-                                        .color(TEXT),
-                                );
-                                ui.separator();
-                                chip(ui, &format!("LV {}", x.level), CYAN, false);
-                                ui.label(RichText::new(&kda).size(13.0).strong().color(TEXT));
-                                if state.settings.hud_gold_lead {
-                                    ui.label(RichText::new(&x.kp).size(10.5).color(SECONDARY));
-                                    if let Some((a, e)) = x.score {
+            // The main panel at the top centre (the toolbar goes under it) or top right (the
+            // benchmark can go under it), when it is at its default place.
+            let mut top_centre: Option<Rect> = None;
+            let mut top_right: Option<Rect> = None;
+            match mode {
+                HudPresentationMode::Bar => {
+                    let id = Id::unique("riftcore-hud-bar");
+                    let size = measured_size(&ctx, id, Vec2::new(620.0, 44.0));
+                    let moved = state.settings.hud_positions.contains_key("bar");
+                    let pos = saved_or(
+                        &state.settings.hud_positions,
+                        "bar",
+                        area,
+                        size,
+                        Pos2::new(area.center().x - size.x / 2.0, area.top()),
+                    );
+                    let resp = show_settled(
+                        &ctx,
+                        id,
+                        overlay_area(id).current_pos(pos).movable(edit),
+                        |ui| {
+                            Frame::new()
+                                .fill(panel_fill(state.settings.opacity, 238))
+                                .stroke(Stroke::new(1.0, CYAN))
+                                .corner_radius(CornerRadius::same(12))
+                                .inner_margin(Margin::symmetric(12, 7))
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
                                         ui.label(
-                                            RichText::new(format!("{a} – {e}"))
-                                                .size(11.5)
+                                            RichText::new("RIFTCORE")
+                                                .size(10.0)
+                                                .strong()
+                                                .color(CYAN),
+                                        );
+                                        ui.separator();
+                                        ui.label(
+                                            RichText::new(format_clock(clock))
+                                                .size(16.0)
+                                                .monospace()
                                                 .strong()
                                                 .color(TEXT),
                                         );
+                                        chip(ui, &format!("LV {}", x.level), CYAN, false);
+                                        ui.label(
+                                            RichText::new(&kda).size(12.0).strong().color(TEXT),
+                                        );
+                                        ui.label(
+                                            RichText::new(format!("{creep_score} CS"))
+                                                .size(10.5)
+                                                .color(GOLD),
+                                        );
+                                        if state.settings.hud_cs_benchmark {
+                                            ui.label(
+                                                RichText::new(format!("{cs_per_minute:.1}/m"))
+                                                    .size(10.0)
+                                                    .color(x.pace),
+                                            );
+                                        }
+                                        if state.settings.hud_gold_lead {
+                                            ui.label(
+                                                RichText::new(format!("{current_gold} G"))
+                                                    .size(10.0)
+                                                    .color(GREEN),
+                                            );
+                                        }
+                                        next_chips(ui, &x, skill_on, false);
+                                        if cards_ok
+                                            && overlay_button(
+                                                ui,
+                                                "CARDS",
+                                                state.show_mayhem_cards,
+                                                GOLD,
+                                            )
+                                            .clicked()
+                                        {
+                                            state.show_mayhem_cards = !state.show_mayhem_cards;
+                                        }
+                                        if overlay_button(ui, "×", false, RED).clicked() {
+                                            state.pending_actions.request_close_overlay = true;
+                                        }
+                                    });
+                                })
+                        },
+                    );
+                    remember_drag(
+                        &mut state.settings.hud_positions,
+                        &mut state.pending_actions.updated_positions,
+                        "bar",
+                        &resp.response,
+                    );
+                    interactive_rects_out.push(resp.response.rect);
+                    if !moved {
+                        top_centre = Some(resp.response.rect);
+                    }
+                }
+                HudPresentationMode::Pill => {
+                    let id = Id::unique("riftcore-hud-pill");
+                    let size = measured_size(&ctx, id, Vec2::new(440.0, 44.0));
+                    let moved = state.settings.hud_positions.contains_key("pill");
+                    let pos = saved_or(
+                        &state.settings.hud_positions,
+                        "pill",
+                        area,
+                        size,
+                        Pos2::new(area.right() - size.x, area.top() + 44.0),
+                    );
+                    let resp = show_settled(
+                        &ctx,
+                        id,
+                        overlay_area(id).current_pos(pos).movable(edit),
+                        |ui| {
+                            Frame::new()
+                                .fill(panel_fill(state.settings.opacity, 238))
+                                .stroke(Stroke::new(1.0, GOLD))
+                                .corner_radius(CornerRadius::same(20))
+                                .inner_margin(Margin::symmetric(13, 7))
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(format_clock(clock))
+                                                .size(14.0)
+                                                .monospace()
+                                                .strong()
+                                                .color(TEXT),
+                                        );
+                                        chip(ui, &format!("LV {}", x.level), CYAN, false);
+                                        ui.label(
+                                            RichText::new(&kda).size(11.0).strong().color(TEXT),
+                                        );
+                                        ui.label(
+                                            RichText::new(format!("{creep_score} CS"))
+                                                .size(10.0)
+                                                .color(GOLD),
+                                        );
+                                        if state.settings.hud_cs_benchmark {
+                                            ui.label(
+                                                RichText::new(format!("{cs_per_minute:.1}/m"))
+                                                    .size(9.5)
+                                                    .color(x.pace),
+                                            );
+                                        }
+                                        next_chips(ui, &x, skill_on, false);
+                                        if cards_ok
+                                            && overlay_button(
+                                                ui,
+                                                "CARDS",
+                                                state.show_mayhem_cards,
+                                                GOLD,
+                                            )
+                                            .clicked()
+                                        {
+                                            state.show_mayhem_cards = !state.show_mayhem_cards;
+                                        }
+                                        if overlay_button(ui, "×", false, RED).clicked() {
+                                            state.pending_actions.request_close_overlay = true;
+                                        }
+                                    });
+                                })
+                        },
+                    );
+                    remember_drag(
+                        &mut state.settings.hud_positions,
+                        &mut state.pending_actions.updated_positions,
+                        "pill",
+                        &resp.response,
+                    );
+                    interactive_rects_out.push(resp.response.rect);
+                    if !moved {
+                        top_right = Some(resp.response.rect);
+                    }
+                }
+                HudPresentationMode::Card => {
+                    let id = Id::unique("riftcore-hud-card");
+                    let size = measured_size(&ctx, id, Vec2::new(330.0, 300.0));
+                    let moved = state.settings.hud_positions.contains_key("card");
+                    let pos = saved_or(
+                        &state.settings.hud_positions,
+                        "card",
+                        area,
+                        size,
+                        Pos2::new(area.right() - size.x, area.top() + 44.0),
+                    );
+                    let resp = show_settled(
+                        &ctx,
+                        id,
+                        overlay_area(id).current_pos(pos).movable(edit),
+                        |ui| {
+                            Frame::new()
+                                .fill(panel_fill(state.settings.opacity, 240))
+                                .stroke(Stroke::new(1.0, CYAN))
+                                .corner_radius(CornerRadius::same(16))
+                                .inner_margin(Margin::same(14))
+                                .show(ui, |ui| {
+                                    ui.set_width(CARD_PANEL_WIDTH);
+                                    ui.horizontal(|ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label(
+                                                RichText::new("LIVE TACTICAL CARD")
+                                                    .size(9.5)
+                                                    .strong()
+                                                    .color(CYAN),
+                                            );
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "{}  ·  {game_mode}",
+                                                    format_clock(clock)
+                                                ))
+                                                .size(15.0)
+                                                .strong()
+                                                .color(TEXT),
+                                            );
+                                        });
+                                        ui.with_layout(
+                                            Layout::right_to_left(Align::Center),
+                                            |ui| {
+                                                if overlay_button(ui, "×", false, RED).clicked() {
+                                                    state.pending_actions.request_close_overlay =
+                                                        true;
+                                                }
+                                            },
+                                        );
+                                    });
+                                    ui.separator();
+                                    ui.horizontal(|ui| {
+                                        overlay_metric(ui, "K / D / A", &kda, TEXT);
+                                        overlay_metric(ui, "CS", &creep_score.to_string(), GOLD);
+                                        overlay_metric(
+                                            ui,
+                                            "CS / MIN",
+                                            &format!("{cs_per_minute:.1}"),
+                                            x.pace,
+                                        );
+                                        if let Some(cs10) = x.cs10 {
+                                            overlay_metric(
+                                                ui,
+                                                "CS@10",
+                                                &cs10.to_string(),
+                                                SECONDARY,
+                                            );
+                                        }
+                                    });
+                                    ui.horizontal(|ui| {
+                                        overlay_metric(ui, "LEVEL", &x.level.to_string(), CYAN);
+                                        if state.settings.hud_gold_lead {
+                                            let kp = x.kp.trim_start_matches("KP ");
+                                            overlay_metric(ui, "KILL PART.", kp, TEXT);
+                                            let team = x.score.map_or("—".into(), |(a, e)| {
+                                                format!("{a} – {e}")
+                                            });
+                                            overlay_metric(ui, "TEAM", &team, TEXT);
+                                        }
+                                        if state.settings.hud_trinket_reminder {
+                                            overlay_metric(
+                                                ui,
+                                                "VISION",
+                                                &x.vision.to_string(),
+                                                SECONDARY,
+                                            );
+                                        }
+                                    });
+                                    ui.horizontal_wrapped(|ui| {
+                                        next_chips(ui, &x, skill_on, item_on)
+                                    });
+                                    if skill_on && !x.skill_plan.is_empty() {
+                                        render_skill_plan(ui, &x.skill_plan, x.level);
                                     }
-                                }
-                                ui.separator();
-                                ui.label(
-                                    RichText::new(format!("{creep_score} CS"))
-                                        .size(11.5)
-                                        .color(GOLD),
-                                );
-                                if state.settings.hud_cs_benchmark {
-                                    ui.separator();
-                                    ui.label(
-                                        RichText::new(format!("{cs_per_minute:.1}/m"))
-                                            .size(11.0)
-                                            .color(x.pace),
-                                    );
-                                    if let Some(cs10) = x.cs10 {
-                                        let t = format!("@10 {cs10}");
-                                        ui.label(RichText::new(t).size(10.0).color(SECONDARY));
+                                    if state.settings.hud_gold_lead {
+                                        ui.label(
+                                            RichText::new(format!("CURRENT GOLD   {current_gold}"))
+                                                .size(11.0)
+                                                .color(GREEN),
+                                        );
                                     }
-                                }
-                                if state.settings.hud_gold_lead {
-                                    ui.separator();
-                                    ui.label(
-                                        RichText::new(format!("{current_gold} G"))
-                                            .size(11.0)
-                                            .color(GREEN),
-                                    );
-                                }
-                                if state.settings.hud_trinket_reminder {
-                                    let t = format!("VIS {}", x.vision);
-                                    ui.label(RichText::new(t).size(10.0).color(SECONDARY));
-                                }
-                                if let Some(board) = state
-                                    .settings
-                                    .hud_item_value_diff
-                                    .then(|| live_ref.and_then(benchmarks::item_value_board))
-                                    .flatten()
-                                {
-                                    ui.separator();
-                                    let diff = board.team_diff();
-                                    ui.label(
-                                        RichText::new(format!(
-                                            "ITEMS {}",
-                                            benchmarks::format_gold_diff(diff)
-                                        ))
-                                        .size(10.5)
-                                        .strong()
-                                        .color(diff_color(diff)),
-                                    );
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(game_mode).size(9.0).strong().color(MUTED));
-                                next_chips(ui, &x, skill_on, item_on);
-                            });
-                        });
-                },
-            );
-            remember_drag(
-                &mut state.settings.hud_positions,
-                &mut state.pending_actions.updated_positions,
-                "scoreboard",
-                &top_resp.response,
-            );
-            if edit {
-                interactive_rects_out.push(top_resp.response.rect);
+                                    if state.settings.hud_objective_timers {
+                                        if let Some(live) = live_ref {
+                                            for timer in live.objective_timers_at(now_secs) {
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "{:<9}  {}",
+                                                        timer.label,
+                                                        timer.formatted_remaining()
+                                                    ))
+                                                    .size(10.5)
+                                                    .monospace()
+                                                    .color(TEXT),
+                                                );
+                                            }
+                                        }
+                                    }
+                                    if cards_ok
+                                        && overlay_button(
+                                            ui,
+                                            "MAYHEM & ARENA CARDS",
+                                            state.show_mayhem_cards,
+                                            GOLD,
+                                        )
+                                        .clicked()
+                                    {
+                                        state.show_mayhem_cards = !state.show_mayhem_cards;
+                                    }
+                                })
+                        },
+                    );
+                    remember_drag(
+                        &mut state.settings.hud_positions,
+                        &mut state.pending_actions.updated_positions,
+                        "card",
+                        &resp.response,
+                    );
+                    interactive_rects_out.push(resp.response.rect);
+                    if !moved {
+                        top_right = Some(resp.response.rect);
+                    }
+                }
+                HudPresentationMode::Integrated => {
+                    let top_id = Id::unique("riftcore-hud-top");
+                    let top_size = measured_size(&ctx, top_id, Vec2::new(600.0, 70.0));
+                    let top_moved = state.settings.hud_positions.contains_key("scoreboard");
+                    let top_pos = saved_or(
+                        &state.settings.hud_positions,
+                        "scoreboard",
+                        area,
+                        top_size,
+                        Pos2::new(area.center().x - top_size.x / 2.0, area.top() + 20.0),
+                    );
+                    let top_resp = show_settled(
+                        &ctx,
+                        top_id,
+                        overlay_area(top_id).current_pos(top_pos).movable(edit),
+                        |ui| {
+                            Frame::new()
+                                .fill(panel_fill(state.settings.opacity, 228))
+                                .stroke(Stroke::new(1.0, CYAN))
+                                .inner_margin(Margin::same(10))
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new("◆ RIFTCORE")
+                                                .size(11.0)
+                                                .strong()
+                                                .color(CYAN),
+                                        );
+                                        ui.separator();
+                                        ui.label(
+                                            RichText::new(format_clock(clock))
+                                                .monospace()
+                                                .size(18.0)
+                                                .strong()
+                                                .color(TEXT),
+                                        );
+                                        ui.separator();
+                                        chip(ui, &format!("LV {}", x.level), CYAN, false);
+                                        ui.label(
+                                            RichText::new(&kda).size(13.0).strong().color(TEXT),
+                                        );
+                                        if state.settings.hud_gold_lead {
+                                            ui.label(
+                                                RichText::new(&x.kp).size(10.5).color(SECONDARY),
+                                            );
+                                            if let Some((a, e)) = x.score {
+                                                ui.label(
+                                                    RichText::new(format!("{a} – {e}"))
+                                                        .size(11.5)
+                                                        .strong()
+                                                        .color(TEXT),
+                                                );
+                                            }
+                                        }
+                                        ui.separator();
+                                        ui.label(
+                                            RichText::new(format!("{creep_score} CS"))
+                                                .size(11.5)
+                                                .color(GOLD),
+                                        );
+                                        if state.settings.hud_cs_benchmark {
+                                            ui.separator();
+                                            ui.label(
+                                                RichText::new(format!("{cs_per_minute:.1}/m"))
+                                                    .size(11.0)
+                                                    .color(x.pace),
+                                            );
+                                            if let Some(cs10) = x.cs10 {
+                                                let t = format!("@10 {cs10}");
+                                                ui.label(
+                                                    RichText::new(t).size(10.0).color(SECONDARY),
+                                                );
+                                            }
+                                        }
+                                        if state.settings.hud_gold_lead {
+                                            ui.separator();
+                                            ui.label(
+                                                RichText::new(format!("{current_gold} G"))
+                                                    .size(11.0)
+                                                    .color(GREEN),
+                                            );
+                                        }
+                                        if state.settings.hud_trinket_reminder {
+                                            let t = format!("VIS {}", x.vision);
+                                            ui.label(RichText::new(t).size(10.0).color(SECONDARY));
+                                        }
+                                        if let Some(board) = state
+                                            .settings
+                                            .hud_item_value_diff
+                                            .then(|| {
+                                                live_ref.and_then(benchmarks::item_value_board)
+                                            })
+                                            .flatten()
+                                        {
+                                            ui.separator();
+                                            let diff = board.team_diff();
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "ITEMS {}",
+                                                    benchmarks::format_gold_diff(diff)
+                                                ))
+                                                .size(10.5)
+                                                .strong()
+                                                .color(diff_color(diff)),
+                                            );
+                                        }
+                                    });
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(game_mode)
+                                                .size(9.0)
+                                                .strong()
+                                                .color(MUTED),
+                                        );
+                                        next_chips(ui, &x, skill_on, item_on);
+                                    });
+                                });
+                        },
+                    );
+                    remember_drag(
+                        &mut state.settings.hud_positions,
+                        &mut state.pending_actions.updated_positions,
+                        "scoreboard",
+                        &top_resp.response,
+                    );
+                    if edit {
+                        interactive_rects_out.push(top_resp.response.rect);
+                    }
+                    if !top_moved {
+                        top_centre = Some(top_resp.response.rect);
+                    }
+                }
             }
+            // Panels at their default places in the left and right columns; drawers open
+            // between them.
+            let mut left_column: Vec<Rect> = Vec::new();
+            let mut right_column: Vec<Rect> = Vec::new();
 
             // Objectives dock: right above League's minimap (which already includes the nudge),
             // aligned with its outer edge. Summoner's Rift only: other maps have no timers.
             let mut dock_rect = None;
-            if live_ref.is_none_or(LiveGameState::is_summoners_rift) {
+            if mode != HudPresentationMode::Card
+                && live_ref.is_none_or(LiveGameState::is_summoners_rift)
+            {
                 let dock_id = Id::unique("riftcore-hud-objectives");
                 let dock_size = measured_size(&ctx, dock_id, Vec2::new(172.0, 80.0));
                 let dock_default = Pos2::new(
@@ -728,6 +871,14 @@ pub fn render_overlay_ui(
                     &dock_resp.response,
                 );
                 dock_rect = Some(dock_resp.response.rect);
+                if !state.settings.hud_positions.contains_key("objectives") {
+                    // Above the minimap: the right column, or the left one when it is flipped.
+                    if state.settings.hud_minimap_flip {
+                        left_column.push(dock_resp.response.rect);
+                    } else {
+                        right_column.push(dock_resp.response.rect);
+                    }
+                }
                 if edit {
                     interactive_rects_out.push(dock_resp.response.rect);
                 }
@@ -818,138 +969,148 @@ pub fn render_overlay_ui(
                             },
                         );
                         ally_bottom = Some(ally_resp.response.rect.bottom());
+                        left_column.push(ally_resp.response.rect);
                         interactive_rects_out.push(ally_resp.response.rect);
                     }
                 }
             }
 
-            // Player panel: top-right, under League's own top-right stats.
-            let player_id = Id::unique("riftcore-hud-player");
-            let player_size = measured_size(&ctx, player_id, Vec2::new(200.0, 140.0));
-            let player_pos = saved_or(
-                &state.settings.hud_positions,
-                "player",
-                area,
-                player_size,
-                player_default_pos(area),
-            );
-            let player_resp = show_settled(
-                &ctx,
-                player_id,
-                overlay_area(player_id)
-                    .current_pos(player_pos)
-                    .movable(edit),
-                |ui| {
-                    Frame::new()
-                        .fill(panel_fill(state.settings.opacity, 212))
-                        .stroke(Stroke::new(1.0, BORDER))
-                        .inner_margin(Margin::same(10))
-                        .show(ui, |ui| {
-                            ui.set_min_width(180.0);
-                            if state.settings.hud_skill_order {
-                                ui.label(
-                                    RichText::new("ABILITY RANKS")
-                                        .size(10.0)
-                                        .strong()
-                                        .color(CYAN),
-                                );
-                                let (q, w, e, r) = live_ref
-                                    .map(|g| {
-                                        let a = &g.active_player.abilities;
-                                        (
-                                            a.q.ability_level,
-                                            a.w.ability_level,
-                                            a.e.ability_level,
-                                            a.r.ability_level,
-                                        )
-                                    })
-                                    .unwrap_or((0, 0, 0, 0));
-                                ui.horizontal(|ui| {
-                                    for (slot, rank) in [("Q", q), ("W", w), ("E", e), ("R", r)] {
-                                        ui.label(
-                                            RichText::new(format!("{slot} {rank}"))
-                                                .size(10.5)
-                                                .monospace()
-                                                .color(TEXT),
-                                        );
-                                    }
-                                });
-                                if !x.skill_plan.is_empty() {
-                                    render_skill_plan(ui, &x.skill_plan, x.level);
-                                }
-                            }
-                            if state.settings.hud_item_goal {
-                                ui.add_space(5.0);
-                                ui.label(
-                                    RichText::new("INVENTORY").size(10.0).strong().color(GOLD),
-                                );
-                                if let Some(live) = live_ref {
-                                    let equipped: Vec<_> = live
-                                        .active_player
-                                        .items
-                                        .iter()
-                                        .filter(|it| it.item_id > 0)
-                                        .take(7)
-                                        .collect();
-                                    if equipped.is_empty() {
-                                        ui.label(
-                                            RichText::new("No items yet").size(10.0).color(MUTED),
-                                        );
-                                    } else {
-                                        for item in equipped {
-                                            let name = if item.display_name.is_empty() {
-                                                items::item_name(item.item_id)
-                                            } else {
-                                                item.display_name.clone()
-                                            };
-                                            let text_label = if item.count > 1 {
-                                                format!("{name} ×{}", item.count)
-                                            } else {
-                                                name
-                                            };
+            // Player panel (Integrated): top-right, under League's own top-right stats.
+            if mode == HudPresentationMode::Integrated {
+                let player_moved = state.settings.hud_positions.contains_key("player");
+                // Player panel: top-right, under League's own top-right stats.
+                let player_id = Id::unique("riftcore-hud-player");
+                let player_size = measured_size(&ctx, player_id, Vec2::new(200.0, 140.0));
+                let player_pos = saved_or(
+                    &state.settings.hud_positions,
+                    "player",
+                    area,
+                    player_size,
+                    player_default_pos(area),
+                );
+                let player_resp = show_settled(
+                    &ctx,
+                    player_id,
+                    overlay_area(player_id)
+                        .current_pos(player_pos)
+                        .movable(edit),
+                    |ui| {
+                        Frame::new()
+                            .fill(panel_fill(state.settings.opacity, 212))
+                            .stroke(Stroke::new(1.0, BORDER))
+                            .inner_margin(Margin::same(10))
+                            .show(ui, |ui| {
+                                ui.set_min_width(180.0);
+                                if state.settings.hud_skill_order {
+                                    ui.label(
+                                        RichText::new("ABILITY RANKS")
+                                            .size(10.0)
+                                            .strong()
+                                            .color(CYAN),
+                                    );
+                                    let (q, w, e, r) = live_ref
+                                        .map(|g| {
+                                            let a = &g.active_player.abilities;
+                                            (
+                                                a.q.ability_level,
+                                                a.w.ability_level,
+                                                a.e.ability_level,
+                                                a.r.ability_level,
+                                            )
+                                        })
+                                        .unwrap_or((0, 0, 0, 0));
+                                    ui.horizontal(|ui| {
+                                        for (slot, rank) in [("Q", q), ("W", w), ("E", e), ("R", r)]
+                                        {
                                             ui.label(
-                                                RichText::new(text_label)
-                                                    .size(10.0)
-                                                    .color(SECONDARY),
+                                                RichText::new(format!("{slot} {rank}"))
+                                                    .size(10.5)
+                                                    .monospace()
+                                                    .color(TEXT),
                                             );
+                                        }
+                                    });
+                                    if !x.skill_plan.is_empty() {
+                                        render_skill_plan(ui, &x.skill_plan, x.level);
+                                    }
+                                }
+                                if state.settings.hud_item_goal {
+                                    ui.add_space(5.0);
+                                    ui.label(
+                                        RichText::new("INVENTORY").size(10.0).strong().color(GOLD),
+                                    );
+                                    if let Some(live) = live_ref {
+                                        let equipped: Vec<_> = live
+                                            .active_player
+                                            .items
+                                            .iter()
+                                            .filter(|it| it.item_id > 0)
+                                            .take(7)
+                                            .collect();
+                                        if equipped.is_empty() {
+                                            ui.label(
+                                                RichText::new("No items yet")
+                                                    .size(10.0)
+                                                    .color(MUTED),
+                                            );
+                                        } else {
+                                            for item in equipped {
+                                                let name = if item.display_name.is_empty() {
+                                                    items::item_name(item.item_id)
+                                                } else {
+                                                    item.display_name.clone()
+                                                };
+                                                let text_label = if item.count > 1 {
+                                                    format!("{name} ×{}", item.count)
+                                                } else {
+                                                    name
+                                                };
+                                                ui.label(
+                                                    RichText::new(text_label)
+                                                        .size(10.0)
+                                                        .color(SECONDARY),
+                                                );
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            if state.settings.hud_trinket_reminder
-                                && missing_trinket_reminder(live_ref)
-                            {
-                                ui.add_space(5.0);
-                                ui.label(
-                                    RichText::new("TRINKET AVAILABLE")
-                                        .size(10.0)
-                                        .strong()
-                                        .color(GOLD),
-                                );
-                            }
-                            // Active-game live coaching gate (LIVE_COACH_ENABLED == false)
-                            if LIVE_COACH_ENABLED && state.effective_live_coaching_enabled() {
-                                ui.add_space(4.0);
-                                ui.label(
-                                    RichText::new("LIVE COACH INSIGHT")
-                                        .size(9.5)
-                                        .strong()
-                                        .color(CYAN),
-                                );
-                            }
-                        });
-                },
-            );
-            remember_drag(
-                &mut state.settings.hud_positions,
-                &mut state.pending_actions.updated_positions,
-                "player",
-                &player_resp.response,
-            );
-            if edit {
-                interactive_rects_out.push(player_resp.response.rect);
+                                if state.settings.hud_trinket_reminder
+                                    && missing_trinket_reminder(live_ref)
+                                {
+                                    ui.add_space(5.0);
+                                    ui.label(
+                                        RichText::new("TRINKET AVAILABLE")
+                                            .size(10.0)
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                }
+                                // Active-game live coaching gate (LIVE_COACH_ENABLED == false)
+                                if LIVE_COACH_ENABLED && state.effective_live_coaching_enabled() {
+                                    ui.add_space(4.0);
+                                    ui.label(
+                                        RichText::new("LIVE COACH INSIGHT")
+                                            .size(9.5)
+                                            .strong()
+                                            .color(CYAN),
+                                    );
+                                }
+                            });
+                    },
+                );
+                remember_drag(
+                    &mut state.settings.hud_positions,
+                    &mut state.pending_actions.updated_positions,
+                    "player",
+                    &player_resp.response,
+                );
+                if edit {
+                    interactive_rects_out.push(player_resp.response.rect);
+                }
+                if !player_moved {
+                    top_right = Some(player_resp.response.rect);
+                }
             }
-            let player_rect = player_resp.response.rect;
 
             // Benchmark: left edge, under the ally panel.
             let mut left_bottom = ally_bottom;
@@ -980,7 +1141,7 @@ pub fn render_overlay_ui(
                 } else {
                     let right_default = Pos2::new(
                         area.right() - 18.0 - bench_size.x,
-                        player_rect.bottom() + PANEL_GAP,
+                        top_right.map_or(area.top() + 92.0, |rect| rect.bottom()) + PANEL_GAP,
                     );
                     if clear(right_default) {
                         right_default
@@ -1023,6 +1184,9 @@ pub fn render_overlay_ui(
                 }
                 if !bench_moved && bench_left {
                     left_bottom = Some(bench_resp.response.rect.bottom());
+                    left_column.push(bench_resp.response.rect);
+                } else if !bench_moved {
+                    right_column.push(bench_resp.response.rect);
                 }
             }
 
@@ -1063,17 +1227,31 @@ pub fn render_overlay_ui(
                     &relic_resp.response,
                 );
                 interactive_rects_out.push(relic_resp.response.rect);
+                if !state.settings.hud_positions.contains_key("relics") {
+                    left_column.push(relic_resp.response.rect);
+                }
             }
 
-            // Toolbar: top-centre under the scoreboard, never over League's ability bar.
+            // Toolbar: top-centre under the scoreboard or top bar; with the pill or card at the
+            // top right it takes the top centre, left of that panel. Never over League's HUD.
             let toolbar_id = Id::unique("riftcore-hud-bottom");
             let toolbar_size = measured_size(&ctx, toolbar_id, Vec2::new(460.0, 38.0));
-            let mut toolbar_top = default_toolbar_pos(area);
-            if !top_moved {
-                toolbar_top.y = toolbar_top
-                    .y
-                    .max(top_resp.response.rect.bottom() + PANEL_GAP);
-            }
+            let toolbar_top = match (mode, top_centre) {
+                (HudPresentationMode::Integrated, Some(top)) => Pos2::new(
+                    area.center().x,
+                    default_toolbar_pos(area).y.max(top.bottom() + PANEL_GAP),
+                ),
+                (HudPresentationMode::Integrated, None) => default_toolbar_pos(area),
+                (_, Some(top)) => Pos2::new(area.center().x, top.bottom() + PANEL_GAP),
+                (_, None) => {
+                    let centre_x = top_right.map_or(area.center().x, |right| {
+                        area.center()
+                            .x
+                            .min(right.left() - PANEL_GAP - toolbar_size.x / 2.0)
+                    });
+                    Pos2::new(centre_x, area.top() + 20.0)
+                }
+            };
             let toolbar_area = match state.settings.hud_positions.get("toolbar") {
                 Some(pos) => overlay_area(toolbar_id).current_pos(clamp_logical_panel_pos(
                     *pos,
@@ -1089,7 +1267,7 @@ pub fn render_overlay_ui(
                 && live_ref.is_some_and(LiveGameState::is_summoners_rift))
             .then(|| jungle_route_status(clock, &state.settings.jungle_start_buff))
             .flatten();
-            let cards_on = state.settings.hud_mayhem_cards;
+            let cards_on = cards_ok;
             let gold_on = state.settings.hud_item_value_diff
                 && live_ref.is_some_and(|g| benchmarks::item_value_board(g).is_some());
             let scout_on = state.settings.hud_loading_scout;
@@ -1179,9 +1357,13 @@ pub fn render_overlay_ui(
             } else {
                 toolbar_resp.response.rect.bottom()
             };
-            let slot = Rect::from_min_max(
-                Pos2::new(area.left(), toolbar_bottom + PANEL_GAP),
-                Pos2::new(area.right(), ability_bar.top() - PANEL_GAP),
+            right_column.extend(top_right);
+            let slot = drawer_slot(
+                area,
+                toolbar_bottom + PANEL_GAP,
+                ability_bar.top() - PANEL_GAP,
+                &left_column,
+                &right_column,
             );
             if state.show_mayhem_cards {
                 render_mayhem_drawer(&ctx, slot, state, interactive_rects_out);
@@ -1206,6 +1388,43 @@ pub fn render_overlay_ui(
             }
         });
 }
+
+/// Width of the tactical card (TACTICAL CARD style), in points.
+const CARD_PANEL_WIDTH: f32 = 300.0;
+
+/// Augment cards are offered only where augments exist (ARAM Mayhem, Arena) or in preview.
+fn cards_available(state: &OverlayRenderState) -> bool {
+    state.settings.hud_mayhem_cards
+        && state
+            .live_game
+            .as_ref()
+            .map_or(state.preview_mode, LiveGameState::has_augments)
+}
+
+/// Where drawers open: from `top` to `bottom`, between the panels of the left and right
+/// columns (the full width when that gap is too narrow for a drawer).
+fn drawer_slot(area: Rect, top: f32, bottom: f32, left: &[Rect], right: &[Rect]) -> Rect {
+    let left_edge = left
+        .iter()
+        .map(|rect| rect.right() + PANEL_GAP)
+        .fold(area.left(), f32::max);
+    let right_edge = right
+        .iter()
+        .map(|rect| rect.left() - PANEL_GAP)
+        .fold(area.right(), f32::min);
+    let (left_edge, right_edge) = if right_edge - left_edge >= MIN_DRAWER_SLOT_WIDTH {
+        (left_edge, right_edge)
+    } else {
+        (area.left(), area.right())
+    };
+    Rect::from_min_max(
+        Pos2::new(left_edge, top),
+        Pos2::new(right_edge, bottom.max(top)),
+    )
+}
+
+/// Narrowest gap between the side columns that still takes a drawer.
+const MIN_DRAWER_SLOT_WIDTH: f32 = 560.0;
 
 /// The HUD's drawers; only one is open at a time and they share the slot under the toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2360,10 +2579,7 @@ fn manual_camp_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::overlay::hud_modes::{
-        compute_overlay_rect_px, hud_pixels_per_point, league_chat_zone, DisplayPresentationMode,
-        TargetWindowState,
-    };
+    use crate::overlay::hud_modes::hud_pixels_per_point;
     use serde_json::json;
 
     /// A busy late-game snapshot: big numbers, full inventory, four allies.
@@ -2486,85 +2702,105 @@ mod tests {
         (Vec2::new((w - 1) as f32 / ppp, (h - 1) as f32 / ppp), ppp)
     }
 
+    /// Panels a style shows with every panel reported (edit mode) and no drawer open.
+    fn expected_panels(mode: HudPresentationMode, game: &str) -> usize {
+        let sr = game == "CLASSIC";
+        // Ally ults, benchmark and toolbar in every style; relics in ARAM; the objectives
+        // dock on the Rift unless the tactical card lists the timers itself.
+        let shared = 3 + usize::from(!sr) + usize::from(sr && mode != HudPresentationMode::Card);
+        match mode {
+            // Scoreboard and player panel.
+            HudPresentationMode::Integrated => shared + 2,
+            // The bar, pill or card.
+            _ => shared + 1,
+        }
+    }
+
     #[test]
-    fn integrated_panels_avoid_each_other_and_league_hud_at_every_resolution() {
+    fn every_style_shows_every_overlay_clear_of_each_other_and_league_hud() {
+        const MODES: [HudPresentationMode; 4] = [
+            HudPresentationMode::Integrated,
+            HudPresentationMode::Bar,
+            HudPresentationMode::Pill,
+            HudPresentationMode::Card,
+        ];
         for display in DISPLAYS {
             let (size, ppp) = canvas(display);
             let screen = Rect::from_min_size(Pos2::ZERO, size);
-            for (aram, flip, drawer, big_map) in [
-                (false, false, 0, false),
-                (false, false, 1, false),
-                (false, false, 2, false),
-                (false, false, 3, false),
-                (false, false, 4, false),
-                (false, false, 5, false),
-                (false, true, 4, false),
-                (true, false, 4, false),
-                (true, true, 5, false),
-                (false, false, 5, true),
-                (false, true, 0, false),
-                (false, true, 3, false),
-                (true, false, 0, false),
-                (true, true, 1, false),
-                // Largest map scale and dock size the settings sliders allow.
-                (false, false, 0, true),
-                (false, true, 0, true),
-                (false, false, 3, true),
-            ] {
-                let mut state = OverlayRenderState::default();
-                state.apply_live_game(Some(if aram {
-                    busy_game("ARAM", 12)
-                } else {
-                    busy_game("CLASSIC", 11)
-                }));
-                // Edit mode reports every panel as interactive; passthrough off shows the
-                // widest toolbar.
-                state.settings.hud_edit_layout = true;
-                state.settings.hud_minimap_flip = flip;
-                if big_map {
-                    state.settings.hud_minimap_scale = 3.0;
-                    state.settings.hud_minimap_zoom = 1.35;
-                }
-                state.passthrough_active = false;
-                state.show_mayhem_cards = drawer == 1;
-                state.show_build_panel = drawer == 2;
-                state.show_timers_panel = drawer == 3;
-                state.show_gold_panel = drawer == 4;
-                state.show_scout_panel = drawer == 5;
-                state.scouting = scout_cards();
-                let ctx = egui::Context::default();
-                let first = frame(&ctx, &mut state, size, ppp);
-                let rects = frame(&ctx, &mut state, size, ppp);
-                let tag = format!(
-                    "{display:?} aram={aram} flip={flip} drawer={drawer} big_map={big_map}"
-                );
-                assert_eq!(first, rects, "first frame already final: {tag}");
-                // scoreboard, ally ults, benchmark, player panel, toolbar + dock (SR) or
-                // relics (ARAM).
-                let panels = 6 + usize::from(drawer > 0);
-                assert_eq!(rects.len(), panels, "{tag}: {rects:?}");
-
-                let zones = [
-                    ("ability bar", league_ability_bar_zone(screen)),
-                    ("minimap", minimap_square(screen, &state.settings)),
-                    ("chat", league_chat_zone(screen, flip)),
-                ];
-                for (i, rect) in rects.iter().enumerate() {
-                    assert!(
-                        screen.expand(0.5).contains_rect(*rect),
-                        "{tag}: {rect:?} off screen"
-                    );
-                    for (name, zone) in zones {
-                        assert!(
-                            !overlaps(*rect, zone),
-                            "{tag}: {rect:?} covers League's {name} {zone:?}"
-                        );
+            for mode in MODES {
+                // (game mode, minimap flipped, drawer, largest map). Augment cards (drawer 1)
+                // open only in ARAM Mayhem ("KIWI").
+                for (game, flip, drawer, big_map) in [
+                    ("CLASSIC", false, 0, false),
+                    ("KIWI", false, 1, false),
+                    ("CLASSIC", false, 2, false),
+                    ("CLASSIC", false, 3, false),
+                    ("CLASSIC", false, 4, false),
+                    ("CLASSIC", false, 5, false),
+                    ("CLASSIC", true, 0, false),
+                    ("CLASSIC", true, 3, false),
+                    ("CLASSIC", true, 4, false),
+                    ("ARAM", false, 0, false),
+                    ("ARAM", false, 4, false),
+                    ("KIWI", true, 1, false),
+                    ("ARAM", true, 5, false),
+                    // Largest map scale and dock size the settings sliders allow.
+                    ("CLASSIC", false, 0, true),
+                    ("CLASSIC", true, 0, true),
+                    ("CLASSIC", false, 3, true),
+                    ("CLASSIC", false, 5, true),
+                ] {
+                    let mut state = OverlayRenderState::default();
+                    let map = if game == "CLASSIC" { 11 } else { 12 };
+                    state.apply_live_game(Some(busy_game(game, map)));
+                    // Edit mode reports every panel as interactive; passthrough off shows the
+                    // widest toolbar.
+                    state.settings.hud_mode = mode;
+                    state.settings.hud_edit_layout = true;
+                    state.settings.hud_minimap_flip = flip;
+                    if big_map {
+                        state.settings.hud_minimap_scale = 3.0;
+                        state.settings.hud_minimap_zoom = 1.35;
                     }
-                    for other in &rects[i + 1..] {
+                    state.passthrough_active = false;
+                    state.show_mayhem_cards = drawer == 1;
+                    state.show_build_panel = drawer == 2;
+                    state.show_timers_panel = drawer == 3;
+                    state.show_gold_panel = drawer == 4;
+                    state.show_scout_panel = drawer == 5;
+                    state.scouting = scout_cards();
+                    let ctx = egui::Context::default();
+                    let first = frame(&ctx, &mut state, size, ppp);
+                    let rects = frame(&ctx, &mut state, size, ppp);
+                    let tag = format!(
+                        "{display:?} {mode:?} {game} flip={flip} drawer={drawer} big_map={big_map}"
+                    );
+                    assert_eq!(first, rects, "first frame already final: {tag}");
+                    let panels = expected_panels(mode, game) + usize::from(drawer > 0);
+                    assert_eq!(rects.len(), panels, "{tag}: {rects:?}");
+
+                    let zones = [
+                        ("ability bar", league_ability_bar_zone(screen)),
+                        ("minimap", minimap_square(screen, &state.settings)),
+                        ("chat", league_chat_zone(screen, flip)),
+                    ];
+                    for (i, rect) in rects.iter().enumerate() {
                         assert!(
-                            !overlaps(*rect, *other),
-                            "{tag}: {rect:?} overlaps {other:?}"
+                            screen.expand(0.5).contains_rect(*rect),
+                            "{tag}: {rect:?} off screen"
                         );
+                        for (name, zone) in zones {
+                            assert!(
+                                !overlaps(*rect, zone),
+                                "{tag}: {rect:?} covers League's {name} {zone:?}"
+                            );
+                        }
+                        for other in &rects[i + 1..] {
+                            assert!(
+                                !overlaps(*rect, *other),
+                                "{tag}: {rect:?} overlaps {other:?}"
+                            );
+                        }
                     }
                 }
             }
@@ -2584,64 +2820,43 @@ mod tests {
             frame(&ctx, &mut state, size, ppp)
         };
         let aram = rects_for("ARAM");
-        // Scoreboard, ally ults, benchmark, player panel, toolbar and the health relics.
+        // Scoreboard, ally ults, player panel, benchmark, the health relics and the toolbar.
         assert_eq!(aram.len(), 6, "{aram:?}");
-        // ARAM Mayhem reports gameMode "KIWI".
-        assert_eq!(rects_for("KIWI"), aram);
+        // ARAM Mayhem reports gameMode "KIWI"; only its toolbar differs (the cards button).
+        let kiwi = rects_for("KIWI");
+        assert_eq!(kiwi.len(), aram.len());
+        assert_eq!(kiwi[..kiwi.len() - 1], aram[..aram.len() - 1]);
     }
 
     #[test]
-    fn compact_modes_fit_their_window_and_keep_clear_of_league_hud() {
-        for display in DISPLAYS {
-            let ([w, h], dpi) = display;
-            let target = TargetWindowState {
-                hwnd: 1,
-                client_rect_px: [0, 0, w, h],
-                monitor_dpi: dpi,
-                is_foreground: true,
-                presentation: DisplayPresentationMode::ExclusiveFullscreen,
-            };
-            let ppp = target.hud_pixels_per_point();
-            let game = Rect::from_min_size(Pos2::ZERO, Vec2::new(w as f32, h as f32) / ppp);
-            let settings = OverlayPanelSettings::default();
-            let zones = [
-                league_ability_bar_zone(game),
-                minimap_square(game, &settings),
-                league_chat_zone(game, false),
-            ];
-            for mode in [
-                HudPresentationMode::Bar,
-                HudPresentationMode::Pill,
-                HudPresentationMode::Card,
+    fn augment_cards_open_only_in_aram_mayhem_and_arena() {
+        let (size, ppp) = canvas(([1920, 1080], 96));
+        for mode in [
+            HudPresentationMode::Integrated,
+            HudPresentationMode::Bar,
+            HudPresentationMode::Pill,
+            HudPresentationMode::Card,
+        ] {
+            for (game, map, allowed) in [
+                ("CLASSIC", 11, false),
+                ("ARAM", 12, false),
+                ("URF", 11, false),
+                ("KIWI", 12, true),
+                ("CHERRY", 30, true),
             ] {
-                for cards in [false, true] {
-                    let mut state = OverlayRenderState::default();
-                    state.apply_live_game(Some(busy_game("CLASSIC", 11)));
-                    state.settings.hud_mode = mode;
-                    state.show_mayhem_cards = cards;
-                    let px = compute_overlay_rect_px(&target, None, mode, cards);
-                    let window = Rect::from_min_max(
-                        Pos2::new(px[0] as f32, px[1] as f32) / ppp,
-                        Pos2::new(px[2] as f32, px[3] as f32) / ppp,
-                    );
-                    let ctx = egui::Context::default();
-                    frame(&ctx, &mut state, window.size(), ppp);
-                    let rects = frame(&ctx, &mut state, window.size(), ppp);
-                    let tag = format!("{display:?} {mode:?} cards={cards}");
-                    assert_eq!(rects.len(), 1, "{tag}: one panel at a time");
-                    let local = Rect::from_min_size(Pos2::ZERO, window.size());
-                    // Nothing clipped: the stat readouts and buttons fit inside the window.
-                    assert!(
-                        local.expand(0.5).contains_rect(rects[0]),
-                        "{tag}: {rects:?}"
-                    );
-                    for zone in zones {
-                        assert!(
-                            !overlaps(window, zone),
-                            "{tag}: window {window:?} vs {zone:?}"
-                        );
-                    }
-                }
+                let mut state = OverlayRenderState::default();
+                state.apply_live_game(Some(busy_game(game, map)));
+                state.settings.hud_mode = mode;
+                // The app asked for the cards (e.g. a stray click on an old CARDS button).
+                state.show_mayhem_cards = true;
+                let ctx = egui::Context::default();
+                frame(&ctx, &mut state, size, ppp);
+                frame(&ctx, &mut state, size, ppp);
+                assert_eq!(state.show_mayhem_cards, allowed, "{mode:?} {game}");
+                let shown = ctx
+                    .memory(|mem| mem.area_rect(Id::unique("riftcore-overlay-mayhem-cards")))
+                    .is_some();
+                assert_eq!(shown, allowed, "{mode:?} {game}");
             }
         }
     }

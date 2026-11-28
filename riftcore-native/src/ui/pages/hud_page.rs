@@ -645,7 +645,7 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     ui,
                     &palette,
                     "HUD PRESENTATION",
-                    "Choose overlay arrangement",
+                    "Style of the stats panel; every overlay shows in each style",
                 );
                 ui.horizontal_wrapped(|ui| {
                     for (mode, label) in [

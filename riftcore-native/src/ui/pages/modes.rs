@@ -62,7 +62,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         )
         .clicked()
         {
-            ctx.state.show_mayhem_cards = true;
+            ctx.state.show_mayhem_guide = true;
         }
     });
 

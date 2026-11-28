@@ -56,24 +56,9 @@ mod tests {
             presentation: DisplayPresentationMode::Borderless,
         };
 
-        let integrated = compute_overlay_rect_px(
-            &target,
-            Some(&left_monitor),
-            HudPresentationMode::Integrated,
-            false,
-        );
-        assert_eq!(integrated, [-2560, 0, -1, 1439]);
-
-        let bar = compute_overlay_rect_px(
-            &target,
-            Some(&left_monitor),
-            HudPresentationMode::Bar,
-            false,
-        );
-        // 620 * 1.5 = 930px wide, 54 * 1.5 = 81px tall, centered inside [-2560..0]
-        assert_eq!(bar[2] - bar[0], 930);
-        assert_eq!(bar[3] - bar[1], 81);
-        assert!(bar[0] >= -2560 && bar[2] <= 0);
+        // Every HUD style covers the game, one pixel inside it.
+        let rect = compute_overlay_rect_px(&target, Some(&left_monitor));
+        assert_eq!(rect, [-2560, 0, -1, 1439]);
     }
 
     #[test]
@@ -90,8 +75,7 @@ mod tests {
             is_foreground: true,
             presentation: DisplayPresentationMode::Borderless,
         };
-        let rect =
-            compute_overlay_rect_px(&target, Some(&degenerate), HudPresentationMode::Card, false);
+        let rect = compute_overlay_rect_px(&target, Some(&degenerate));
         assert!(rect[2] > rect[0]);
         assert!(rect[3] > rect[1]);
     }
