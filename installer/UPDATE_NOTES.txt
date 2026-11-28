@@ -1,4 +1,24 @@
 --------------------------------------------------
+       RIFTCORE COMPANION - UPDATE v2.3.5
+--------------------------------------------------
+
+* In-game HUD:
+  - The HUD now also draws over League's Fullscreen mode. If it stays hidden on your PC,
+    the HUD page has a one-click switch to Borderless.
+  - When League covers the HUD, it comes straight back on top.
+  - A missed live-data update no longer makes the HUD blink off or forget that you hid it.
+  - Panels keep clear of each other and of League's own HUD at every resolution and
+    Windows scaling, and minimap pins line up with League's minimap.
+
+* Objective timers follow the current patch:
+  - Dragon at 5:00 and every 5 minutes; Elder Dragon 6 minutes after a team's fourth drake.
+  - Voidgrubs once at 8:00, Rift Herald at 15:00, Baron at 20:00 and every 6 minutes.
+  - The match clock no longer pauses when a live-data update arrives late.
+
+* ARAM Mayhem:
+  - Health relic timers now show in ARAM Mayhem, not just classic ARAM.
+
+--------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.3.4
 --------------------------------------------------
 
