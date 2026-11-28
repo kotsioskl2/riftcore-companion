@@ -190,7 +190,6 @@ pub struct RiftCoreApp {
     secondary_rune_rows: [usize; 2],
     spell_one: i64,
     spell_two: i64,
-    active_spell_slot: usize,
     notice_until: Option<Instant>,
     notice: String,
     last_bounds_check: Instant,
@@ -405,7 +404,6 @@ impl RiftCoreApp {
             secondary_rune_rows: [2, 3],
             spell_one: 4,
             spell_two: 12,
-            active_spell_slot: 0,
             notice_until: None,
             notice: String::new(),
             last_bounds_check: Instant::now() - Duration::from_secs(5),
@@ -2236,68 +2234,12 @@ impl RiftCoreApp {
                         GOLD,
                     );
                     ui.add_space(2.0);
-                    let slot_width = ((ui.available_width() - 6.0) * 0.5).clamp(84.0, 122.0);
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 6.0;
-                        for (slot, key, id) in
-                            [(0usize, "D", self.spell_one), (1usize, "F", self.spell_two)]
-                        {
-                            if spell_slot_button(
-                                ui,
-                                key,
-                                spell_name(id),
-                                self.spell_textures.get(&id),
-                                self.active_spell_slot == slot,
-                                if slot == 0 { CYAN } else { GOLD },
-                                slot_width,
-                            )
-                            .clicked()
-                            {
-                                self.active_spell_slot = slot;
-                            }
-                        }
-                    });
-                    ui.add_space(6.0);
-                    ui.spacing_mut().item_spacing = Vec2::new(5.0, 5.0);
-                    ui.horizontal_wrapped(|ui| {
-                        for (id, name) in SUMMONER_SPELLS {
-                            let selected_here = if self.active_spell_slot == 0 {
-                                self.spell_one == *id
-                            } else {
-                                self.spell_two == *id
-                            };
-                            let selected_other = if self.active_spell_slot == 0 {
-                                self.spell_two == *id
-                            } else {
-                                self.spell_one == *id
-                            };
-                            let response = spell_choice_chip(
-                                ui,
-                                name,
-                                self.spell_textures.get(id),
-                                selected_here,
-                                selected_other,
-                                if self.active_spell_slot == 0 {
-                                    CYAN
-                                } else {
-                                    GOLD
-                                },
-                            );
-                            if response.clicked() {
-                                if self.active_spell_slot == 0 {
-                                    if self.spell_two == *id {
-                                        std::mem::swap(&mut self.spell_one, &mut self.spell_two);
-                                    } else {
-                                        self.spell_one = *id;
-                                    }
-                                } else if self.spell_one == *id {
-                                    std::mem::swap(&mut self.spell_one, &mut self.spell_two);
-                                } else {
-                                    self.spell_two = *id;
-                                }
-                            }
-                        }
-                    });
+                    summoner_spell_dropdowns(
+                        ui,
+                        &mut self.spell_one,
+                        &mut self.spell_two,
+                        &self.spell_textures,
+                    );
                 });
             });
         });
@@ -9619,24 +9561,213 @@ fn paint_rune_rail(
     ui.painter().set(slot, egui::Shape::Vec(shapes));
 }
 
-/// Big D / F slot button showing the assigned spell's icon.
+/// Width of a key's summoner spell dropdown, in points.
+const SPELL_MENU_WIDTH: f32 = 184.0;
+
+/// The summoner spell keys and their accents, in slot order (0 = D, 1 = F).
+const SPELL_KEYS: [(&str, Color32); 2] = [("D", CYAN), ("F", GOLD)];
+
+/// Stable id of a key card (`slot` 0 = D, 1 = F). Its dropdown and rows derive from it.
+fn spell_slot_id(ui: &egui::Ui, slot: usize) -> egui::Id {
+    ui.make_persistent_id(("summoner-spell-slot", slot))
+}
+
+/// Puts `spell` on key `slot` (0 = D, 1 = F). Picking the spell the other key holds swaps
+/// the two keys, so one spell never sits on both.
+fn assign_spell(spell_one: &mut i64, spell_two: &mut i64, slot: usize, spell: i64) {
+    let (target, other) = if slot == 0 {
+        (spell_one, spell_two)
+    } else {
+        (spell_two, spell_one)
+    };
+    if *other == spell {
+        std::mem::swap(target, other);
+    } else {
+        *target = spell;
+    }
+}
+
+/// The D and F key cards. Each opens a dropdown of the summoner spells.
+fn summoner_spell_dropdowns(
+    ui: &mut egui::Ui,
+    spell_one: &mut i64,
+    spell_two: &mut i64,
+    textures: &HashMap<i64, egui::TextureHandle>,
+) {
+    let slot_width = ((ui.available_width() - 6.0) * 0.5).clamp(84.0, 122.0);
+    let card_ids = [0, 1].map(|slot| spell_slot_id(ui, slot));
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        for (slot, &(key, accent)) in SPELL_KEYS.iter().enumerate() {
+            let (current, other) = if slot == 0 {
+                (*spell_one, *spell_two)
+            } else {
+                (*spell_two, *spell_one)
+            };
+            let other_key = SPELL_KEYS[1 - slot];
+            let card = spell_slot_button(
+                ui,
+                card_ids[slot],
+                key,
+                spell_name(current),
+                textures.get(&current),
+                accent,
+                slot_width,
+            );
+            egui::Popup::from_toggle_button_response(&card)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                .width(SPELL_MENU_WIDTH)
+                .gap(4.0)
+                .frame(
+                    Frame::new()
+                        .fill(CARD)
+                        .stroke(Stroke::new(1.0, lerp_color(BORDER, accent, 0.45)))
+                        .corner_radius(egui::CornerRadius::same(10))
+                        .inner_margin(egui::Margin::same(5))
+                        .shadow(ui.style().visuals.popup_shadow),
+                )
+                .show(|ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    for &(id, name) in SUMMONER_SPELLS {
+                        let row = spell_menu_row(
+                            ui,
+                            card.id.with(("spell", id)),
+                            name,
+                            textures.get(&id),
+                            id == current,
+                            (id == other).then_some(other_key),
+                            accent,
+                        );
+                        if row.clicked() {
+                            assign_spell(spell_one, spell_two, slot, id);
+                            ui.close();
+                        }
+                    }
+                });
+        }
+    });
+}
+
+/// One row of a key's summoner spell dropdown: icon, name, then a check on the key's
+/// current spell or an "on D" / "on F" tag on the spell the other key holds.
+fn spell_menu_row(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    name: &str,
+    icon: Option<&egui::TextureHandle>,
+    current: bool,
+    other_key: Option<(&str, Color32)>,
+    accent: Color32,
+) -> egui::Response {
+    let (_, rect) = ui.allocate_space(Vec2::new(ui.available_width(), 28.0));
+    let response = ui
+        .interact(rect, id, Sense::click())
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    let hover = ui
+        .ctx()
+        .animate_bool_with_time(id.with("hover"), response.hovered(), 0.1);
+    let emphasis = if current { 1.0 } else { hover * 0.6 };
+    if emphasis > 0.0 {
+        ui.painter().rect_filled(
+            rect,
+            egui::CornerRadius::same(6),
+            lerp_color(CARD, accent, 0.16 * emphasis),
+        );
+    }
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + 16.0, rect.center().y),
+        Vec2::splat(20.0),
+    );
+    if let Some(texture) = icon {
+        egui::Image::new((texture.id(), icon_rect.size()))
+            .corner_radius(egui::CornerRadius::same(4))
+            .paint_at(ui, icon_rect);
+    } else {
+        ui.painter()
+            .rect_filled(icon_rect, egui::CornerRadius::same(4), INSET);
+    }
+    let painter = ui.painter();
+    let mut text_right = rect.right() - 8.0;
+    if current {
+        let check = egui::pos2(rect.right() - 14.0, rect.center().y);
+        painter.add(egui::Shape::line(
+            vec![
+                check + Vec2::new(-4.0, 0.0),
+                check + Vec2::new(-1.0, 3.0),
+                check + Vec2::new(4.5, -3.5),
+            ],
+            Stroke::new(1.6, accent),
+        ));
+        text_right = check.x - 10.0;
+    } else if let Some((key, key_accent)) = other_key {
+        let tag =
+            painter.layout_no_wrap(format!("on {key}"), FontId::proportional(8.5), key_accent);
+        let tag_rect = egui::Rect::from_min_size(
+            egui::pos2(rect.right() - 18.0 - tag.size().x, rect.center().y - 8.0),
+            Vec2::new(tag.size().x + 10.0, 16.0),
+        );
+        painter.rect_filled(
+            tag_rect,
+            egui::CornerRadius::same(8),
+            lerp_color(CARD, key_accent, 0.18),
+        );
+        painter.galley(tag_rect.center() - tag.size() * 0.5, tag, key_accent);
+        text_right = tag_rect.left() - 6.0;
+    }
+    let text_left = icon_rect.right() + 8.0;
+    paint_truncated_text(
+        painter,
+        egui::pos2(text_left, rect.center().y),
+        name,
+        FontId::proportional(11.0),
+        lerp_color(SECONDARY, TEXT, if current { 1.0 } else { hover }),
+        text_right - text_left,
+    );
+    match other_key {
+        Some((key, _)) if !current => {
+            response.on_hover_text(format!("{name} is on {key}; picking it swaps the two keys"))
+        }
+        _ => response,
+    }
+}
+
+/// Paints one line of `text`, left-aligned and vertically centred on `left_center`, and cuts
+/// it with "…" when it is wider than `max_width`.
+fn paint_truncated_text(
+    painter: &egui::Painter,
+    left_center: egui::Pos2,
+    text: &str,
+    font: FontId,
+    color: Color32,
+    max_width: f32,
+) {
+    let mut job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font, color);
+    job.wrap = egui::text::TextWrapping::truncate_at_width(max_width.max(1.0));
+    let galley = painter.layout_job(job);
+    let pos = egui::pos2(left_center.x, left_center.y - galley.size().y * 0.5);
+    painter.galley(pos, galley, color);
+}
+
+/// Big D / F key card showing the assigned spell. Clicking it opens the key's dropdown; the
+/// chevron flips and the card lights up while that dropdown is open.
 fn spell_slot_button(
     ui: &mut egui::Ui,
+    id: egui::Id,
     key: &str,
     name: &str,
     icon: Option<&egui::TextureHandle>,
-    active: bool,
     accent: Color32,
     width: f32,
 ) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 42.0), Sense::click());
-    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
-    let hover =
-        ui.ctx()
-            .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
-    let on = ui
+    let (_, rect) = ui.allocate_space(Vec2::new(width, 42.0));
+    let response = ui
+        .interact(rect, id, Sense::click())
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&response));
+    let hover = ui
         .ctx()
-        .animate_bool_with_time(response.id.with("active"), active, 0.16);
+        .animate_bool_with_time(id.with("hover"), response.hovered(), 0.12);
+    let on = ui.ctx().animate_bool_with_time(id.with("open"), open, 0.16);
     let emphasis = on.max(hover * 0.5);
     let painter = ui.painter();
     painter.rect_filled(
@@ -9650,10 +9781,7 @@ fn spell_slot_button(
         Stroke::new(1.0 + on * 0.6, lerp_color(BORDER, accent, emphasis)),
         egui::StrokeKind::Inside,
     );
-    let icon_rect = egui::Rect::from_center_size(
-        egui::pos2(rect.left() + 22.0, rect.center().y),
-        Vec2::splat(30.0),
-    );
+    let (icon_rect, text_rect) = spell_slot_layout(rect);
     if let Some(texture) = icon {
         egui::Image::new((texture.id(), icon_rect.size()))
             .corner_radius(egui::CornerRadius::same(6))
@@ -9669,94 +9797,50 @@ fn spell_slot_button(
         Stroke::new(1.0, lerp_color(BORDER, accent, 0.4 + 0.6 * on)),
         egui::StrokeKind::Outside,
     );
+    let key_y = rect.center().y - 7.0;
     painter.text(
-        egui::pos2(icon_rect.right() + 8.0, rect.center().y - 7.0),
+        egui::pos2(text_rect.left(), key_y),
         egui::Align2::LEFT_CENTER,
         key,
         FontId::proportional(8.5),
         accent,
     );
-    painter.text(
-        egui::pos2(icon_rect.right() + 8.0, rect.center().y + 6.0),
-        egui::Align2::LEFT_CENTER,
+    // Chevron on the key row, so the name below gets the card's full width. It points down
+    // while closed and flips up as the dropdown opens.
+    let chevron = egui::pos2(rect.right() - 11.0, key_y);
+    let tip = 2.5 * (1.0 - 2.0 * on);
+    painter.add(egui::Shape::line(
+        vec![
+            chevron + Vec2::new(-4.0, -tip),
+            chevron + Vec2::new(0.0, tip),
+            chevron + Vec2::new(4.0, -tip),
+        ],
+        Stroke::new(1.4, lerp_color(MUTED, accent, emphasis)),
+    ));
+    paint_truncated_text(
+        painter,
+        egui::pos2(text_rect.left(), rect.center().y + 6.0),
         name,
         FontId::proportional(11.5),
-        if active { TEXT } else { SECONDARY },
+        TEXT,
+        text_rect.width(),
     );
     response
 }
 
-fn spell_choice_chip(
-    ui: &mut egui::Ui,
-    label: &str,
-    icon: Option<&egui::TextureHandle>,
-    selected_here: bool,
-    selected_other: bool,
-    accent: Color32,
-) -> egui::Response {
-    let width = (label.chars().count() as f32 * 5.7 + 38.0).clamp(66.0, 116.0);
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 28.0), Sense::click());
-    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
-    let hover =
-        ui.ctx()
-            .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.12);
-    let color = if selected_here {
-        accent
-    } else if selected_other {
-        GOLD
-    } else {
-        BORDER
-    };
-    let emphasis = if selected_here {
-        1.0
-    } else if selected_other {
-        0.62
-    } else {
-        hover * 0.5
-    };
-    ui.painter().rect_filled(
-        rect,
-        egui::CornerRadius::same(7),
-        lerp_color(CARD, color, 0.14 * emphasis),
+/// Where a key card of `card` size puts its icon and its text. Cards narrower than 110 pt (the
+/// default window gives ~90 pt) shrink the icon from 30 to 24 pt so names like "Teleport" fit.
+fn spell_slot_layout(card: egui::Rect) -> (egui::Rect, egui::Rect) {
+    let icon_size = (24.0 + (card.width() - 90.0) * 0.3).clamp(24.0, 30.0);
+    let icon = egui::Rect::from_center_size(
+        egui::pos2(card.left() + 7.0 + icon_size * 0.5, card.center().y),
+        Vec2::splat(icon_size),
     );
-    ui.painter().rect_stroke(
-        rect,
-        egui::CornerRadius::same(7),
-        Stroke::new(
-            0.8 + if selected_here { 0.6 } else { 0.0 },
-            lerp_color(BORDER, color, emphasis),
-        ),
-        egui::StrokeKind::Inside,
+    let text = egui::Rect::from_min_max(
+        egui::pos2(icon.right() + 7.0, card.top()),
+        egui::pos2(card.right() - 5.0, card.bottom()),
     );
-    let icon_rect = egui::Rect::from_center_size(
-        egui::pos2(rect.left() + 14.0, rect.center().y),
-        Vec2::splat(20.0),
-    );
-    if let Some(texture) = icon {
-        let alpha = if selected_here || selected_other {
-            1.0
-        } else {
-            0.55 + 0.45 * hover
-        };
-        egui::Image::new((texture.id(), icon_rect.size()))
-            .corner_radius(egui::CornerRadius::same(4))
-            .tint(Color32::from_white_alpha((alpha * 255.0) as u8))
-            .paint_at(ui, icon_rect);
-    } else {
-        ui.painter().circle_filled(icon_rect.center(), 2.5, color);
-    }
-    ui.painter().text(
-        egui::pos2(icon_rect.right() + 6.0, rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        label,
-        FontId::proportional(8.5),
-        if selected_here { TEXT } else { SECONDARY },
-    );
-    response.on_hover_text(if selected_other {
-        format!("{label} is assigned to the other slot; click to swap")
-    } else {
-        label.to_owned()
-    })
+    (icon, text)
 }
 
 fn rune_description(id: i64) -> String {
@@ -10276,5 +10360,223 @@ mod live_and_champ_select_tests {
                           "myTeam": [{"cellId": 1, "championId": 99, "assignedPosition": ""}]});
         assert_eq!(champ_select_locked_champion(&aram), Some(99));
         assert_eq!(champ_select_assigned_role(&aram), None);
+    }
+}
+
+#[cfg(test)]
+mod spell_dropdown_tests {
+    use super::*;
+
+    const FLASH: i64 = 4;
+    const TELEPORT: i64 = 12;
+    const IGNITE: i64 = 14;
+
+    #[test]
+    fn assign_spell_sets_swaps_and_ignores_a_re_pick() {
+        let (mut d, mut f) = (FLASH, TELEPORT);
+        assign_spell(&mut d, &mut f, 0, IGNITE);
+        assert_eq!((d, f), (IGNITE, TELEPORT), "D takes a free spell");
+        assign_spell(&mut d, &mut f, 1, IGNITE);
+        assert_eq!(
+            (d, f),
+            (TELEPORT, IGNITE),
+            "F taking D's spell swaps the keys"
+        );
+        assign_spell(&mut d, &mut f, 1, IGNITE);
+        assert_eq!(
+            (d, f),
+            (TELEPORT, IGNITE),
+            "re-picking the current spell is a no-op"
+        );
+        assign_spell(&mut d, &mut f, 0, IGNITE);
+        assert_eq!((d, f), (IGNITE, TELEPORT), "D taking F's spell swaps back");
+        assign_spell(&mut d, &mut f, 1, FLASH);
+        assert_eq!((d, f), (IGNITE, FLASH), "F takes a free spell");
+    }
+
+    /// Runs `summoner_spell_dropdowns` headlessly, one egui frame at a time.
+    struct Picker {
+        ctx: egui::Context,
+        spells: (i64, i64),
+        card_ids: [egui::Id; 2],
+    }
+
+    impl Picker {
+        fn new() -> Self {
+            let mut picker = Self {
+                ctx: egui::Context::default(),
+                spells: (FLASH, TELEPORT),
+                card_ids: [egui::Id::NULL; 2],
+            };
+            picker.frame(Vec::new());
+            picker
+        }
+
+        fn frame(&mut self, events: Vec<egui::Event>) {
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(480.0, 640.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let textures = HashMap::new();
+            let (one, two) = (&mut self.spells.0, &mut self.spells.1);
+            let mut card_ids = self.card_ids;
+            self.ctx
+                .run_ui(raw, |ui| {
+                    card_ids = [0, 1].map(|slot| spell_slot_id(ui, slot));
+                    summoner_spell_dropdowns(ui, one, two, &textures);
+                })
+                .drop_without_applying_deltas();
+            self.card_ids = card_ids;
+        }
+
+        /// Moves the pointer to `pos`, presses and releases, then runs one more frame: a
+        /// popup that just opened spends its first frame sizing itself.
+        fn click(&mut self, pos: egui::Pos2) {
+            let button = |pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            self.frame(vec![egui::Event::PointerMoved(pos)]);
+            self.frame(vec![button(true)]);
+            self.frame(vec![button(false)]);
+            self.frame(Vec::new());
+        }
+
+        fn shown(&self, id: egui::Id) -> egui::Response {
+            self.ctx
+                .read_response(id)
+                .expect("widget was shown last frame")
+        }
+
+        fn card(&self, slot: usize) -> egui::Rect {
+            self.shown(self.card_ids[slot]).rect
+        }
+
+        fn row(&self, slot: usize, spell: i64) -> egui::Rect {
+            self.shown(self.card_ids[slot].with(("spell", spell))).rect
+        }
+
+        fn is_open(&self, slot: usize) -> bool {
+            let card = self.shown(self.card_ids[slot]);
+            egui::Popup::is_id_open(&self.ctx, egui::Popup::default_response_id(&card))
+        }
+    }
+
+    #[test]
+    fn a_key_card_opens_its_dropdown_and_a_pick_assigns_and_closes_it() {
+        let mut picker = Picker::new();
+        assert!(!picker.is_open(0) && !picker.is_open(1));
+
+        picker.click(picker.card(0).center());
+        assert!(picker.is_open(0), "clicking D opens D's dropdown");
+        assert!(!picker.is_open(1));
+        let ignite = picker.row(0, IGNITE);
+        assert!(
+            ignite.top() > picker.card(0).bottom(),
+            "the list opens below the card"
+        );
+        picker.click(ignite.center());
+        assert_eq!(picker.spells, (IGNITE, TELEPORT));
+        assert!(!picker.is_open(0), "a pick closes the dropdown");
+
+        picker.click(picker.card(0).center());
+        picker.click(picker.row(0, IGNITE).center());
+        assert_eq!(
+            picker.spells,
+            (IGNITE, TELEPORT),
+            "re-picking D's own spell changes nothing"
+        );
+        assert!(!picker.is_open(0));
+
+        picker.click(picker.card(1).center());
+        assert!(picker.is_open(1) && !picker.is_open(0));
+        picker.click(picker.row(1, IGNITE).center());
+        assert_eq!(
+            picker.spells,
+            (TELEPORT, IGNITE),
+            "F taking D's spell swaps"
+        );
+        assert!(!picker.is_open(1));
+    }
+
+    #[test]
+    fn escape_outside_clicks_and_the_card_close_it_without_changes() {
+        let mut picker = Picker::new();
+
+        picker.click(picker.card(0).center());
+        assert!(picker.is_open(0));
+        picker.frame(vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+        picker.frame(Vec::new());
+        assert!(!picker.is_open(0), "Escape closes it");
+
+        picker.click(picker.card(1).center());
+        assert!(picker.is_open(1));
+        picker.click(egui::pos2(470.0, 630.0));
+        assert!(!picker.is_open(1), "a click outside closes it");
+
+        picker.click(picker.card(0).center());
+        picker.click(picker.card(0).center());
+        assert!(!picker.is_open(0), "clicking the card again closes it");
+
+        picker.click(picker.card(0).center());
+        picker.click(picker.card(1).center());
+        assert!(
+            picker.is_open(1) && !picker.is_open(0),
+            "opening F closes D"
+        );
+        picker.click(picker.card(0).center());
+        assert!(
+            picker.is_open(0) && !picker.is_open(1),
+            "opening D closes F"
+        );
+        assert_eq!(picker.spells, (FLASH, TELEPORT), "nothing was picked");
+    }
+
+    /// The default 1380x880 window (with the app's 1.06 zoom) leaves about 90 pt per key card,
+    /// and wide windows up to 122 pt. Every name but "Mark / Snowball" must fit uncut there in
+    /// the default font.
+    #[test]
+    fn spell_names_fit_on_key_cards_from_the_default_window_up() {
+        const MARK: i64 = 32;
+        let ctx = egui::Context::default();
+        install_font_family(&ctx, "plus-jakarta");
+        let mut cut = Vec::new();
+        // Fonts given to set_fonts apply from the next frame on, so measure in the second one.
+        for _ in 0..2 {
+            cut.clear();
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                for width in [90.0, 104.0, 122.0] {
+                    let card = egui::Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(width, 42.0));
+                    let (_, text) = spell_slot_layout(card);
+                    for &(id, name) in SUMMONER_SPELLS.iter().filter(|(id, _)| *id != MARK) {
+                        let natural = ui
+                            .painter()
+                            .layout_no_wrap(name.to_owned(), FontId::proportional(11.5), TEXT)
+                            .size()
+                            .x;
+                        if natural > text.width() {
+                            cut.push(format!(
+                                "{name} ({id}) needs {natural:.1} pt but has {:.1} on a {width} pt card",
+                                text.width()
+                            ));
+                        }
+                    }
+                }
+            })
+            .drop_without_applying_deltas();
+        }
+        assert!(cut.is_empty(), "{cut:?}");
     }
 }
