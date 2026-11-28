@@ -18,6 +18,13 @@
 * ARAM Mayhem:
   - Health relic timers now show in ARAM Mayhem, not just classic ARAM.
 
+* Summoner spells:
+  - On the rune page, the D and F keys each open a dropdown of summoner spells instead of
+    showing every spell as a button. Picking the spell the other key holds swaps the keys.
+
+* Known limitations:
+  - The HUD over Fullscreen has not yet been verified in a live match on every PC.
+
 --------------------------------------------------
        RIFTCORE COMPANION - UPDATE v2.3.4
 --------------------------------------------------
