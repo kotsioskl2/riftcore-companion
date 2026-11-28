@@ -2,5 +2,6 @@
 pub mod lcu;
 pub mod live_game;
 pub mod riot_api;
+pub mod scout;
 pub mod updater;
 pub mod worker;

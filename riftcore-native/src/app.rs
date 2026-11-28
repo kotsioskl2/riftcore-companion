@@ -184,6 +184,9 @@ pub struct RiftCoreApp {
     /// New in-game HUD (Path B). `None` means the original child-viewport HUD is used.
     path_b: Option<crate::path_b::PathBOverlay>,
     path_b_status: crate::path_b::PathBStatus,
+    /// Loading-screen scouting for the current match (roster key, update channel).
+    scout_roster: String,
+    scout_rx: Option<std::sync::mpsc::Receiver<riftcore_native::services::scout::ScoutUpdate>>,
     primary_tree: u32,
     secondary_tree: u32,
     selected_perks: [i64; 9],
@@ -398,6 +401,8 @@ impl RiftCoreApp {
             tray_icon,
             path_b,
             path_b_status: Default::default(),
+            scout_roster: String::new(),
+            scout_rx: None,
             primary_tree: 8100,
             secondary_tree: 8000,
             selected_perks: [8112, 8126, 8140, 8135, 9111, 8014, 5008, 5008, 5001],
@@ -2946,13 +2951,31 @@ impl RiftCoreApp {
                         "Show your CS per minute",
                         &mut self.settings.hud_cs_benchmark,
                     );
+                    changed |= toggle_card_row(
+                        ui,
+                        "Benchmarking Panel",
+                        "CS/min, item gold, KP, KDA and level vs your lane opponent",
+                        &mut self.settings.hud_benchmark,
+                    );
+                    changed |= toggle_card_row(
+                        ui,
+                        "Item Value Difference",
+                        "Item gold per lane matchup and team total",
+                        &mut self.settings.hud_item_value_diff,
+                    );
+                    changed |= toggle_card_row(
+                        ui,
+                        "Loading Screen Scouting",
+                        "Rank, champion mastery and recent form (needs your Riot API key)",
+                        &mut self.settings.hud_loading_scout,
+                    );
                 });
                 panel(&mut columns[1], |ui| {
                     panel_title(ui, "PLAYER GUIDES", "Build reminders");
                     changed |= toggle_card_row(
                         ui,
                         "Ability Rank Guide",
-                        "Show your current ability ranks",
+                        "Ability ranks and your next 5 skill points",
                         &mut self.settings.hud_skill_order,
                     );
                     changed |= toggle_card_row(
@@ -6227,6 +6250,81 @@ impl RiftCoreApp {
     }
 
     /// Drives the new in-game HUD and applies what its panels asked for.
+    /// Starts loading-screen scouting once per match roster (Path B HUD only) and clears it
+    /// when the match ends.
+    fn update_scouting(&mut self, ctx: &egui::Context, live: Option<&Value>) {
+        use riftcore_native::domain::{champions, live_game::LiveGameState, scouting};
+        let Some(path_b) = self.path_b.as_mut() else {
+            return;
+        };
+        let live = live.and_then(LiveGameState::from_allgamedata);
+        let Some(live) = live.filter(|_| self.settings.hud_loading_scout) else {
+            if !self.scout_roster.is_empty() || self.scout_rx.is_some() {
+                self.scout_roster.clear();
+                self.scout_rx = None;
+                path_b.set_scouting(Vec::new(), None);
+            }
+            return;
+        };
+        let targets = scouting::scout_targets(&live, |name| {
+            champions::champion_by_name_or_key(name).map_or(0, |c| c.id)
+        });
+        let roster = scouting::roster_key(&targets);
+        if targets.is_empty() || roster == self.scout_roster {
+            return;
+        }
+        self.scout_roster = roster;
+        let api_key = self.settings.riot_api_key.trim().to_string();
+        if api_key.is_empty() {
+            self.scout_rx = None;
+            path_b.set_scouting(
+                Vec::new(),
+                Some(
+                    "Add your Riot API key in Settings \u{2192} Riot API to scout players"
+                        .to_string(),
+                ),
+            );
+            return;
+        }
+        let repaint = ctx.clone();
+        self.scout_rx = Some(riftcore_native::services::scout::spawn_scout(
+            targets,
+            self.settings.riot_region.clone(),
+            api_key,
+            move || repaint.request_repaint(),
+        ));
+    }
+
+    /// Hands the newest scouting progress for the current match to the HUD.
+    fn drain_scouting(&mut self) {
+        let Some(rx) = self.scout_rx.as_ref() else {
+            return;
+        };
+        let mut latest = None;
+        let mut finished = false;
+        loop {
+            match rx.try_recv() {
+                Ok(update) => {
+                    finished |= update.done;
+                    latest = Some(update);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    finished = true;
+                    break;
+                }
+            }
+        }
+        if let Some(update) = latest.filter(|u| u.roster == self.scout_roster) {
+            if let Some(path_b) = self.path_b.as_mut() {
+                path_b.set_scouting(update.cards, update.status);
+            }
+        }
+        if finished {
+            self.scout_rx = None;
+        }
+    }
+
     fn tick_path_b(&mut self, ctx: &egui::Context) {
         let Some(path_b) = self.path_b.as_mut() else {
             return;
@@ -7503,6 +7601,7 @@ impl eframe::App for RiftCoreApp {
             if let Some(path_b) = self.path_b.as_mut() {
                 path_b.set_live_game(snapshot.live_game.as_ref());
             }
+            self.update_scouting(&ctx, snapshot.live_game.as_ref());
             self.snapshot = snapshot;
             if self.snapshot.phase == "ChampSelect" {
                 let session = self.snapshot.champ_select.as_ref();
@@ -7604,6 +7703,7 @@ impl eframe::App for RiftCoreApp {
             self.render_main(ui);
         });
         self.render_dialogs(&ctx);
+        self.drain_scouting();
         if self.path_b.is_some() {
             self.tick_path_b(&ctx);
         } else {

@@ -12,6 +12,10 @@ RiftCore is a Windows League of Legends companion with a fully native Rust deskt
 - Post-game match summaries and item breakdowns.
 - TFT Set 18 catalog with unit, trait, item and augment images, a saved manual board, and clearly marked Set 13 composition, recipe and roll-odds archives.
 - Native HUD with the live game clock, scoreline, CS pace, current gold, ability ranks, inventory, trinket reminder and live objective timers.
+- HUD benchmarking panel: CS/min, item gold/min, kill participation, KDA and level against your lane opponent (or the enemy average without lanes), with a CS-difference trend line.
+- Item value difference: item gold held per lane matchup and per team, from the scoreboard data every player can see (unspent gold stays private).
+- Loading screen scouting: rank, ranked win rate, mastery on the locked-in champion and recent form tags (champion/role main, autofilled, streaks, team damage) for every player, through your own Riot API key.
+- Skill order lookahead: the next five skill points from the recommended order, beside your ability ranks.
 - Configurable manual ARAM relic timers.
 - Mode setup pages for Summoner's Rift, ARAM, Arena, URF and One for All, with explicit rune/spell imports.
 - Global shortcuts: **Alt + ~** or **Ctrl + Space** toggles the HUD; **Alt + Shift + ~** toggles click-through input.

@@ -1,8 +1,10 @@
 //! Overlay surface host abstraction, diagnostics, shared render payload, and DX12 visual config.
 
 use crate::config::settings::AppSettings;
+use crate::domain::benchmarks::CsDiffHistory;
 use crate::domain::live_game::LiveGameState;
 use crate::domain::protocol::LIVE_COACH_ENABLED;
+use crate::domain::scouting::ScoutCard;
 use crate::overlay::eframe_fallback::EframeChildViewportFallback;
 use crate::overlay::hud_modes::HudPresentationMode;
 use eframe::egui::{self, Rect};
@@ -180,6 +182,9 @@ pub struct OverlayPanelSettings {
     pub hud_map_ward_pins: bool,
     pub jungle_start_buff: String,
     pub hud_aram_health_timers: bool,
+    pub hud_benchmark: bool,
+    pub hud_item_value_diff: bool,
+    pub hud_loading_scout: bool,
     pub hud_minimap_scale: f32,
     pub hud_minimap_flip: bool,
     pub hud_minimap_zoom: f32,
@@ -209,6 +214,9 @@ impl Default for OverlayPanelSettings {
             hud_map_ward_pins: false,
             jungle_start_buff: "red".to_string(),
             hud_aram_health_timers: true,
+            hud_benchmark: true,
+            hud_item_value_diff: true,
+            hud_loading_scout: true,
             hud_minimap_scale: 2.16,
             hud_minimap_flip: false,
             hud_minimap_zoom: 1.0,
@@ -241,6 +249,9 @@ impl OverlayPanelSettings {
             hud_map_ward_pins: s.hud_map_ward_pins,
             jungle_start_buff: s.jungle_start_buff.clone(),
             hud_aram_health_timers: s.hud_aram_health_timers,
+            hud_benchmark: s.hud_benchmark,
+            hud_item_value_diff: s.hud_item_value_diff,
+            hud_loading_scout: s.hud_loading_scout,
             hud_minimap_scale: s.hud_minimap_scale,
             hud_minimap_flip: s.hud_minimap_flip,
             hud_minimap_zoom: s.hud_minimap_zoom,
@@ -281,6 +292,18 @@ pub struct OverlayRenderState {
     pub show_mayhem_cards: bool,
     pub show_build_panel: bool,
     pub show_timers_panel: bool,
+    /// Item value difference drawer (lane-by-lane item gold).
+    pub show_gold_panel: bool,
+    /// Loading-screen scouting drawer.
+    pub show_scout_panel: bool,
+    /// Scouting cards for this match (filled in by the app as Riot API lookups finish).
+    pub scouting: Vec<ScoutCard>,
+    /// Scouting progress or why it is not running (`None` when idle and nothing to say).
+    pub scout_status: Option<String>,
+    /// The auto-shown scouting panel was closed for this match.
+    pub scout_dismissed: bool,
+    /// Lane CS difference samples for the benchmark sparkline.
+    pub cs_diff_history: CsDiffHistory,
     pub mayhem_mode: String,
     pub mayhem_tier: String,
     pub mayhem_search: String,
@@ -311,6 +334,12 @@ impl Default for OverlayRenderState {
             show_mayhem_cards: false,
             show_build_panel: false,
             show_timers_panel: false,
+            show_gold_panel: false,
+            show_scout_panel: false,
+            scouting: Vec::new(),
+            scout_status: None,
+            scout_dismissed: false,
+            cs_diff_history: CsDiffHistory::default(),
             mayhem_mode: "Both".to_string(),
             mayhem_tier: "ALL".to_string(),
             mayhem_search: String::new(),
@@ -373,6 +402,14 @@ impl OverlayRenderState {
     fn reset_match_state(&mut self) {
         self.manual_timers.clear();
         self.cs_at_10 = None;
+        self.cs_diff_history.clear();
+        self.scout_dismissed = false;
+    }
+
+    /// Replaces the scouting cards and status (the app calls this as lookups finish).
+    pub fn set_scouting(&mut self, cards: Vec<ScoutCard>, status: Option<String>) {
+        self.scouting = cards;
+        self.scout_status = status;
     }
 
     /// Clears transient per-frame action outputs before rendering the next frame.
@@ -405,6 +442,9 @@ impl OverlayRenderState {
         self.settings.hud_map_ward_pins.hash(&mut h);
         self.settings.jungle_start_buff.hash(&mut h);
         self.settings.hud_aram_health_timers.hash(&mut h);
+        self.settings.hud_benchmark.hash(&mut h);
+        self.settings.hud_item_value_diff.hash(&mut h);
+        self.settings.hud_loading_scout.hash(&mut h);
         self.settings.hud_minimap_flip.hash(&mut h);
         ((self.settings.hud_minimap_scale * 100.0).round() as i32).hash(&mut h);
         ((self.settings.hud_minimap_zoom * 100.0).round() as i32).hash(&mut h);
@@ -412,6 +452,18 @@ impl OverlayRenderState {
         self.show_mayhem_cards.hash(&mut h);
         self.show_build_panel.hash(&mut h);
         self.show_timers_panel.hash(&mut h);
+        self.show_gold_panel.hash(&mut h);
+        self.show_scout_panel.hash(&mut h);
+        self.scout_dismissed.hash(&mut h);
+        self.scout_status.hash(&mut h);
+        self.scouting.len().hash(&mut h);
+        for card in &self.scouting {
+            card.riot_id.hash(&mut h);
+            card.rank.hash(&mut h);
+            card.tags.hash(&mut h);
+            card.error.hash(&mut h);
+        }
+        self.cs_diff_history.samples.hash(&mut h);
         self.mayhem_mode.hash(&mut h);
         self.mayhem_tier.hash(&mut h);
         self.mayhem_search.hash(&mut h);
@@ -440,6 +492,19 @@ impl OverlayRenderState {
             live.active_player.abilities.e.ability_level.hash(&mut h);
             live.active_player.abilities.r.ability_level.hash(&mut h);
             live.events.len().hash(&mut h);
+            // Everyone's scoreboard line feeds the benchmark and item value panels.
+            for player in &live.all_players {
+                player.champion_name.hash(&mut h);
+                player.level.hash(&mut h);
+                player.scores.kills.hash(&mut h);
+                player.scores.deaths.hash(&mut h);
+                player.scores.assists.hash(&mut h);
+                player.scores.creep_score.hash(&mut h);
+                for item in &player.items {
+                    item.item_id.hash(&mut h);
+                    item.count.hash(&mut h);
+                }
+            }
         }
         h.finish()
     }

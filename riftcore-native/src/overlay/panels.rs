@@ -7,16 +7,18 @@
 //! - Active-game live coaching (`LiveBuildAdvice` / `CoachInsight`) is strictly gated behind
 //!   `crate::domain::protocol::LIVE_COACH_ENABLED` (`false`).
 
+use crate::domain::benchmarks::{self, Benchmark, CsDiffHistory};
 use crate::domain::builds::{self, BuildProfile};
 use crate::domain::champions::{self, Champion, Role};
 use crate::domain::items;
 use crate::domain::live_game::{self, countdown_secs, CsPace, LiveGameState};
 use crate::domain::mayhem::{self, CardMode, CardTier, MayhemCard};
 use crate::domain::protocol::LIVE_COACH_ENABLED;
+use crate::domain::scouting::{ScoutCard, TagTone};
 use crate::overlay::host::{OverlayPanelSettings, OverlayRenderState, OverlayTimerTab};
 use crate::overlay::hud_modes::{
     clamp_logical_panel_pos, default_relic_pos, default_toolbar_pos, league_ability_bar_zone,
-    HudPresentationMode,
+    league_chat_zone, HudPresentationMode,
 };
 use crate::overlay::minimap::{jungle_route_status, minimap_square, render_minimap_guide_pins};
 use eframe::egui::{
@@ -75,6 +77,16 @@ fn remember_drag(
         positions.insert(key.to_string(), pos);
         updates.push((key.to_string(), pos));
     }
+}
+
+/// Player panel default: top-right, under League's own top-right stats.
+fn player_default_pos(area: Rect) -> Pos2 {
+    Pos2::new((area.right() - 220.0).max(20.0), area.top() + 98.0)
+}
+
+/// Rects overlap by more than a hairline.
+fn overlap(a: Rect, b: Rect) -> bool {
+    a.shrink(0.5).intersects(b.shrink(0.5))
 }
 
 /// Gap kept between RiftCore panels, and between them and League's HUD, in points.
@@ -186,6 +198,8 @@ struct HudExtras {
     score: Option<(u32, u32)>,
     next_item: Option<(String, Option<u32>, bool)>,
     vision: u32,
+    /// Next skill points as `(level, ability)` from the recommended order.
+    skill_plan: Vec<(u32, &'static str)>,
 }
 
 fn hud_extras(
@@ -228,6 +242,7 @@ fn hud_extras(
             a.r.ability_level,
         ];
         x.next_skill = live_game::next_skill_up(x.level, ranks, &b.skill_order);
+        x.skill_plan = live_game::upcoming_skill_ups(ranks, &b.skill_order, 5);
         let owned: Vec<u32> = p.items.iter().map(|i| i.item_id).collect();
         x.next_item = live_game::next_build_item(&b.core_items, &owned).map(|id| {
             let cost = items::item_total_cost(id).filter(|c| *c > 0);
@@ -313,6 +328,9 @@ pub fn render_overlay_ui(
                     state.cs_at_10 = None;
                 } else if g.game_time_secs < 630.0 && state.cs_at_10.is_none() {
                     state.cs_at_10 = Some(g.active_player.scores.creep_score);
+                }
+                if let Some(diff) = benchmarks::lane_cs_diff(g) {
+                    state.cs_diff_history.record(state.clock_secs, diff);
                 }
             }
             // Smoothed game clock (whole seconds); every countdown below is derived from it.
@@ -638,6 +656,24 @@ pub fn render_overlay_ui(
                                     let t = format!("VIS {}", x.vision);
                                     ui.label(RichText::new(t).size(10.0).color(SECONDARY));
                                 }
+                                if let Some(board) = state
+                                    .settings
+                                    .hud_item_value_diff
+                                    .then(|| live_ref.and_then(benchmarks::item_value_board))
+                                    .flatten()
+                                {
+                                    ui.separator();
+                                    let diff = board.team_diff();
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "ITEMS {}",
+                                            benchmarks::format_gold_diff(diff)
+                                        ))
+                                        .size(10.5)
+                                        .strong()
+                                        .color(diff_color(diff)),
+                                    );
+                                }
                             });
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new(game_mode).size(9.0).strong().color(MUTED));
@@ -658,6 +694,7 @@ pub fn render_overlay_ui(
 
             // Objectives dock: right above League's minimap (which already includes the nudge),
             // aligned with its outer edge. Summoner's Rift only: other maps have no timers.
+            let mut dock_rect = None;
             if live_ref.is_none_or(LiveGameState::is_summoners_rift) {
                 let dock_id = Id::unique("riftcore-hud-objectives");
                 let dock_size = measured_size(&ctx, dock_id, Vec2::new(172.0, 80.0));
@@ -690,6 +727,7 @@ pub fn render_overlay_ui(
                     "objectives",
                     &dock_resp.response,
                 );
+                dock_rect = Some(dock_resp.response.rect);
                 if edit {
                     interactive_rects_out.push(dock_resp.response.rect);
                 }
@@ -785,45 +823,6 @@ pub fn render_overlay_ui(
                 }
             }
 
-            if state.settings.hud_aram_health_timers && live_ref.is_some_and(LiveGameState::is_aram)
-            {
-                // Default: left edge, mid-height (under the ally panel), clear of League's chat.
-                let relic_id = Id::unique("riftcore-hud-aram-relics");
-                let relic_size = measured_size(&ctx, relic_id, Vec2::new(220.0, 100.0));
-                let mut relic_default = default_relic_pos(area);
-                if let Some(bottom) = ally_bottom {
-                    relic_default.y = relic_default.y.max(bottom + PANEL_GAP);
-                }
-                let relic_pos = saved_or(
-                    &state.settings.hud_positions,
-                    "relics",
-                    area,
-                    relic_size,
-                    relic_default,
-                );
-                let relic_resp = show_settled(
-                    &ctx,
-                    relic_id,
-                    overlay_area(relic_id).current_pos(relic_pos).movable(edit),
-                    |ui| {
-                        render_aram_relic_timers(
-                            ui,
-                            &mut state.aram_relic_seconds,
-                            &mut state.manual_timers,
-                            state.settings.opacity,
-                            now_secs,
-                        );
-                    },
-                );
-                remember_drag(
-                    &mut state.settings.hud_positions,
-                    &mut state.pending_actions.updated_positions,
-                    "relics",
-                    &relic_resp.response,
-                );
-                interactive_rects_out.push(relic_resp.response.rect);
-            }
-
             // Player panel: top-right, under League's own top-right stats.
             let player_id = Id::unique("riftcore-hud-player");
             let player_size = measured_size(&ctx, player_id, Vec2::new(200.0, 140.0));
@@ -832,7 +831,7 @@ pub fn render_overlay_ui(
                 "player",
                 area,
                 player_size,
-                Pos2::new((area.right() - 220.0).max(20.0), area.top() + 98.0),
+                player_default_pos(area),
             );
             let player_resp = show_settled(
                 &ctx,
@@ -875,6 +874,9 @@ pub fn render_overlay_ui(
                                         );
                                     }
                                 });
+                                if !x.skill_plan.is_empty() {
+                                    render_skill_plan(ui, &x.skill_plan, x.level);
+                                }
                             }
                             if state.settings.hud_item_goal {
                                 ui.add_space(5.0);
@@ -947,6 +949,121 @@ pub fn render_overlay_ui(
             if edit {
                 interactive_rects_out.push(player_resp.response.rect);
             }
+            let player_rect = player_resp.response.rect;
+
+            // Benchmark: left edge, under the ally panel.
+            let mut left_bottom = ally_bottom;
+            if let Some(bench) = state
+                .settings
+                .hud_benchmark
+                .then(|| live_ref.and_then(benchmarks::benchmark))
+                .flatten()
+            {
+                let bench_id = Id::unique("riftcore-hud-benchmark");
+                let bench_size = measured_size(&ctx, bench_id, Vec2::new(196.0, 150.0));
+                // Left column under the ally panel; when the objectives dock (minimap on the
+                // left) or League's chat leaves no room there, the right column under the
+                // player panel.
+                let left_default = Pos2::new(
+                    area.left() + 18.0,
+                    ally_bottom.map_or(area.top() + 116.0, |bottom| bottom + PANEL_GAP),
+                );
+                let clear = |pos: Pos2| {
+                    let rect = Rect::from_min_size(pos, bench_size);
+                    let chat = league_chat_zone(screen, state.settings.hud_minimap_flip);
+                    area.contains_rect(rect)
+                        && !overlap(rect, chat)
+                        && !dock_rect.is_some_and(|dock| overlap(rect, dock))
+                };
+                let bench_default = if clear(left_default) {
+                    left_default
+                } else {
+                    let right_default = Pos2::new(
+                        area.right() - 18.0 - bench_size.x,
+                        player_rect.bottom() + PANEL_GAP,
+                    );
+                    if clear(right_default) {
+                        right_default
+                    } else {
+                        left_default
+                    }
+                };
+                let bench_left = bench_default == left_default;
+                let bench_moved = state.settings.hud_positions.contains_key("benchmark");
+                let bench_pos = saved_or(
+                    &state.settings.hud_positions,
+                    "benchmark",
+                    area,
+                    bench_size,
+                    bench_default,
+                );
+                let cs_diff = live_ref.and_then(benchmarks::lane_cs_diff);
+                let bench_resp = show_settled(
+                    &ctx,
+                    bench_id,
+                    overlay_area(bench_id).current_pos(bench_pos).movable(edit),
+                    |ui| {
+                        render_benchmark_panel(
+                            ui,
+                            &bench,
+                            &state.cs_diff_history,
+                            cs_diff,
+                            state.settings.opacity,
+                        );
+                    },
+                );
+                remember_drag(
+                    &mut state.settings.hud_positions,
+                    &mut state.pending_actions.updated_positions,
+                    "benchmark",
+                    &bench_resp.response,
+                );
+                if edit {
+                    interactive_rects_out.push(bench_resp.response.rect);
+                }
+                if !bench_moved && bench_left {
+                    left_bottom = Some(bench_resp.response.rect.bottom());
+                }
+            }
+
+            if state.settings.hud_aram_health_timers && live_ref.is_some_and(LiveGameState::is_aram)
+            {
+                // Default: left edge, mid-height (under the ally panel), clear of League's chat.
+                let relic_id = Id::unique("riftcore-hud-aram-relics");
+                let relic_size = measured_size(&ctx, relic_id, Vec2::new(220.0, 100.0));
+                let mut relic_default = default_relic_pos(area);
+                if let Some(bottom) = left_bottom {
+                    relic_default.y = relic_default.y.max(bottom + PANEL_GAP);
+                }
+                let relic_pos = saved_or(
+                    &state.settings.hud_positions,
+                    "relics",
+                    area,
+                    relic_size,
+                    relic_default,
+                );
+                let relic_resp = show_settled(
+                    &ctx,
+                    relic_id,
+                    overlay_area(relic_id).current_pos(relic_pos).movable(edit),
+                    |ui| {
+                        render_aram_relic_timers(
+                            ui,
+                            &mut state.aram_relic_seconds,
+                            &mut state.manual_timers,
+                            state.settings.opacity,
+                            now_secs,
+                        );
+                    },
+                );
+                remember_drag(
+                    &mut state.settings.hud_positions,
+                    &mut state.pending_actions.updated_positions,
+                    "relics",
+                    &relic_resp.response,
+                );
+                interactive_rects_out.push(relic_resp.response.rect);
+            }
 
             // Toolbar: top-centre under the scoreboard, never over League's ability bar.
             let toolbar_id = Id::unique("riftcore-hud-bottom");
@@ -967,60 +1084,61 @@ pub fn render_overlay_ui(
                     .pivot(egui::Align2::CENTER_TOP)
                     .current_pos(toolbar_top),
             };
-            let toolbar_resp = show_settled(&ctx, toolbar_id, toolbar_area.movable(edit), |ui| {
-                Frame::new()
-                    .fill(panel_fill(state.settings.opacity, 218))
-                    .stroke(Stroke::new(1.0, BORDER))
-                    .inner_margin(Margin::same(8))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new("ALT + ~  HUD")
-                                    .size(10.0)
-                                    .strong()
-                                    .color(CYAN),
-                            );
-                            ui.label(
-                                RichText::new("ALT + SHIFT + ~  INPUT")
-                                    .size(10.0)
-                                    .color(SECONDARY),
-                            );
-                            if !state.passthrough_active {
+            // Live-derived toolbar content, read before the toolbar borrows `state`.
+            let jungle_status = (state.settings.hud_jungle_pathing
+                && live_ref.is_some_and(LiveGameState::is_summoners_rift))
+            .then(|| jungle_route_status(clock, &state.settings.jungle_start_buff))
+            .flatten();
+            let cards_on = state.settings.hud_mayhem_cards;
+            let gold_on = state.settings.hud_item_value_diff
+                && live_ref.is_some_and(|g| benchmarks::item_value_board(g).is_some());
+            let scout_on = state.settings.hud_loading_scout;
+            let toolbar_resp =
+                show_settled(&ctx, toolbar_id, toolbar_area.movable(edit), |ui| {
+                    Frame::new()
+                        .fill(panel_fill(state.settings.opacity, 218))
+                        .stroke(Stroke::new(1.0, BORDER))
+                        .inner_margin(Margin::same(8))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
                                 ui.label(
-                                    RichText::new("SMART INPUT").size(9.0).strong().color(GOLD),
+                                    RichText::new("ALT + ~  HUD")
+                                        .size(10.0)
+                                        .strong()
+                                        .color(CYAN),
                                 );
-                            }
-                            if state.settings.hud_mayhem_cards
-                                && overlay_button(ui, "MAYHEM CARDS", state.show_mayhem_cards, GOLD)
-                                    .clicked()
-                            {
-                                state.show_mayhem_cards = !state.show_mayhem_cards;
-                                if state.show_mayhem_cards {
-                                    state.show_build_panel = false;
-                                    state.show_timers_panel = false;
+                                ui.label(
+                                    RichText::new("ALT + SHIFT + ~  INPUT")
+                                        .size(10.0)
+                                        .color(SECONDARY),
+                                );
+                                if !state.passthrough_active {
+                                    ui.label(
+                                        RichText::new("SMART INPUT").size(9.0).strong().color(GOLD),
+                                    );
                                 }
-                            }
-                            if overlay_button(ui, "BUILD", state.show_build_panel, CYAN).clicked() {
-                                state.show_build_panel = !state.show_build_panel;
-                                if state.show_build_panel {
-                                    state.show_mayhem_cards = false;
-                                    state.show_timers_panel = false;
+                                let mut drawer_button =
+                                    |ui: &mut egui::Ui, label, which, accent| {
+                                        let open = drawer_open(state, which);
+                                        if overlay_button(ui, label, open, accent).clicked() {
+                                            open_only_drawer(state, (!open).then_some(which));
+                                            if which == Drawer::Scout && open {
+                                                state.scout_dismissed = true;
+                                            }
+                                        }
+                                    };
+                                if cards_on {
+                                    drawer_button(ui, "MAYHEM CARDS", Drawer::Cards, GOLD);
                                 }
-                            }
-                            if overlay_button(ui, "TIMERS", state.show_timers_panel, GOLD).clicked()
-                            {
-                                state.show_timers_panel = !state.show_timers_panel;
-                                if state.show_timers_panel {
-                                    state.show_build_panel = false;
-                                    state.show_mayhem_cards = false;
+                                drawer_button(ui, "BUILD", Drawer::Build, CYAN);
+                                drawer_button(ui, "TIMERS", Drawer::Timers, GOLD);
+                                if gold_on {
+                                    drawer_button(ui, "GOLD DIFF", Drawer::Gold, GOLD);
                                 }
-                            }
-                            if state.settings.hud_jungle_pathing
-                                && live_ref.is_some_and(LiveGameState::is_summoners_rift)
-                            {
-                                if let Some((step, camp, remaining, active)) =
-                                    jungle_route_status(clock, &state.settings.jungle_start_buff)
-                                {
+                                if scout_on {
+                                    drawer_button(ui, "SCOUT", Drawer::Scout, CYAN);
+                                }
+                                if let Some((step, camp, remaining, active)) = jungle_status {
                                     ui.label(
                                         RichText::new(format!(
                                             "JG #{step} {camp} {}{}",
@@ -1031,10 +1149,9 @@ pub fn render_overlay_ui(
                                         .color(if active { GREEN } else { SECONDARY }),
                                     );
                                 }
-                            }
+                            });
                         });
-                    });
-            });
+                });
             remember_drag(
                 &mut state.settings.hud_positions,
                 &mut state.pending_actions.updated_positions,
@@ -1045,11 +1162,17 @@ pub fn render_overlay_ui(
 
             // Drawers share one slot: centred under the toolbar, above League's ability bar.
             // Only one is open at a time (the app can also open the cards drawer directly).
-            if state.show_mayhem_cards {
-                state.show_build_panel = false;
-                state.show_timers_panel = false;
-            } else if state.show_build_panel {
-                state.show_timers_panel = false;
+            let first_open = [
+                Drawer::Cards,
+                Drawer::Build,
+                Drawer::Timers,
+                Drawer::Gold,
+                Drawer::Scout,
+            ]
+            .into_iter()
+            .find(|d| drawer_open(state, *d));
+            if first_open.is_some() {
+                open_only_drawer(state, first_open);
             }
             let toolbar_bottom = if state.settings.hud_positions.contains_key("toolbar") {
                 toolbar_top.y + toolbar_size.y
@@ -1069,7 +1192,527 @@ pub fn render_overlay_ui(
             if state.show_timers_panel {
                 render_timers_drawer(&ctx, area, slot, state, interactive_rects_out);
             }
+            if state.show_gold_panel {
+                render_gold_drawer(&ctx, area, slot, state, interactive_rects_out);
+            }
+            // Scouting opens by itself over the loading screen and first seconds of a match.
+            let scout_auto = first_open.is_none()
+                && state.settings.hud_loading_scout
+                && !state.scout_dismissed
+                && clock < SCOUT_AUTO_SECS
+                && (!state.scouting.is_empty() || state.scout_status.is_some());
+            if state.show_scout_panel || scout_auto {
+                render_scout_drawer(&ctx, area, slot, state, interactive_rects_out);
+            }
         });
+}
+
+/// The HUD's drawers; only one is open at a time and they share the slot under the toolbar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Drawer {
+    Cards,
+    Build,
+    Timers,
+    Gold,
+    Scout,
+}
+
+fn drawer_open(state: &OverlayRenderState, drawer: Drawer) -> bool {
+    match drawer {
+        Drawer::Cards => state.show_mayhem_cards,
+        Drawer::Build => state.show_build_panel,
+        Drawer::Timers => state.show_timers_panel,
+        Drawer::Gold => state.show_gold_panel,
+        Drawer::Scout => state.show_scout_panel,
+    }
+}
+
+/// Opens `drawer` (closing every other one), or closes all drawers with `None`.
+fn open_only_drawer(state: &mut OverlayRenderState, drawer: Option<Drawer>) {
+    state.show_mayhem_cards = drawer == Some(Drawer::Cards);
+    state.show_build_panel = drawer == Some(Drawer::Build);
+    state.show_timers_panel = drawer == Some(Drawer::Timers);
+    state.show_gold_panel = drawer == Some(Drawer::Gold);
+    state.show_scout_panel = drawer == Some(Drawer::Scout);
+}
+
+/// Width of the scouting drawer's ally and enemy columns, in points.
+const SCOUT_COLUMN_WIDTH: f32 = 258.0;
+
+/// The scouting drawer opens by itself until this game second (loading screen and fountain).
+const SCOUT_AUTO_SECS: u64 = 75;
+
+/// Green when ahead, red when behind, plain when level.
+fn diff_color(diff: i64) -> Color32 {
+    match diff.signum() {
+        1 => GREEN,
+        -1 => RED,
+        _ => TEXT,
+    }
+}
+
+/// `250k` / `1.2M` style count.
+fn compact_count(n: u64) -> String {
+    match n {
+        n if n >= 1_000_000 => format!("{:.1}M", n as f64 / 1_000_000.0),
+        n if n >= 1_000 => format!("{}k", n / 1_000),
+        n => n.to_string(),
+    }
+}
+
+/// Short column header for a champion name (`"Enemy avg"` stays readable).
+fn short_name(name: &str) -> String {
+    let upper = name.to_uppercase();
+    if upper.chars().count() > 9 {
+        upper.chars().take(8).collect::<String>() + "."
+    } else {
+        upper
+    }
+}
+
+/// Upcoming skill points (ability letter over the level it is taken at); a point you can
+/// spend now is highlighted.
+fn render_skill_plan(ui: &mut egui::Ui, plan: &[(u32, &'static str)], level: u32) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.label(RichText::new("NEXT").size(8.5).strong().color(MUTED));
+        for &(at, slot) in plan {
+            let now = at <= level;
+            let color = if now {
+                GOLD
+            } else if slot == "R" {
+                CYAN
+            } else {
+                SECONDARY
+            };
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(20.0, 26.0), egui::Sense::hover());
+            let painter = ui.painter();
+            painter.rect(
+                rect,
+                CornerRadius::same(5),
+                Color32::from_rgba_unmultiplied(
+                    color.r(),
+                    color.g(),
+                    color.b(),
+                    if now { 60 } else { 18 },
+                ),
+                Stroke::new(1.0, color),
+                egui::StrokeKind::Inside,
+            );
+            painter.text(
+                rect.center_top() + Vec2::new(0.0, 2.0),
+                egui::Align2::CENTER_TOP,
+                slot,
+                egui::FontId::proportional(11.0),
+                color,
+            );
+            painter.text(
+                rect.center_bottom() - Vec2::new(0.0, 2.0),
+                egui::Align2::CENTER_BOTTOM,
+                at.to_string(),
+                egui::FontId::proportional(8.0),
+                if now { GOLD } else { MUTED },
+            );
+        }
+    });
+}
+
+/// Lane CS difference over time: a line around a zero baseline.
+fn cs_sparkline(ui: &mut egui::Ui, samples: &[(u64, i32)], color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(84.0, 18.0), egui::Sense::hover());
+    if samples.len() < 2 {
+        return;
+    }
+    let painter = ui.painter_at(rect);
+    let peak = samples
+        .iter()
+        .map(|(_, d)| d.unsigned_abs())
+        .max()
+        .unwrap_or(0)
+        .max(5) as f32;
+    let (t0, t1) = (samples[0].0 as f32, samples[samples.len() - 1].0 as f32);
+    let span = (t1 - t0).max(1.0);
+    let half = rect.height() / 2.0 - 1.5;
+    let y = |d: i32| rect.center().y - d as f32 / peak * half;
+    painter.line_segment(
+        [Pos2::new(rect.left(), y(0)), Pos2::new(rect.right(), y(0))],
+        Stroke::new(1.0, BORDER),
+    );
+    let points: Vec<Pos2> = samples
+        .iter()
+        .map(|&(t, d)| Pos2::new(rect.left() + (t as f32 - t0) / span * rect.width(), y(d)))
+        .collect();
+    painter.add(egui::Shape::line(points, Stroke::new(1.5, color)));
+}
+
+/// Body of the benchmarking panel: you versus your lane opponent (or the enemy average).
+fn render_benchmark_panel(
+    ui: &mut egui::Ui,
+    bench: &Benchmark,
+    history: &CsDiffHistory,
+    cs_diff: Option<i32>,
+    opacity: f32,
+) {
+    Frame::new()
+        .fill(panel_fill(opacity, 226))
+        .stroke(Stroke::new(1.0, BORDER))
+        .corner_radius(CornerRadius::same(10))
+        .inner_margin(Margin::same(9))
+        .show(ui, |ui| {
+            ui.set_min_width(176.0);
+            egui::Grid::new("riftcore-benchmark-grid")
+                .num_columns(3)
+                .min_row_height(14.0)
+                .spacing([12.0, 1.0])
+                .show(ui, |ui| {
+                    ui.label(RichText::new("BENCHMARK").size(9.5).strong().color(CYAN));
+                    ui.label(RichText::new("YOU").size(8.5).strong().color(MUTED));
+                    ui.label(
+                        RichText::new(short_name(&bench.versus))
+                            .size(8.5)
+                            .strong()
+                            .color(MUTED),
+                    );
+                    ui.end_row();
+                    for line in &bench.lines {
+                        let color = match line.ahead() {
+                            Some(true) => GREEN,
+                            Some(false) => RED,
+                            None => TEXT,
+                        };
+                        ui.label(RichText::new(line.label).size(9.0).strong().color(MUTED));
+                        ui.label(
+                            RichText::new(line.format(line.you))
+                                .size(10.5)
+                                .monospace()
+                                .strong()
+                                .color(color),
+                        );
+                        ui.label(
+                            RichText::new(line.format(line.them))
+                                .size(10.0)
+                                .monospace()
+                                .color(SECONDARY),
+                        );
+                        ui.end_row();
+                    }
+                });
+            if let Some(diff) = cs_diff {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("CS DIFF").size(9.0).strong().color(MUTED));
+                    let color = diff_color(diff as i64);
+                    ui.label(
+                        RichText::new(format!("{diff:+}"))
+                            .size(10.5)
+                            .monospace()
+                            .strong()
+                            .color(color),
+                    );
+                    cs_sparkline(ui, &history.samples, color);
+                });
+            }
+        });
+}
+
+/// Item value difference: item gold held per lane matchup and per team.
+fn render_gold_drawer(
+    ctx: &egui::Context,
+    area: Rect,
+    slot: Rect,
+    state: &mut OverlayRenderState,
+    interactive_rects_out: &mut Vec<Rect>,
+) {
+    let Some(board) = state
+        .live_game
+        .as_ref()
+        .and_then(benchmarks::item_value_board)
+    else {
+        return;
+    };
+    let id = Id::unique("riftcore-overlay-gold");
+    let size = measured_size(ctx, id, Vec2::new(340.0, 210.0));
+    let (pos, _) = drawer_place(state, "gold", area, slot, size);
+    let mut close = false;
+    let area_builder = overlay_area(id)
+        .current_pos(pos)
+        .movable(state.settings.hud_edit_layout);
+    let resp = show_settled(ctx, id, area_builder, |ui| {
+        Frame::new()
+            .fill(panel_fill(state.settings.opacity, 246))
+            .stroke(Stroke::new(1.0, GOLD))
+            .corner_radius(CornerRadius::same(12))
+            .inner_margin(Margin::same(12))
+            .show(ui, |ui| {
+                ui.set_width(314.0);
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("ITEM VALUE DIFFERENCE")
+                            .size(9.5)
+                            .strong()
+                            .color(GOLD),
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        close = overlay_button(ui, "×", false, RED).clicked();
+                    });
+                });
+                let team = board.team_diff();
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("TEAM").size(9.0).strong().color(MUTED));
+                    ui.label(
+                        RichText::new(benchmarks::format_gold(board.ally_total as u64))
+                            .size(12.0)
+                            .strong()
+                            .color(CYAN),
+                    );
+                    ui.label(
+                        RichText::new(benchmarks::format_gold_diff(team))
+                            .size(12.0)
+                            .strong()
+                            .color(diff_color(team)),
+                    );
+                    ui.label(
+                        RichText::new(benchmarks::format_gold(board.enemy_total as u64))
+                            .size(12.0)
+                            .strong()
+                            .color(RED),
+                    );
+                });
+                ui.add_space(4.0);
+                egui::Grid::new("riftcore-gold-grid")
+                    .num_columns(5)
+                    .min_row_height(15.0)
+                    .spacing([10.0, 3.0])
+                    .show(ui, |ui| {
+                        for row in &board.rows {
+                            let name_color = if row.is_me { CYAN } else { TEXT };
+                            let (ally_name, ally_gold) = row
+                                .ally
+                                .as_ref()
+                                .map(|(n, g)| (n.as_str(), benchmarks::format_gold(*g as u64)))
+                                .unwrap_or(("—", String::new()));
+                            let (enemy_name, enemy_gold) = row
+                                .enemy
+                                .as_ref()
+                                .map(|(n, g)| (n.as_str(), benchmarks::format_gold(*g as u64)))
+                                .unwrap_or(("—", String::new()));
+                            ui.label(
+                                RichText::new(ally_name)
+                                    .size(10.0)
+                                    .strong()
+                                    .color(name_color),
+                            );
+                            ui.label(
+                                RichText::new(ally_gold)
+                                    .size(10.0)
+                                    .monospace()
+                                    .color(SECONDARY),
+                            );
+                            let diff = row.diff();
+                            ui.label(
+                                RichText::new(benchmarks::format_gold_diff(diff))
+                                    .size(10.5)
+                                    .monospace()
+                                    .strong()
+                                    .color(diff_color(diff)),
+                            );
+                            ui.label(
+                                RichText::new(enemy_gold)
+                                    .size(10.0)
+                                    .monospace()
+                                    .color(SECONDARY),
+                            );
+                            ui.label(RichText::new(enemy_name).size(10.0).color(TEXT));
+                            ui.end_row();
+                        }
+                    });
+                ui.add_space(3.0);
+                ui.label(
+                    RichText::new("Shop value of items held. Unspent gold is not shown.")
+                        .size(8.5)
+                        .color(MUTED),
+                );
+            });
+    });
+    interactive_rects_out.push(resp.response.rect);
+    remember_drag(
+        &mut state.settings.hud_positions,
+        &mut state.pending_actions.updated_positions,
+        "gold",
+        &resp.response,
+    );
+    if close {
+        state.show_gold_panel = false;
+    }
+}
+
+/// A small tag pill that `horizontal_wrapped` moves to the next line as a whole.
+fn tag_chip(ui: &mut egui::Ui, text: &str, color: Color32) {
+    ui.add(
+        egui::Button::new(RichText::new(text).size(9.0).strong().color(color))
+            .wrap_mode(egui::TextWrapMode::Extend)
+            .fill(Color32::from_rgba_unmultiplied(
+                color.r(),
+                color.g(),
+                color.b(),
+                24,
+            ))
+            .stroke(Stroke::new(1.0, color))
+            .corner_radius(CornerRadius::same(8))
+            .sense(egui::Sense::hover()),
+    );
+}
+
+/// One scouted player: name, rank, champion experience, recent form and tags.
+fn render_scout_card(ui: &mut egui::Ui, card: &ScoutCard) {
+    Frame::new()
+        .fill(Color32::from_rgba_unmultiplied(15, 24, 42, 200))
+        .stroke(Stroke::new(1.0, BORDER))
+        .corner_radius(CornerRadius::same(8))
+        .inner_margin(Margin::same(7))
+        .show(ui, |ui| {
+            // Column width minus this frame's margin and stroke.
+            ui.set_width(SCOUT_COLUMN_WIDTH - 16.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(card.display_name())
+                        .size(10.5)
+                        .strong()
+                        .color(TEXT),
+                );
+                ui.label(
+                    RichText::new(&card.champion_name)
+                        .size(9.5)
+                        .color(SECONDARY),
+                );
+            });
+            if let Some(error) = card.error.as_deref() {
+                ui.label(RichText::new(error).size(9.0).color(RED));
+                return;
+            }
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(&card.rank).size(9.5).strong().color(GOLD));
+                if let Some(wr) = card.ranked_win_rate() {
+                    let (w, l) = card.ranked_record.unwrap_or_default();
+                    ui.label(
+                        RichText::new(format!("{wr}% · {w}W {l}L"))
+                            .size(9.0)
+                            .color(if wr >= 50 { GREEN } else { SECONDARY }),
+                    );
+                }
+            });
+            let mut facts = Vec::new();
+            if card.recent_games > 0 {
+                facts.push(format!(
+                    "{}/{} recent on champ",
+                    card.champ_games, card.recent_games
+                ));
+            }
+            if let Some(points) = card.mastery_points {
+                facts.push(format!("{} mastery", compact_count(points)));
+            }
+            if let Some(kda) = card.recent_kda {
+                facts.push(format!("{kda:.1} KDA"));
+            }
+            if !facts.is_empty() {
+                ui.label(RichText::new(facts.join(" · ")).size(8.5).color(SECONDARY));
+            }
+            if !card.tags.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 3.0);
+                    for tag in &card.tags {
+                        let color = match tag.tone {
+                            TagTone::Good => GREEN,
+                            TagTone::Bad => RED,
+                            TagTone::Neutral => SECONDARY,
+                        };
+                        tag_chip(ui, &tag.text, color);
+                    }
+                });
+            }
+        });
+}
+
+/// Loading-screen scouting: allies and enemies side by side.
+fn render_scout_drawer(
+    ctx: &egui::Context,
+    area: Rect,
+    slot: Rect,
+    state: &mut OverlayRenderState,
+    interactive_rects_out: &mut Vec<Rect>,
+) {
+    let id = Id::unique("riftcore-overlay-scout");
+    let size = measured_size(ctx, id, Vec2::new(560.0, 320.0));
+    let (pos, bottom_limit) = drawer_place(state, "scout", area, slot, size);
+    let mut close = false;
+    let area_builder = overlay_area(id)
+        .current_pos(pos)
+        .movable(state.settings.hud_edit_layout);
+    let resp = show_settled(ctx, id, area_builder, |ui| {
+        Frame::new()
+            .fill(panel_fill(state.settings.opacity, 246))
+            .stroke(Stroke::new(1.0, CYAN))
+            .corner_radius(CornerRadius::same(12))
+            .inner_margin(Margin::same(12))
+            .show(ui, |ui| {
+                ui.set_width(2.0 * SCOUT_COLUMN_WIDTH + 8.0);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("SCOUTING").size(10.0).strong().color(CYAN));
+                    if let Some(status) = state.scout_status.as_deref() {
+                        ui.label(RichText::new(status).size(9.0).color(SECONDARY));
+                    }
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        close = overlay_button(ui, "×", false, RED).clicked();
+                    });
+                });
+                if state.scouting.is_empty() {
+                    if state.scout_status.is_none() {
+                        ui.label(
+                            RichText::new("Scouting starts when the match loads.")
+                                .size(9.5)
+                                .color(MUTED),
+                        );
+                    }
+                    return;
+                }
+                let list_height = (bottom_limit - ui.cursor().top() - 16.0).clamp(120.0, 640.0);
+                ScrollArea::vertical()
+                    .id_salt("overlay-scout-cards")
+                    .max_height(list_height)
+                    .show(ui, |ui| {
+                        ui.horizontal_top(|ui| {
+                            for (ally, title, accent) in
+                                [(true, "ALLIES", CYAN), (false, "ENEMIES", RED)]
+                            {
+                                ui.allocate_ui_with_layout(
+                                    Vec2::new(SCOUT_COLUMN_WIDTH, 0.0),
+                                    Layout::top_down(Align::Min),
+                                    |ui| {
+                                        ui.set_width(SCOUT_COLUMN_WIDTH);
+                                        ui.label(
+                                            RichText::new(title).size(9.0).strong().color(accent),
+                                        );
+                                        for card in state.scouting.iter().filter(|c| c.ally == ally)
+                                        {
+                                            render_scout_card(ui, card);
+                                        }
+                                    },
+                                );
+                            }
+                        });
+                    });
+            });
+    });
+    interactive_rects_out.push(resp.response.rect);
+    remember_drag(
+        &mut state.settings.hud_positions,
+        &mut state.pending_actions.updated_positions,
+        "scout",
+        &resp.response,
+    );
+    if close {
+        state.show_scout_panel = false;
+        state.scout_dismissed = true;
+    }
 }
 
 /// Body of the objectives dock: soonest objective first, sized by the dock-size setting.
@@ -1761,6 +2404,43 @@ mod tests {
         .expect("valid payload")
     }
 
+    /// Nine scouted players with long names and a full set of tags (the widest cards).
+    fn scout_cards() -> Vec<ScoutCard> {
+        use crate::domain::scouting::{ScoutTag, ScoutTarget};
+        (0..9)
+            .map(|i| {
+                let target = ScoutTarget {
+                    riot_id: format!("AVeryLongName{i}#EUW"),
+                    champion_name: "Nunu & Willump".into(),
+                    champion_id: 20,
+                    position: "JUNGLE".into(),
+                    ally: i < 4,
+                };
+                let mut card = ScoutCard::failed(&target, "");
+                card.error = (i == 8).then(|| "Riot API rate limit reached".to_string());
+                card.rank = "Grandmaster 1234 LP (Flex)".into();
+                card.ranked_record = Some((120, 98));
+                card.mastery_points = Some(1_234_567);
+                card.recent_games = 4;
+                card.champ_games = 3;
+                card.recent_kda = Some(4.25);
+                card.tags = [
+                    ("Nunu & Willump main", TagTone::Good),
+                    ("Autofilled (Support main)", TagTone::Bad),
+                    ("3 win streak", TagTone::Good),
+                    ("High team damage", TagTone::Good),
+                    ("New to this tier", TagTone::Neutral),
+                ]
+                .map(|(text, tone)| ScoutTag {
+                    text: text.into(),
+                    tone,
+                })
+                .to_vec();
+                card
+            })
+            .collect()
+    }
+
     /// Renders one HUD frame headlessly on a `screen` (points) at `ppp` and returns the
     /// interactive rects `render_overlay_ui` reports.
     fn frame(
@@ -1816,6 +2496,12 @@ mod tests {
                 (false, false, 1, false),
                 (false, false, 2, false),
                 (false, false, 3, false),
+                (false, false, 4, false),
+                (false, false, 5, false),
+                (false, true, 4, false),
+                (true, false, 4, false),
+                (true, true, 5, false),
+                (false, false, 5, true),
                 (false, true, 0, false),
                 (false, true, 3, false),
                 (true, false, 0, false),
@@ -1843,6 +2529,9 @@ mod tests {
                 state.show_mayhem_cards = drawer == 1;
                 state.show_build_panel = drawer == 2;
                 state.show_timers_panel = drawer == 3;
+                state.show_gold_panel = drawer == 4;
+                state.show_scout_panel = drawer == 5;
+                state.scouting = scout_cards();
                 let ctx = egui::Context::default();
                 let first = frame(&ctx, &mut state, size, ppp);
                 let rects = frame(&ctx, &mut state, size, ppp);
@@ -1850,8 +2539,9 @@ mod tests {
                     "{display:?} aram={aram} flip={flip} drawer={drawer} big_map={big_map}"
                 );
                 assert_eq!(first, rects, "first frame already final: {tag}");
-                // scoreboard, ally ults, player panel, toolbar + dock (SR) or relics (ARAM).
-                let panels = 5 + usize::from(drawer > 0);
+                // scoreboard, ally ults, benchmark, player panel, toolbar + dock (SR) or
+                // relics (ARAM).
+                let panels = 6 + usize::from(drawer > 0);
                 assert_eq!(rects.len(), panels, "{tag}: {rects:?}");
 
                 let zones = [
@@ -1894,8 +2584,8 @@ mod tests {
             frame(&ctx, &mut state, size, ppp)
         };
         let aram = rects_for("ARAM");
-        // Scoreboard, ally ults, player panel, toolbar and the health relic timers.
-        assert_eq!(aram.len(), 5, "{aram:?}");
+        // Scoreboard, ally ults, benchmark, player panel, toolbar and the health relics.
+        assert_eq!(aram.len(), 6, "{aram:?}");
         // ARAM Mayhem reports gameMode "KIWI".
         assert_eq!(rects_for("KIWI"), aram);
     }
@@ -1971,16 +2661,22 @@ mod tests {
                 "toolbar",
                 "build",
                 "timers",
+                "benchmark",
+                "gold",
+                "scout",
             ] {
                 state.settings.hud_positions.insert(key.to_string(), saved);
             }
-            for drawer in [2, 3] {
+            state.scouting = scout_cards();
+            for drawer in [2, 3, 4, 5] {
                 state.show_build_panel = drawer == 2;
                 state.show_timers_panel = drawer == 3;
+                state.show_gold_panel = drawer == 4;
+                state.show_scout_panel = drawer == 5;
                 let ctx = egui::Context::default();
                 frame(&ctx, &mut state, size, ppp);
                 let rects = frame(&ctx, &mut state, size, ppp);
-                assert_eq!(rects.len(), 6, "{saved:?}");
+                assert_eq!(rects.len(), 7, "{saved:?} drawer={drawer}");
                 for rect in rects {
                     assert!(
                         screen.expand(0.5).contains_rect(rect),

@@ -520,6 +520,20 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     "Display live CS/min rate",
                     &mut s.hud_cs_benchmark,
                 );
+                changed |= toggle_row(
+                    ui,
+                    &palette,
+                    "Benchmarking Panel",
+                    "CS/min, item gold, KP, KDA and level vs your lane opponent",
+                    &mut s.hud_benchmark,
+                );
+                changed |= toggle_row(
+                    ui,
+                    &palette,
+                    "Item Value Difference",
+                    "Item gold per lane matchup and team total",
+                    &mut s.hud_item_value_diff,
+                );
             });
             panel(&mut columns[1], &palette, |ui| {
                 panel_title(
@@ -532,7 +546,7 @@ pub fn render_hud_settings(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
                     ui,
                     &palette,
                     "Ability Rank Display",
-                    "Show current Q/W/E/R skill ranks",
+                    "Q/W/E/R ranks and the next 5 skill points",
                     &mut s.hud_skill_order,
                 );
                 changed |= toggle_row(

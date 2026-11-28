@@ -278,6 +278,15 @@ impl PathBOverlay {
         self.host.set_repaint_context(ctx.clone());
     }
 
+    /// Scouting cards and status for the current match (see `RiftCoreApp::update_scouting`).
+    pub fn set_scouting(
+        &mut self,
+        cards: Vec<riftcore_native::domain::scouting::ScoutCard>,
+        status: Option<String>,
+    ) {
+        self.render.set_scouting(cards, status);
+    }
+
     pub fn close(&mut self) {
         self.host.close();
     }

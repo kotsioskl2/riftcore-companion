@@ -95,6 +95,9 @@ pub struct AppSettings {
     pub hud_map_ward_pins: bool,
     pub jungle_start_buff: String,
     pub hud_aram_health_timers: bool,
+    pub hud_benchmark: bool,
+    pub hud_item_value_diff: bool,
+    pub hud_loading_scout: bool,
     pub hud_mode: String,
     pub hud_minimap_scale: f32,
     pub hud_minimap_flip: bool,
@@ -143,6 +146,9 @@ impl Default for AppSettings {
             hud_map_ward_pins: false,
             jungle_start_buff: "red".to_string(),
             hud_aram_health_timers: true,
+            hud_benchmark: true,
+            hud_item_value_diff: true,
+            hud_loading_scout: true,
             hud_mode: "integrated".to_string(),
             hud_minimap_scale: 2.16,
             hud_minimap_flip: false,
@@ -599,6 +605,9 @@ fn serialize_settings_toml(
     push_kv_bool(&mut out, "hud_map_ward_pins", s.hud_map_ward_pins);
     push_kv_str(&mut out, "jungle_start_buff", &s.jungle_start_buff);
     push_kv_bool(&mut out, "hud_aram_health_timers", s.hud_aram_health_timers);
+    push_kv_bool(&mut out, "hud_benchmark", s.hud_benchmark);
+    push_kv_bool(&mut out, "hud_item_value_diff", s.hud_item_value_diff);
+    push_kv_bool(&mut out, "hud_loading_scout", s.hud_loading_scout);
     push_kv_str(&mut out, "hud_mode", &s.hud_mode);
     push_kv_f32(&mut out, "hud_minimap_scale", s.hud_minimap_scale);
     push_kv_bool(&mut out, "hud_minimap_flip", s.hud_minimap_flip);
@@ -889,6 +898,13 @@ fn parse_settings_toml(
                 }
                 "hud_aram_health_timers" => {
                     settings.hud_aram_health_timers = val.as_bool().ok_or("expected bool")?
+                }
+                "hud_benchmark" => settings.hud_benchmark = val.as_bool().ok_or("expected bool")?,
+                "hud_item_value_diff" => {
+                    settings.hud_item_value_diff = val.as_bool().ok_or("expected bool")?
+                }
+                "hud_loading_scout" => {
+                    settings.hud_loading_scout = val.as_bool().ok_or("expected bool")?
                 }
                 "hud_mode" => {
                     settings.hud_mode = val.as_str().ok_or("expected string")?.to_string()

@@ -1018,6 +1018,18 @@ pub fn next_skill_up(level: u32, ranks: [u32; 4], order: &[String]) -> Option<&'
             rank < if r_basic { 6 } else { 5 } && level > 2 * rank
         }
     };
+    // An ultimate rank the order has due by this level always comes first, even when a
+    // basic ability is behind the order (R at 6/11/16).
+    if !r_basic && can_rank(3) {
+        let due = order
+            .iter()
+            .take(level as usize)
+            .filter(|s| slot_of(s) == Some(3))
+            .count() as u32;
+        if due > ranks[3] {
+            return Some(SKILL_SLOTS[3]);
+        }
+    }
     let mut expected = [0u32; 4];
     for slot in order.iter().filter_map(|s| slot_of(s)) {
         expected[slot] += 1;
@@ -1029,6 +1041,29 @@ pub fn next_skill_up(level: u32, ranks: [u32; 4], order: &[String]) -> Option<&'
         .into_iter()
         .find(|&slot| can_rank(slot))
         .map(|slot| SKILL_SLOTS[slot])
+}
+
+/// The next `count` skill points as `(champion level, ability)`, starting with any point
+/// that is unspent now, by playing [`next_skill_up`] forward from the current `ranks`.
+pub fn upcoming_skill_ups(
+    ranks: [u32; 4],
+    order: &[String],
+    count: usize,
+) -> Vec<(u32, &'static str)> {
+    let mut ranks = ranks;
+    let mut plan = Vec::with_capacity(count);
+    let mut level = ranks.iter().sum::<u32>() + 1;
+    while plan.len() < count && level <= 18 {
+        let Some(slot) = next_skill_up(level, ranks, order) else {
+            break;
+        };
+        if let Some(idx) = SKILL_SLOTS.iter().position(|s| *s == slot) {
+            ranks[idx] += 1;
+        }
+        plan.push((level, slot));
+        level += 1;
+    }
+    plan
 }
 
 /// Team kill totals `(your team, enemy team)` for `team` (`ORDER`/`CHAOS`).
@@ -1409,6 +1444,23 @@ mod tests {
         // Off-order ranks: level 2 can't take Q rank 2 (needs level 3).
         assert_eq!(next_skill_up(2, [1, 0, 0, 0], &o), Some("E"));
         assert_eq!(next_skill_up(18, [5, 5, 5, 3], &o), None);
+    }
+
+    #[test]
+    fn upcoming_skill_ups_plays_the_order_forward() {
+        let o = order("Q > E > W");
+        let plan = upcoming_skill_ups([3, 1, 1, 0], &o, 5);
+        assert_eq!(
+            plan,
+            vec![(6, "R"), (7, "Q"), (8, "E"), (9, "Q"), (10, "E")]
+        );
+        // Every point spent at 18: nothing left to plan.
+        assert!(upcoming_skill_ups([5, 5, 5, 3], &o, 5).is_empty());
+        // Stops at level 18.
+        assert_eq!(upcoming_skill_ups([5, 4, 5, 3], &o, 5), vec![(18, "W")]);
+        // Off-order basics never push R back from 11.
+        let plan = upcoming_skill_ups([5, 2, 2, 1], &o, 2);
+        assert_eq!(plan[0], (11, "R"));
     }
 
     #[test]
