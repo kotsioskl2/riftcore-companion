@@ -262,6 +262,12 @@ impl LiveGameState {
         self.map_number == 11 || self.map_name.eq_ignore_ascii_case("Map11")
     }
 
+    /// True on Howling Abyss: ARAM, ARAM Mayhem (reported as `KIWI`) or any other map 12 game.
+    /// Gates the ARAM-only HUD such as the health relic timers.
+    pub fn is_aram(&self) -> bool {
+        is_aram_mode(&self.game_mode, self.map_number)
+    }
+
     /// Returns allied teammates (excluding active player) for manual ally R reference.
     pub fn allied_teammates(&self) -> Vec<AllyTeammate> {
         let own_team = if !self.active_player.team.is_empty() {
@@ -504,6 +510,14 @@ pub fn countdown_secs(ready_at: f64, now: f64) -> u64 {
     } else {
         0
     }
+}
+
+/// [`LiveGameState::is_aram`] for callers holding raw `gameMode` / `mapNumber` values.
+pub fn is_aram_mode(game_mode: &str, map_number: u32) -> bool {
+    let mode = game_mode.trim();
+    map_number == crate::domain::items::MAP_ARAM
+        || mode.eq_ignore_ascii_case("ARAM")
+        || mode.eq_ignore_ascii_case("KIWI")
 }
 
 /// Convenience helper for raw `allgamedata` JSON payloads.
@@ -1195,6 +1209,26 @@ mod tests {
             "events": { "Events": [] }
         });
         assert!(objective_timers_from_json(&aram).is_empty());
+    }
+
+    #[test]
+    fn aram_mayhem_counts_as_aram_but_not_summoners_rift() {
+        let game = |mode: &str, map: u32| {
+            LiveGameState::from_allgamedata(
+                &json!({ "gameData": { "gameMode": mode, "mapNumber": map } }),
+            )
+            .expect("valid payload")
+        };
+        // ARAM Mayhem's Live Client gameMode is "KIWI" on Howling Abyss (map 12).
+        for (mode, map) in [("ARAM", 12), ("KIWI", 12), ("kiwi", 0), ("SOMEEVENT", 12)] {
+            let state = game(mode, map);
+            assert!(state.is_aram(), "{mode} on map {map}");
+            assert!(!state.is_summoners_rift(), "{mode} on map {map}");
+        }
+        for (mode, map) in [("CLASSIC", 11), ("CHERRY", 30), ("URF", 11), ("", 0)] {
+            assert!(!game(mode, map).is_aram(), "{mode} on map {map}");
+        }
+        assert!(is_aram_mode(" Kiwi ", 0));
     }
 
     fn sr_state(game_time: f64, events: Value) -> LiveGameState {

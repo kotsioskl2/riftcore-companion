@@ -785,7 +785,8 @@ pub fn render_overlay_ui(
                 }
             }
 
-            if state.settings.hud_aram_health_timers && game_mode.eq_ignore_ascii_case("ARAM") {
+            if state.settings.hud_aram_health_timers && live_ref.is_some_and(LiveGameState::is_aram)
+            {
                 // Default: left edge, mid-height (under the ally panel), clear of League's chat.
                 let relic_id = Id::unique("riftcore-hud-aram-relics");
                 let relic_size = measured_size(&ctx, relic_id, Vec2::new(220.0, 100.0));
@@ -1878,6 +1879,25 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn aram_mayhem_gets_the_same_panels_as_aram() {
+        let (size, ppp) = canvas(([1920, 1080], 96));
+        let rects_for = |mode: &str| {
+            let mut state = OverlayRenderState::default();
+            state.apply_live_game(Some(busy_game(mode, 12)));
+            state.settings.hud_edit_layout = true;
+            state.passthrough_active = false;
+            let ctx = egui::Context::default();
+            frame(&ctx, &mut state, size, ppp);
+            frame(&ctx, &mut state, size, ppp)
+        };
+        let aram = rects_for("ARAM");
+        // Scoreboard, ally ults, player panel, toolbar and the health relic timers.
+        assert_eq!(aram.len(), 5, "{aram:?}");
+        // ARAM Mayhem reports gameMode "KIWI".
+        assert_eq!(rects_for("KIWI"), aram);
     }
 
     #[test]

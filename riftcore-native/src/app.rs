@@ -2644,14 +2644,7 @@ impl RiftCoreApp {
             });
             self.render_live_summary(ui);
             if self.settings.hud_aram_health_timers
-                && self
-                    .snapshot
-                    .live_game
-                    .as_ref()
-                    .and_then(|live| live.get("gameData"))
-                    .and_then(|data| data.get("gameMode"))
-                    .and_then(Value::as_str)
-                    .is_some_and(|mode| mode.eq_ignore_ascii_case("ARAM"))
+                && self.snapshot.live_game.as_ref().is_some_and(live_is_aram)
             {
                 self.render_aram_relic_timers(ui);
             }
@@ -6829,6 +6822,7 @@ impl RiftCoreApp {
                     .and_then(|data| data.get("gameMode"))
                     .and_then(Value::as_str)
                     .unwrap_or("LIVE");
+                let is_aram = live.is_some_and(live_is_aram);
 
                 match self.settings.hud_mode.as_str() {
                     "bar" => {
@@ -7162,7 +7156,7 @@ impl RiftCoreApp {
                         .push(dock_response.response.rect);
                 }
 
-                if self.settings.hud_aram_health_timers && game_mode.eq_ignore_ascii_case("ARAM") {
+                if self.settings.hud_aram_health_timers && is_aram {
                     let response =
                         egui::Area::new(ui.make_persistent_id("riftcore-hud-aram-relics"))
                             .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(20.0, -110.0))
@@ -7375,9 +7369,7 @@ impl RiftCoreApp {
                                                 self.show_mayhem_cards = false;
                                             }
                                         }
-                                        if self.settings.hud_jungle_pathing
-                                            && !game_mode.eq_ignore_ascii_case("ARAM")
-                                        {
+                                        if self.settings.hud_jungle_pathing && !is_aram {
                                             if let Some((step, camp, remaining, active)) =
                                                 jungle_route_status(
                                                     clock,
@@ -9264,6 +9256,21 @@ fn tree_name(id: u32) -> &'static str {
         .find(|(tree_id, _)| *tree_id == id)
         .map(|(_, name)| *name)
         .unwrap_or("Precision")
+}
+
+/// ARAM, ARAM Mayhem (`KIWI`) or any Howling Abyss game, from raw Live Client data.
+fn live_is_aram(live: &Value) -> bool {
+    let data = live.get("gameData");
+    let mode = data
+        .and_then(|data| data.get("gameMode"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let map = data
+        .and_then(|data| data.get("mapNumber"))
+        .and_then(Value::as_u64)
+        .and_then(|map| u32::try_from(map).ok())
+        .unwrap_or(0);
+    riftcore_native::domain::live_game::is_aram_mode(mode, map)
 }
 
 fn spell_name(id: i64) -> &'static str {

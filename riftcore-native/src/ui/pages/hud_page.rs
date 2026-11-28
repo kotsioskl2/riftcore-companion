@@ -49,8 +49,7 @@ pub fn render(ctx: &mut PageContext<'_>, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         render_live_summary(ctx, ui, &live);
 
-        if ctx.store.settings.hud_aram_health_timers && live.game_mode.eq_ignore_ascii_case("ARAM")
-        {
+        if ctx.store.settings.hud_aram_health_timers && live.is_aram() {
             ui.add_space(8.0);
             render_aram_relic_timers(ctx, ui);
         }
